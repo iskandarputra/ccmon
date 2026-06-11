@@ -1,0 +1,188 @@
+/* ── projects view ───────────────────────────────────────────────────────── */
+
+/* header controls */
+
+.prj-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 10px;
+  min-width: 0;
+}
+
+.prj-search {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 4.5px 10px;
+  width: 180px;
+  outline: none;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.prj-search::placeholder {
+  color: var(--text-faint);
+}
+.prj-search:focus {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: var(--bg0);
+}
+
+.prj-sortwrap {
+  position: relative;
+  display: inline-flex;
+}
+.prj-sortwrap::after {
+  content: '▾';
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 9px;
+  color: var(--text-faint);
+}
+
+.prj-sort {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 4.5px 24px 4.5px 10px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.prj-sort:hover {
+  color: var(--text);
+}
+.prj-sort:focus {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+}
+.prj-sort option {
+  background: var(--bg1);
+  color: var(--text);
+}
+
+.prj-summary {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* card grid */
+
+.prj-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.prj-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px 15px 12px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.prj-card:hover {
+  border-color: color-mix(in srgb, var(--text-faint) 35%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 40%, var(--bg0));
+}
+
+.prj-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prj-name {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prj-path {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* sparkline */
+
+.prj-spark {
+  margin: 0 -3px;
+}
+
+.prj-spark-empty {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+/* stat row */
+
+.prj-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 9px 10px;
+  margin: 0;
+}
+
+.prj-stat {
+  min-width: 0;
+}
+.prj-stat dt {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  color: var(--text-faint);
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+.prj-stat dd {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prj-stat dd.prj-hot {
+  color: var(--amber);
+}
+.prj-stat dd.prj-dim {
+  color: var(--text-dim);
+}

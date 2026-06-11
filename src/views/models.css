@@ -1,0 +1,184 @@
+/* ModelsView — per-model economics (.mdl- prefix) */
+
+/* stacked area legend */
+.mdl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 10px;
+  padding: 0 4px;
+}
+.mdl-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+.mdl-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2.5px;
+  flex: none;
+}
+
+/* what-if: all traffic re-priced onto one model */
+.mdl-whatif {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 2px 4px;
+}
+.mdl-wi-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 92px 96px;
+  align-items: center;
+  gap: 12px;
+}
+.mdl-wi-name {
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mdl-wi-track {
+  height: 9px;
+  background: var(--bg2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.mdl-wi-track i {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+}
+.mdl-wi-row b {
+  color: var(--text);
+  font-weight: 500;
+  text-align: right;
+}
+.mdl-wi-delta {
+  color: var(--text-faint);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* cache economics */
+.mdl-cache {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+  padding: 4px 4px 2px;
+}
+.mdl-cache-hero {
+  min-width: 200px;
+}
+.mdl-cache-saved {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ok);
+}
+.mdl-cache-sub {
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+.mdl-cache-bar {
+  flex: 1;
+  min-width: 220px;
+}
+.mdl-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+  overflow: hidden;
+}
+.mdl-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--amber) 80%, transparent);
+}
+.mdl-bar-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 7px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+.mdl-bar-caption .mdl-saved-pct {
+  color: var(--ok);
+}
+.mdl-cache-stats {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+.mdl-cstat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mdl-cstat span {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+}
+.mdl-cstat b {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* models table */
+.mdl-tbl-wrap {
+  max-height: none;
+  overflow-x: auto;
+}
+.mdl-tbl-wrap .tbl {
+  min-width: 920px;
+}
+.mdl-chip {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--amber) 50%, transparent);
+  border-radius: 3px;
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  color: var(--amber);
+  vertical-align: 1px;
+}
+
+/* pricing meta footer */
+.mdl-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 6px 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+.mdl-meta b {
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.mdl-meta-sep {
+  opacity: 0.45;
+}

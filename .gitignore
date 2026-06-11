@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist-electron/
+release/
+*.tsbuildinfo
+
+# generated assets (npm run icon recreates this; CI does too)
+build/icon.png
+
+# promo footage (npm run promo recreates everything here; scripts/promo/ stays tracked)
+/promo/
+
+# test output
+coverage/
+
+# editors and OS noise
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+
+# logs
+*.log

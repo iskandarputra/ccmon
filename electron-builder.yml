@@ -1,0 +1,50 @@
+appId: dev.iskandar.ccmon
+productName: ccmon
+copyright: © 2026 Iskandar Putra
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist-electron/**/*
+  - dist/renderer/**/*
+  - build/icon.png
+  - package.json
+
+asar: true
+compression: normal
+npmRebuild: false
+
+linux:
+  icon: build/icon.png
+  category: Utility
+  synopsis: Real-time Claude Code usage monitor
+  maintainer: Iskandar Putra <iskandarputra1995@gmail.com>
+  target:
+    - deb
+    - AppImage
+
+deb:
+  priority: optional
+
+win:
+  icon: build/icon.png
+  target:
+    - nsis
+    - portable
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+mac:
+  icon: build/icon.png
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+
+artifactName: ${name}-${version}-${os}-${arch}.${ext}

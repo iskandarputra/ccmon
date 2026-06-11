@@ -1,0 +1,529 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   blocks view · 5-hour billing windows
+   all classes prefixed .blk- · colors via theme tokens only
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── hero (active block) ─────────────────────────────────────────────────── */
+
+.blk-hero-top {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 44px;
+  align-items: start;
+  padding: 4px 0 2px;
+}
+
+.blk-sub-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+
+.blk-big {
+  font-family: var(--mono);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.blk-big-count {
+  color: var(--text-dim);
+}
+
+.blk-hero-meta {
+  justify-self: end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  min-width: 0;
+}
+
+.blk-meta-line {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* model chips */
+
+.blk-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.blk-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1.5px 7px;
+  white-space: nowrap;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.blk-chip:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text-faint) 50%, transparent);
+}
+
+.blk-chip-more {
+  color: var(--text-faint);
+}
+
+/* burn badge — colored by --blk-burn (ok / warn / bad) */
+
+.blk-burn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--blk-burn, var(--ok));
+  background: color-mix(in srgb, var(--blk-burn, var(--ok)) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--blk-burn, var(--ok)) 30%, transparent);
+  border-radius: 6px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+.blk-burn-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blk-burn, var(--ok));
+  flex: none;
+}
+
+/* elapsed-time progress */
+
+.blk-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 2px;
+}
+
+.blk-progress-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  flex: none;
+}
+
+.blk-progress-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.blk-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--amber) 55%, transparent),
+    var(--amber)
+  );
+  transition: width 1s linear;
+}
+
+/* token split */
+
+.blk-tokens {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.blk-token {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--bg2);
+  border-radius: var(--radius-sm);
+  padding: 7px 11px;
+  min-width: 0;
+}
+
+.blk-swatch {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: none;
+  align-self: center;
+}
+
+.blk-token-label {
+  color: var(--text-faint);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.blk-token b {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* projection line */
+
+.blk-projection {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
+/* limit gauge — colored by --blk-status (ok / warn / bad) */
+
+.blk-limit {
+  margin-top: 14px;
+}
+
+.blk-limit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.blk-limit-head .blk-sub-label {
+  margin-bottom: 0;
+}
+
+.blk-limit-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.blk-gauge {
+  position: relative;
+  height: 10px;
+  background: var(--bg2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.blk-gauge-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--blk-status, var(--ok));
+  border-radius: 5px 0 0 5px;
+  transition: width 1s linear;
+}
+
+/* projected extension — hatched translucent */
+.blk-gauge-proj {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--blk-status, var(--ok)) 38%, transparent) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+.blk-gauge-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+.blk-gauge-tick-hard {
+  background: color-mix(in srgb, var(--bad) 70%, transparent);
+}
+
+.blk-limit-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+}
+
+.blk-limit-status {
+  color: var(--blk-status, var(--text-faint));
+}
+
+/* usage-limit reset notice */
+
+.blk-reset {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 28%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+/* idle hero */
+
+.blk-idle {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+  padding: 22px 0;
+}
+
+/* ── history list ────────────────────────────────────────────────────────── */
+
+.blk-history {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 520px;
+  overflow-y: auto;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+
+.blk-row {
+  display: grid;
+  /* range column fits 12-hour locales — '02:00 PM – 06:24 PM' ≈ 125px */
+  grid-template-columns: 52px 132px minmax(110px, 1fr) 68px 76px 72px minmax(84px, auto) 16px;
+  gap: 12px;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 10px;
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+}
+.blk-row:hover {
+  background: var(--bg2);
+}
+
+/* active block — accent left border */
+.blk-row-live {
+  border-left-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 4%, transparent);
+}
+.blk-row-live:hover {
+  background: color-mix(in srgb, var(--amber) 7%, transparent);
+}
+
+.blk-live-tag {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--amber);
+  border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+  border-radius: 4px;
+  padding: 0.5px 5px;
+}
+
+.blk-col-day {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.blk-col-range {
+  display: flex;
+  align-items: center;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.blk-col-bar {
+  min-width: 0;
+}
+
+.blk-bar-track {
+  display: block;
+  height: 6px;
+  background: var(--bg2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.blk-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--chart-4) 75%, transparent);
+}
+
+.blk-col-tok {
+  color: var(--text-dim);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.blk-col-cost {
+  color: var(--amber);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.blk-col-entries {
+  color: var(--text-faint);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.blk-col-models {
+  display: flex;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.blk-col-burn {
+  display: flex;
+  justify-content: center;
+}
+
+/* gap rows — collapsed dim divider */
+
+.blk-row-gap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  border-left: 2px solid transparent;
+}
+.blk-row-gap:hover {
+  background: transparent;
+}
+
+.blk-gap-rule {
+  flex: 1;
+  height: 0;
+  border-top: 1px dashed var(--line);
+}
+
+.blk-gap-text {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+/* ── live plan limits (opt-in) ───────────────────────────────────────────── */
+
+/* ── block utilization histogram ─────────────────────────────────────────── */
+
+.blk-hist {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 4px;
+}
+
+.blk-hist-bars {
+  flex: 1;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.blk-hist-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 32px;
+  align-items: center;
+  gap: 12px;
+}
+
+.blk-hist-label {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.blk-hist-track {
+  height: 9px;
+  background: var(--bg2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.blk-hist-track i {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--chart-2) 75%, transparent);
+}
+
+.blk-hist-row b {
+  color: var(--text);
+  font-weight: 500;
+  text-align: right;
+}
+
+.blk-hist-facts {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+.blk-hist-facts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.blk-hist-facts span {
+  color: var(--text-faint);
+}
+.blk-hist-facts b {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ── responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 1040px) {
+  /* hero: cost + countdown side by side, meta drops underneath, left-aligned */
+  .blk-hero-top {
+    grid-template-columns: auto auto;
+    gap: 16px 40px;
+  }
+  .blk-hero-meta {
+    grid-column: 1 / -1;
+    justify-self: start;
+    align-items: flex-start;
+  }
+
+  /* history: drop the low-value columns, keep day/range/bar/tok/cost */
+  .blk-row {
+    grid-template-columns: 52px 132px minmax(80px, 1fr) 68px 76px;
+  }
+  .blk-col-entries,
+  .blk-col-models,
+  .blk-col-burn {
+    display: none;
+  }
+}
