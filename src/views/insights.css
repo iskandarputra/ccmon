@@ -1,0 +1,192 @@
+/* insights view — derived analytics (.ins- prefix) */
+
+/* cache economics: two comparison bars + fact list */
+.ins-cache {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.ins-cache-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.ins-cache-label {
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.ins-cache-row b {
+  color: var(--text);
+  font-weight: 500;
+  min-width: 76px;
+  text-align: right;
+}
+
+.ins-cache-track {
+  height: 9px;
+  background: var(--bg2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.ins-cache-fill {
+  height: 100%;
+  border-radius: 5px;
+}
+
+.ins-facts {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px 22px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.ins-facts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ins-facts span {
+  color: var(--text-faint);
+}
+
+.ins-facts b {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* fact list opening a panel (no chart above it) — drop the divider */
+.ins-facts-top {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* tool usage — two-column bar list */
+.ins-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 9px 40px;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 4px;
+}
+
+.ins-tool {
+  display: grid;
+  grid-template-columns: minmax(120px, 170px) 1fr 52px 80px;
+  align-items: center;
+  gap: 12px;
+}
+
+.ins-tool-name {
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ins-tool-track {
+  height: 8px;
+  background: var(--bg2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ins-tool-track i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--chart-4) 70%, transparent);
+}
+
+.ins-tool b {
+  color: var(--text);
+  font-weight: 500;
+  text-align: right;
+}
+
+.ins-tool-cost {
+  color: var(--text-faint);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* plan-value placeholder when no subscription is detected */
+.ins-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* model economics: inline share bar inside the table */
+.ins-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 96px;
+}
+
+.ins-share i {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--chart-2) 75%, transparent);
+  min-width: 2px;
+}
+
+/* records list */
+.ins-records {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.ins-records li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.ins-records li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.ins-records span {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.ins-records b {
+  color: var(--text);
+  font-weight: 500;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

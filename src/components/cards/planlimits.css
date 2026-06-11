@@ -1,0 +1,207 @@
+/* live plan limits — shared by overview + blocks (.plim- prefix) */
+
+.plim-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 18px 32px;
+}
+
+.plim-account {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+.plim-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--mono);
+}
+
+.plim-name {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+/* plan + tier badge — the headline fact of the account, so it gets size,
+   a slow gradient sheen, and a breathing glow */
+.plim-plan {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--amber);
+  border: 1px solid color-mix(in srgb, var(--amber) 50%, transparent);
+  border-radius: 6px;
+  padding: 2.5px 10px;
+  white-space: nowrap;
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--amber) 8%, transparent) 25%,
+    color-mix(in srgb, var(--amber) 22%, transparent) 50%,
+    color-mix(in srgb, var(--amber) 8%, transparent) 75%
+  );
+  background-size: 220% 100%;
+  animation:
+    plim-badge-sheen 3.4s ease-in-out infinite,
+    plim-badge-glow 3.4s ease-in-out infinite;
+}
+
+@keyframes plim-badge-sheen {
+  0%, 100% { background-position: 0% 0; }
+  50%      { background-position: 100% 0; }
+}
+
+@keyframes plim-badge-glow {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50%      { box-shadow: 0 0 12px 1px color-mix(in srgb, var(--amber) 30%, transparent); }
+}
+
+/* manual retry — bypasses the failure backoff in main */
+.plim-refresh {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  transition: all var(--dur-1) ease;
+}
+.plim-refresh:hover {
+  color: var(--text);
+  background: var(--bg2);
+}
+.plim-refresh:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.plim-err {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--rose);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* serving retained data after a failed refresh — say so, verbosely */
+.plim-stale {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: color-mix(in srgb, var(--warn) 75%, var(--text-dim));
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* one tile per limit window — bars equal length by construction */
+.plim-wins {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.plim-win {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px 9px;
+  background: color-mix(in srgb, var(--bg2) 55%, transparent);
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  min-width: 0;
+}
+
+.plim-win-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.plim-win-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* headline utilization — display numerals, colored by severity */
+.plim-win-pct {
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.plim-win-track {
+  height: 6px;
+  background: var(--bg0);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.plim-win-track i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.plim-win-meta,
+.plim-win-eta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plim-win-eta {
+  color: var(--text-faint);
+  margin-top: -3px;
+}
+.plim-win-eta.is-warn {
+  color: var(--warn);
+}
+
+/* footer: 7-day trail + reset/cap retrospective */
+.plim-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 24px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.plim-caps {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* weekly-utilization trail — unlabeled texture, tooltip explains it */
+.plim-spark svg {
+  display: block;
+  width: 132px;
+  height: 18px;
+}
+.plim-spark path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--chart-2) 80%, transparent);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+

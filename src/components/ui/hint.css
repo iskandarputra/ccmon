@@ -1,0 +1,31 @@
+/* collapsed methodology notes (.hint- prefix) — shared by analysis panels */
+
+.hint {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.hint-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  transition: all var(--dur-1) var(--ease-out);
+}
+.hint-btn:hover {
+  color: var(--text);
+  background: var(--bg2);
+}
+
+.hint-body {
+  margin-top: 9px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.7;
+  color: var(--text-faint);
+  max-width: 68ch;
+}

@@ -1,0 +1,182 @@
+/* ── sessions view ─────────────────────────────────────────────────────────
+   table of recent sessions: search, sortable columns, context gauges.
+   all classes prefixed .ses-
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* header row: search + count + filtered total */
+
+.ses-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.ses-search {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--text);
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 10px;
+  width: clamp(150px, 22vw, 230px);
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+.ses-search::placeholder {
+  color: var(--text-faint);
+}
+.ses-search:focus {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+}
+
+.ses-meta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.ses-total {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--amber);
+  white-space: nowrap;
+}
+
+/* scroll container — table scrolls within the view */
+
+.ses-tbl-wrap {
+  overflow: auto;
+  max-height: max(320px, calc(100vh - 226px));
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.ses-tbl {
+  min-width: 780px;
+}
+
+.ses-tbl th {
+  user-select: none;
+}
+
+/* sortable header buttons */
+
+.ses-th {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  color: var(--text-faint);
+  padding: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+.ses-th:hover {
+  color: var(--text-dim);
+}
+.ses-th.is-sorted {
+  color: var(--text-dim);
+}
+
+.ses-arrow {
+  font-size: 9px;
+  color: var(--amber);
+}
+
+/* rows */
+
+.ses-tbl tbody tr:hover td {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.ses-proj {
+  max-width: 260px;
+}
+.ses-proj-name {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ses-proj-id {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+
+/* model chips */
+
+.ses-chips {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.ses-chip {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  padding: 1.5px 7px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--blue) 13%, transparent);
+  color: var(--blue);
+  white-space: nowrap;
+}
+.ses-chip-more {
+  background: var(--bg2);
+  color: var(--text-faint);
+}
+
+/* context gauge */
+
+.ses-ctx {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ses-ctx-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.ses-gauge {
+  width: 64px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg2);
+  overflow: hidden;
+  flex: none;
+}
+.ses-gauge i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.ses-none {
+  color: var(--text-faint);
+}
+
+/* empty states */
+
+.ses-empty {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  padding: 26px 8px;
+}
+.ses-empty-center {
+  text-align: center;
+}
