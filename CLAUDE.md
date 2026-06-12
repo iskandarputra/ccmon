@@ -9,7 +9,7 @@ exactly three network paths (see Gotchas).
 | Command | What | When to run |
 |---|---|---|
 | `npm run dev` | esbuild + Vite + Electron, hot reload | developing |
-| `npm test` | vitest, 58 cases over `electron/services/__tests__/` | after touching any service math |
+| `npm test` | vitest, 64 cases over `electron/services/__tests__/` | after touching any service math |
 | `npm run smoke` | full pipeline against real `~/.claude` data, no Electron | after touching `electron/services/` |
 | `npm run parity` | token-parity diff vs ccusage (npx + network) | after touching parser or watcher dedupe |
 | `npm run typecheck` | strict `tsc --noEmit`, node + web projects | before every commit |

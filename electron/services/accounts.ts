@@ -56,7 +56,7 @@ interface CredentialsFile {
   claudeAiOauth?: OauthCredentials;
 }
 
-interface UsageApiWindow {
+export interface UsageApiWindow {
   utilization?: number;
   resets_at?: string;
 }
@@ -134,11 +134,16 @@ export function accountsFor(projectDirs: string[] = []): AccountsMap {
 }
 
 /** {pct, resetsAt} from one usage window of the API response, or null. */
-function limitWindow(w: UsageApiWindow | undefined): LimitWindow | null {
+export function limitWindow(w: UsageApiWindow | undefined): LimitWindow | null {
   if (!w || typeof w !== 'object') return null;
   let pct: number | null = null;
-  if (typeof w.utilization === 'number') {
-    pct = w.utilization <= 1 ? w.utilization * 100 : w.utilization;
+  if (typeof w.utilization === 'number' && Number.isFinite(w.utilization)) {
+    // The usage endpoint reports utilization on a 0–100 percent scale (a
+    // session at 11% arrives as `11`, not `0.11`). The old `<= 1 ? *100`
+    // fraction-detection misfired on any window sitting at ≤1%: a weekly
+    // all-models window at 1% became `1 * 100 = 100%`. Treat the value as
+    // a percent directly and clamp to a sane range.
+    pct = Math.max(0, Math.min(100, w.utilization));
   }
   const resetsAt = w.resets_at ? Date.parse(w.resets_at) : NaN;
   if (pct == null && !Number.isFinite(resetsAt)) return null;
