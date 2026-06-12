@@ -610,3 +610,114 @@ export type LimitsResult =
 export type AccountsMap = Record<string, AccountInfo>;
 /** source dir → live plan-limit result */
 export type LimitsMap = Record<string, LimitsResult>;
+
+// ---- multi-account setup wizard (§8) ---------------------------------------
+
+/** A shell whose startup file can hold the `claude-*` account wrappers. */
+export interface ShellTarget {
+  /** the shell — drives which rc file and wrapper syntax we use */
+  shell: 'zy' | 'zsh' | 'bash' | 'powershell';
+  /** wrapper syntax family: POSIX `name() {…}` or PowerShell `function name {…}` */
+  family: 'posix' | 'powershell';
+  /** absolute path to the rc / profile file (e.g. ~/.zyrc, the PS $PROFILE) */
+  rcPath: string;
+  /** does that rc file already exist on disk? */
+  exists: boolean;
+  /** is this the user's actual login shell (per /etc/passwd, then $SHELL)? */
+  detected: boolean;
+  /** is the ccmon-managed source line already present in this rc? */
+  linked: boolean;
+  /** short human note for the UI ('login shell', 'would be created', …) */
+  note: string;
+}
+
+/** OS + the shells that can hold the wrappers on it. */
+export interface ShellDetection {
+  /** Node's `process.platform` — 'linux' | 'darwin' | 'win32' | … */
+  platform: string;
+  /** the candidate shells for this OS, login/default shell flagged `detected` */
+  shells: ShellTarget[];
+}
+
+/** One account wrapper to generate: a command name bound to a config root. */
+export interface AccountSpec {
+  /** wrapper command, e.g. 'claude-work' */
+  name: string;
+  /** config dir Claude Code reads (CLAUDE_CONFIG_DIR), e.g. ~/.claude-work */
+  root: string;
+}
+
+export interface SetupOptions {
+  accounts: AccountSpec[];
+  /** rc files to link the managed script from */
+  rcPaths: string[];
+  /** also install the claude-cross-resume helper to ~/.local/bin */
+  installHelper: boolean;
+  /** comment out pre-existing hand-written claude-* defs the managed file replaces */
+  tidyExisting?: boolean;
+}
+
+/** A pre-existing definition of a managed wrapper found in a shell rc. */
+export interface RcExisting {
+  /** the wrapper name, e.g. 'claude-work' */
+  name: string;
+  /** 1-based line number in the rc */
+  line: number;
+  /** the line's text (trimmed for display) */
+  text: string;
+  /** a single-line `name() { … }` we can safely comment out; multi-line → false */
+  canTidy: boolean;
+}
+
+/** Dry-run of a setup apply — exactly what would be written, nothing done. */
+export interface SetupPlan {
+  /** the ccmon-owned file that holds the wrappers */
+  managedPath: string;
+  /** full contents that would be (re)written there */
+  managedScript: string;
+  /** per chosen rc: link state, the block we'd append, and any clashing defs */
+  rcEdits: Array<{
+    rcPath: string;
+    alreadyLinked: boolean;
+    blockToAdd: string;
+    existing: RcExisting[];
+  }>;
+  /** where the cross-resume helper goes, and whether it's already current */
+  helperDest: string;
+  helperInstalled: boolean;
+  /** validation problems that block apply (bad name, no rc selected, …) */
+  problems: string[];
+  /** non-blocking advisories (shadowed hand-written wrappers, …) */
+  warnings: string[];
+}
+
+/** Result of an applied setup — what changed and how to load it. */
+export interface SetupReport {
+  ok: boolean;
+  wroteManaged: boolean;
+  /** rc files we appended the source line to this run */
+  linkedRc: string[];
+  /** rc files where we commented out superseded hand-written defs */
+  tidiedRc: string[];
+  helperInstalled: boolean;
+  /** e.g. 'run: source ~/.bashrc (or open a new terminal)' */
+  reloadHint: string;
+  errors: string[];
+}
+
+/**
+ * A recent Claude Code session under an account root — the raw material for
+ * cross-account resume (continuing a session on the other account when one
+ * hits its limit). `id` is the transcript uuid; `cwd` is read from the
+ * transcript so the resume can `cd` back to the original project.
+ */
+export interface RecentSession {
+  /** session uuid (the *.jsonl basename) */
+  id: string;
+  /** original working directory from the transcript, or null if unreadable */
+  cwd: string | null;
+  /** project label (the cwd's leaf, or the encoded project-dir name) */
+  project: string;
+  /** transcript last-modified time (epoch ms) — newest first */
+  mtime: number;
+}

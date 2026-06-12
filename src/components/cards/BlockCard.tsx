@@ -6,6 +6,7 @@
 
 import { useUsageStore } from '../../store/useUsageStore';
 import { useNow } from '../../hooks/useNow';
+import { useScopedDirs } from '../../hooks/useScopedDirs';
 import { fmtUSD, fmtTok, clockTime, countdown, relTime } from '../../lib/format';
 import { bindingSession, displayWindow } from '../../lib/limits';
 import { CountUp } from '../ui/CountUp';
@@ -19,10 +20,11 @@ export function BlockCard() {
   const blocks = useUsageStore((s) => s.snapshot?.blocks);
   const limitResetTs = useUsageStore((s) => s.snapshot?.usageLimitResetTs);
   const limits = useUsageStore((s) => s.limits);
+  const scoped = useScopedDirs();
   const now = useNow(1000);
 
-  // binding live session across scoped accounts — real %, real reset time
-  const liveSession = bindingSession(limits);
+  // binding live session across the scoped accounts — real %, real reset time
+  const liveSession = bindingSession(limits, scoped);
   const sessionPct = typeof liveSession?.pct === 'number' ? liveSession.pct : null;
 
   if (!block) {

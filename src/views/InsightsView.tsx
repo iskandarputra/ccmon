@@ -38,7 +38,7 @@ import {
 } from '../lib/format';
 import { withAlpha } from '../lib/palette';
 import { scopedDirs } from '../lib/limits';
-import { PLAN_PRICES_USD } from '../../shared/plans';
+import { planPriceUSD } from '../lib/plans';
 import type { AccountInfo, AccountsMap, MonthlyRow, Snapshot, WeeklyRow } from '../../shared/types';
 
 const AXIS_TICK = { fill: 'var(--text-faint)', fontSize: 10, fontFamily: 'JetBrains Mono' };
@@ -92,18 +92,6 @@ interface PlanValue {
   saved: number;
 }
 
-/**
- * Monthly subscription price for a detected plan (docs/v2-spec.md §6).
- * Prices live in shared/plans.ts — max with an unknown tier assumes 5x;
- * team/enterprise are seat-priced by the org, so there is nothing to compare.
- */
-function planPrice(plan: string | null, tier: string | null): number | null {
-  const p = (plan || '').toLowerCase();
-  if (p.includes('max')) return tier === '20x' ? PLAN_PRICES_USD.max20x : PLAN_PRICES_USD.max5x;
-  if (p.includes('pro')) return PLAN_PRICES_USD.pro;
-  return null;
-}
-
 /** API-equivalent month-to-date cost vs the scoped accounts' plan prices. */
 function derivePlanValue(
   accounts: AccountsMap,
@@ -114,7 +102,7 @@ function derivePlanValue(
   const priced = dirs
     .map((d) => accounts[d])
     .filter((a): a is AccountInfo => !!a)
-    .map((a) => ({ a, price: planPrice(a.plan, a.tier) }))
+    .map((a) => ({ a, price: planPriceUSD(a.plan, a.tier) }))
     .filter((x): x is { a: AccountInfo; price: number } => x.price != null);
   if (!priced.length) return null;
   const price = priced.reduce((s, x) => s + x.price, 0);

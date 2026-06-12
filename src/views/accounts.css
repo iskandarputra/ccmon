@@ -1,0 +1,664 @@
+/*
+ * @file accounts.css
+ * @brief Styles for the per-account dashboard (cross-account headroom, account cards, setup wizard).
+ * @author Iskandar Putra <www.iskandarputra.com>
+ */
+
+/* ===== cross-account headroom hero ====================================== */
+.acc-headroom {
+  border-color: color-mix(in oklab, var(--amber) 28%, var(--line));
+  background:
+    radial-gradient(130% 90% at 50% -20%, color-mix(in oklab, var(--amber) 7%, transparent), transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 2.5%, var(--bg1)) 0%, var(--bg1) 52%);
+}
+
+.hr-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.hr-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.05em;
+  color: var(--ok);
+}
+
+.hr-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 22px;
+  padding: 4px 0 2px;
+}
+.hr-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-width: 92px;
+}
+.hr-side-name {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.hr-side-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.hr-cap {
+  color: var(--bad);
+}
+.hr-room {
+  color: var(--ok);
+}
+.hr-arrow {
+  font-size: 22px;
+  color: var(--text-faint);
+}
+.hr-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: auto;
+  padding-left: 22px;
+  border-left: 1px solid var(--line-soft);
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--text);
+}
+.hr-verdict b {
+  color: var(--amber);
+  font-weight: 600;
+}
+.hr-verdict span {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* donut gauge */
+.acc-ring {
+  position: relative;
+  width: 62px;
+  height: 62px;
+}
+.acc-ring svg {
+  width: 100%;
+  height: 100%;
+}
+.acc-ring-track {
+  fill: none;
+  stroke: var(--bg2);
+  stroke-width: 6;
+}
+.acc-ring-arc {
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset var(--dur-3) var(--ease-out);
+  filter: drop-shadow(0 0 5px color-mix(in oklab, var(--ring) 45%, transparent));
+}
+.acc-ring-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+.acc-ring-num i {
+  font-size: 9px;
+  font-style: normal;
+  color: var(--text-faint);
+  margin-left: 1px;
+}
+
+/* the resume command */
+.hr-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+}
+.hr-prompt {
+  font-family: var(--mono);
+  color: var(--ok);
+  user-select: none;
+}
+.hr-cmd-text {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+.hr-meta {
+  margin-top: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ===== account toolbar ================================================== */
+.acc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.acc-toolbar-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ===== account card ===================================================== */
+.acc-card {
+  position: relative;
+}
+/* left accent bar, per-account colour via --acc */
+.acc-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--acc, var(--line));
+  opacity: 0.7;
+}
+.acc-card.is-scoped {
+  border-color: color-mix(in oklab, var(--amber) 42%, var(--line));
+}
+.acc-card.is-scoped::before {
+  background: var(--amber);
+  opacity: 1;
+}
+
+.acc-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.acc-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 7px;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--acc, var(--text));
+  background: color-mix(in oklab, var(--acc, var(--text)) 15%, var(--bg2));
+  border: 1px solid color-mix(in oklab, var(--acc, var(--line)) 35%, transparent);
+}
+.acc-name {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+.acc-plan {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg2);
+  border: 1px solid var(--line-soft);
+}
+.acc-scoped-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--amber);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--amber) 14%, transparent);
+}
+
+.acc-id {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.acc-email {
+  color: var(--text);
+}
+.acc-org {
+  color: var(--text-dim);
+}
+.acc-root {
+  color: var(--text-faint);
+}
+
+.acc-meters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px 18px;
+  margin-top: 16px;
+}
+.acc-meter-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.acc-meter-pct {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 600;
+}
+.acc-meter-track {
+  margin-top: 5px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg2);
+  overflow: hidden;
+}
+.acc-meter-track i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, color-mix(in oklab, var(--mc) 65%, transparent), var(--mc));
+  transition: width var(--dur-2) var(--ease-out);
+}
+
+.acc-nolimit {
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.acc-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 13px;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.acc-price {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.acc-dim {
+  color: var(--text-faint);
+}
+.acc-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-faint);
+}
+.acc-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+  animation: acc-pulse 2.4s var(--ease-out) infinite;
+}
+@keyframes acc-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--ok) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* ===== buttons ========================================================== */
+.acc-copy,
+.acc-scope-btn,
+.acc-viewall {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--bg2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: 5px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
+}
+.acc-copy:hover,
+.acc-scope-btn:hover:not(:disabled),
+.acc-viewall:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--amber);
+}
+.acc-scope-btn:disabled,
+.acc-viewall:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+/* ===== setup wizard ===================================================== */
+.wiz-step {
+  padding: 16px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.wiz-step:first-child {
+  padding-top: 2px;
+  border-top: none;
+}
+.wiz-step-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 11px;
+}
+.wiz-os {
+  color: var(--amber);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.wiz-acct {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.wiz-name,
+.wiz-suffix {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: 6px 9px;
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.wiz-name {
+  width: 190px;
+}
+.wiz-name:focus,
+.wiz-suffix:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+.wiz-arrow {
+  color: var(--text-faint);
+}
+.wiz-root {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.wiz-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-soft);
+}
+.wiz-add-pre {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.wiz-suffix {
+  width: 110px;
+}
+.wiz-err {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--bad);
+}
+
+.wiz-shells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.wiz-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  padding: 9px 13px;
+  min-width: 148px;
+  border-radius: var(--radius-sm);
+  background: var(--bg2);
+  border: 1px solid var(--line-soft);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+.wiz-shell:hover {
+  transform: translateY(-1px);
+}
+.wiz-shell.is-picked {
+  border-color: var(--amber);
+  background: color-mix(in oklab, var(--amber) 12%, var(--bg2));
+}
+.wiz-shell-name {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text);
+}
+.wiz-shell.is-detected .wiz-shell-name::after {
+  content: ' · login';
+  color: var(--amber);
+  font-weight: 400;
+  font-size: 10px;
+}
+.wiz-shell-rc {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.wiz-shell-note {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.wiz-helper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 13px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.wiz-helper code {
+  color: var(--text);
+}
+.wiz-os-note {
+  margin-top: 13px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+.wiz-os-note code {
+  color: var(--text);
+}
+
+.wiz-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wiz-apply {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--bg0);
+  background: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: var(--radius-sm);
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+.wiz-apply:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.wiz-apply:disabled {
+  color: var(--text-faint);
+  background: var(--bg2);
+  border-color: var(--line-soft);
+  cursor: default;
+}
+
+.wiz-preview {
+  margin-top: 13px;
+}
+.wiz-pre-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 11px 0 4px;
+}
+.wiz-dim {
+  color: var(--text-faint);
+}
+.wiz-pre {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.wiz-report {
+  margin-top: 13px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-soft);
+  background: var(--bg0);
+}
+.wiz-report.is-ok {
+  border-color: color-mix(in oklab, var(--ok) 40%, var(--line));
+}
+.wiz-report.is-err {
+  border-color: color-mix(in oklab, var(--bad) 40%, var(--line));
+}
+.wiz-report-head {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.wiz-report-line {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* conflict detection */
+.wiz-warn {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--warn);
+  padding: 9px 11px;
+  margin-bottom: 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--warn) 10%, var(--bg0));
+  border: 1px solid color-mix(in oklab, var(--warn) 30%, var(--line));
+}
+.wiz-conflicts {
+  margin: 6px 0 4px;
+  padding: 8px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px dashed var(--line);
+}
+.wiz-conflicts-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+.wiz-conflict {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 3px;
+}
+.wiz-conflict-tag {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  width: 92px;
+  color: var(--amber);
+}
+.wiz-conflict-line {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -19,6 +19,7 @@ import { SessionsView } from './views/SessionsView';
 import { BlocksView } from './views/BlocksView';
 import { ModelsView } from './views/ModelsView';
 import { ProjectsView } from './views/ProjectsView';
+import { AccountsView } from './views/AccountsView';
 import { SettingsView } from './views/SettingsView';
 
 // three.js is heavy — code-split it so the 3d view loads on first visit only
@@ -35,6 +36,7 @@ const VIEW_COMPONENTS: Record<ViewId, ComponentType> = {
   blocks: BlocksView,
   models: ModelsView,
   projects: ProjectsView,
+  accounts: AccountsView,
   settings: SettingsView,
 };
 

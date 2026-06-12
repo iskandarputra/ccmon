@@ -12,6 +12,7 @@ import { StatCard } from '../components/cards/StatCard';
 import { PlanLimits } from '../components/cards/PlanLimits';
 import { useUsageStore } from '../store/useUsageStore';
 import { useNow } from '../hooks/useNow';
+import { useScopedDirs } from '../hooks/useScopedDirs';
 import {
   fmtUSD,
   fmtTok,
@@ -368,6 +369,7 @@ function HistoryRow({ b, maxTokens }: HistoryRowProps) {
 export function BlocksView() {
   const snapshot = useUsageStore((s) => s.snapshot)!;
   const limits = useUsageStore((s) => s.limits);
+  const scoped = useScopedDirs();
   const now = useNow(1000);
 
   const block = snapshot.block;
@@ -392,9 +394,11 @@ export function BlocksView() {
 
   const history = blocks.slice().reverse();
 
-  // real limits available → the token-based local gauge would only contradict
-  const haveLiveLimits = Object.values(limits).some((r) => r?.ok);
-  const liveSession = bindingSession(limits);
+  // limits span every account; the blocks view tracks the scoped usage, so
+  // bind and gate on the scoped accounts only (matching the on-screen blocks)
+  const scopedLimitDirs = scoped.filter((d) => limits[d]);
+  const haveLiveLimits = scopedLimitDirs.some((d) => limits[d]?.ok);
+  const liveSession = bindingSession(limits, scoped);
 
   return (
     <div className="grid">
@@ -415,7 +419,7 @@ export function BlocksView() {
         )}
       </div>
 
-      {Object.keys(limits).length > 0 && (
+      {scopedLimitDirs.length > 0 && (
         <div className="g12">
           <PlanLimits />
         </div>

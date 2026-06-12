@@ -15,6 +15,11 @@ import type {
   FeedEvent,
   LimitsMap,
   PricingMeta,
+  RecentSession,
+  SetupOptions,
+  SetupPlan,
+  SetupReport,
+  ShellDetection,
   Snapshot,
 } from './types';
 
@@ -52,6 +57,19 @@ export interface CcmonApi {
   refreshPricing(): Promise<PricingMeta | null>;
   refreshLimits(): Promise<LimitsMap>;
   refreshCurrency(): Promise<CurrencyRates | null>;
+
+  /** Most recent resumable sessions under an account's `<root>/projects` dir. */
+  listRecentSessions(projectDir: string, limit?: number): Promise<RecentSession[]>;
+
+  // ---- multi-account setup wizard -----------------------------------------
+  /** OS + shells whose rc could hold the wrappers, login/default shell flagged. */
+  detectShells(): Promise<ShellDetection>;
+  /** Dry-run a setup: exactly what would be written, nothing done. */
+  previewSetup(opts: SetupOptions): Promise<SetupPlan>;
+  /** Apply a setup (writes the managed file + rc link + optional helper). */
+  applySetup(opts: SetupOptions): Promise<SetupReport>;
+  /** Create a sibling config dir `~/.claude-<suffix>` for a new account. */
+  createAccount(suffix: string): Promise<{ ok: boolean; root: string; error?: string }>;
 
   onSnapshot(cb: (snapshot: Snapshot) => void): Unsubscribe;
   onEvents(cb: (events: FeedEvent[]) => void): Unsubscribe;

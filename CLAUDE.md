@@ -9,7 +9,7 @@ exactly three network paths (see Gotchas).
 | Command | What | When to run |
 |---|---|---|
 | `npm run dev` | esbuild + Vite + Electron, hot reload | developing |
-| `npm test` | vitest, 64 cases over `electron/services/__tests__/` | after touching any service math |
+| `npm test` | vitest, 103 cases over `electron/services/__tests__/` + `src/lib/__tests__/` | after touching any service math |
 | `npm run smoke` | full pipeline against real `~/.claude` data, no Electron | after touching `electron/services/` |
 | `npm run parity` | token-parity diff vs ccusage (npx + network) | after touching parser or watcher dedupe |
 | `npm run typecheck` | strict `tsc --noEmit`, node + web projects | before every commit |
@@ -34,9 +34,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
   (the `CcmonApi` preload surface), `plans.ts` (dated plan-price table).
 - `electron/services/` — pure Node, **never** import Electron here (this is
   what keeps smoke and the unit tests possible; type-only electron imports
-  erase, so they're fine). Thirteen services: paths, config, settings,
+  erase, so they're fine). Fifteen services: paths, config, settings,
   watcher, parser, aggregate, blocks, pricing, pricing-archive, accounts,
-  limits-history, currency, window-state.
+  cross-account, account-setup, limits-history, currency, window-state.
 - `electron/main.ts` — the only main-process file that touches Electron
   APIs; owns `entries[]`, the debounced recompute, and the two pollers
   (limits 60 s, currency 1 h).
