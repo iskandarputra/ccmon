@@ -14,6 +14,8 @@ import { PricingArchive } from './services/pricing-archive';
 import { UsageWatcher } from './services/watcher';
 import { buildSnapshot, toFeedEvent } from './services/aggregate';
 import { accountsFor, fetchLiveLimits } from './services/accounts';
+import { recentSessions } from './services/cross-account';
+import { applySetup, createAccountDir, detectShells, planSetup } from './services/account-setup';
 import { LimitsHistory } from './services/limits-history';
 import { CurrencyService } from './services/currency';
 import { loadState, trackState } from './services/window-state';
@@ -22,6 +24,7 @@ import type {
   AppSettings,
   LimitsMap,
   PricingMeta,
+  SetupOptions,
   Snapshot,
   UsageEntry,
 } from '../shared/types';
@@ -175,10 +178,12 @@ async function refreshLimits(force = false): Promise<void> {
   if (state.limitsBusy) return;
   state.limitsBusy = true;
   try {
-    const scope = sourceScope();
-    const dirs = scope
-      ? state.sourceDirs.filter((d) => scope.has(d))
-      : state.sourceDirs;
+    // Live limits are polled for EVERY account, independent of the data
+    // scope. The accounts dashboard and cross-account headroom compare all
+    // logins at once, and the account about to cap may not be the one whose
+    // usage history is currently scoped. Scope governs which usage the
+    // SNAPSHOT shows; it never narrows which logins we check.
+    const dirs = state.sourceDirs;
     const now = Date.now();
     const results = await Promise.all(
       dirs.map(async (d) => {
@@ -389,7 +394,8 @@ ipcMain.handle('settings:set', (_e, partial: Partial<AppSettings>) => {
   ) {
     scheduleRecompute();
   }
-  if (sourcesChanged) void refreshLimits(true);
+  // Live limits are account-wide, not scoped — a scope change only re-buckets
+  // the snapshot, so there's no need to re-poll the usage endpoint here.
   return next;
 });
 
@@ -401,6 +407,30 @@ ipcMain.handle('limits:refresh', async () => {
 ipcMain.handle('currency:refresh', async () => {
   await refreshCurrency();
   return state.currency ? state.currency.get() : null;
+});
+
+ipcMain.handle('sessions:recent', (_e, projectDir: string, limit?: number) => {
+  // only read roots we already discovered — never an arbitrary path from the UI
+  if (!state.sourceDirs.includes(projectDir)) return [];
+  return recentSessions(projectDir, typeof limit === 'number' ? limit : undefined);
+});
+
+// ---- multi-account setup wizard (writes shell rc — gated by an explicit
+// apply in the UI, which always previews the exact diff first) -------------
+ipcMain.handle('setup:detectShells', () => detectShells());
+ipcMain.handle('setup:preview', (_e, opts: SetupOptions) => planSetup(opts));
+ipcMain.handle('setup:apply', (_e, opts: SetupOptions) => applySetup(opts));
+ipcMain.handle('setup:createAccount', (_e, suffix: string) => {
+  const res = createAccountDir(suffix);
+  if (res.ok) {
+    // re-detect so the new root shows up immediately (live file-watching of it
+    // still needs a relaunch; a brand-new account has nothing to watch yet)
+    const cfg = loadConfig();
+    state.sourceDirs = detectProjectDirs(cfg.claudeDirs || []);
+    state.accounts = accountsFor(state.sourceDirs);
+    void refreshLimits(true);
+  }
+  return res;
 });
 
 ipcMain.handle('pricing:refresh', async () => {

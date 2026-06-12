@@ -5,6 +5,7 @@
  */
 
 import { useUsageStore } from '../store/useUsageStore';
+import { useScopedDirs } from '../hooks/useScopedDirs';
 import { CountUp } from '../components/ui/CountUp';
 import { StatCard } from '../components/cards/StatCard';
 import { PlanLimits } from '../components/cards/PlanLimits';
@@ -20,7 +21,10 @@ import { fmtUSD, fmtTok, fmtInt } from '../lib/format';
 
 export function OverviewView() {
   const snapshot = useUsageStore((s) => s.snapshot);
-  const haveLimits = useUsageStore((s) => Object.keys(s.limits).length > 0);
+  const limits = useUsageStore((s) => s.limits);
+  const scoped = useScopedDirs();
+  // limits cover every account now — gate this overview card on the scoped one
+  const haveLimits = scoped.some((d) => limits[d]);
   if (!snapshot) return null;
   const { today, totals } = snapshot;
 

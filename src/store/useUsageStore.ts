@@ -27,6 +27,7 @@ export type ViewId =
   | 'blocks'
   | 'models'
   | 'projects'
+  | 'accounts'
   | 'settings';
 
 export type StoreStatus = 'connecting' | 'scanning' | 'ready' | 'error';

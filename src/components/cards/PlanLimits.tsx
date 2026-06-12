@@ -10,6 +10,7 @@ import { Panel } from '../ui/Panel';
 import { Hint } from '../ui/Hint';
 import { useUsageStore } from '../../store/useUsageStore';
 import { useNow } from '../../hooks/useNow';
+import { useScopedDirs } from '../../hooks/useScopedDirs';
 import { countdown, fmtPct, relTime, sourceLabel } from '../../lib/format';
 import { limitColor } from '../../lib/limits';
 import type { LimitSample, LimitWindow, WindowForecast } from '../../../shared/types';
@@ -105,10 +106,13 @@ function HistorySpark({ samples }: { samples: LimitSample[] }) {
 export function PlanLimits() {
   const limits = useUsageStore((s) => s.limits);
   const accounts = useUsageStore((s) => s.accounts);
+  const scoped = useScopedDirs();
   const now = useNow(30000);
   const [refreshing, setRefreshing] = useState(false);
 
-  const dirs = Object.keys(limits);
+  // limits are polled for every account; this overview card stays aligned to
+  // the data scope. The accounts view is where ALL logins show side by side.
+  const dirs = scoped.filter((d) => limits[d]);
   if (!dirs.length) return null;
 
   // manual refresh bypasses the failure backoff in main — the user asked

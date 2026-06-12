@@ -362,8 +362,13 @@ the same value exists server-side at `/api/oauth/profile`
 `app:getState`.
 
 Main ALWAYS polls Anthropic's OAuth usage endpoint (the same one Claude
-Code's `/usage` screen calls) every 60 s for accounts in the current scope,
-using `<root>/.credentials.json` read-only. Tokens are NEVER refreshed:
+Code's `/usage` screen calls) every 60 s for EVERY discovered account —
+independent of the data scope, since the account about to cap may not be the
+one whose usage is on screen (this powers the accounts dashboard and
+cross-account headroom). The overview's `<PlanLimits/>` then scope-filters
+`limits` to the viewed account(s) via `useScopedDirs()`, so its behavior is
+unchanged. Polling uses `<root>/.credentials.json` read-only. Tokens are
+NEVER refreshed:
 refresh-token rotation would invalidate the user's Claude Code login;
 expired logins report an error string instead. Accounts with no stored
 login are omitted. A shape guard fails loudly if the endpoint answers 200
@@ -372,16 +377,20 @@ with no recognizable windows (it is undocumented and may change).
 Results per dir, `{ok, fetchedAt, session, week, weekOpus, weekSonnet}`
 with windows as `{pct, resetsAt}` (from `five_hour` / `seven_day` /
 `seven_day_opus` / `seven_day_sonnet`), flow via `limits:data` events and
-`limits` in getState. The shared `<PlanLimits/>` panel renders them on both
-the overview and blocks views.
+`limits` in getState. The shared `<PlanLimits/>` panel renders the scoped
+account(s) on the overview and blocks views; the accounts dashboard
+(`src/views/AccountsView.tsx`) renders ALL of them. `bindingSession`/
+`bindingWeek` in `src/lib/limits.ts` take an optional `dirs` allow-list so a
+caller can bind across the scoped accounts (overview) or all of them.
 
 Failures are VERBOSE and graceful: a failed refresh keeps the last good
 result (flagged `stale: true` with `lastError` + `nextRetryAt`) instead of
 dropping to an error; first-ever failures carry `{ok: false, error, status,
 nextRetryAt}` with a human-readable reason. Failing dirs retry on a FIXED
 60 s cadence, no exponential growth; only a server `Retry-After` longer
-than that extends a wait. Manual refresh and scope changes fire immediately
-and never escalate the schedule.
+than that extends a wait. Manual refresh fires immediately and never
+escalates the schedule. Scope changes no longer trigger a limits refresh —
+the poll is account-wide, so scope only re-buckets the snapshot.
 
 ### 5.3 Limits history and forecast — `electron/services/limits-history.ts`
 
@@ -444,6 +453,24 @@ floor-hour block bounds, which can run up to 59 min early. The snapshot
 carries top-level `usageLimitResetTs` (ms | null) so the UI can show the
 local "limit reached, resets at" marker even when there is no active block.
 
+### 5.6 Cross-account resume — `electron/services/cross-account.ts`, `src/lib/crossAccount.ts`
+
+Two read-only halves. `recentSessions(<root>/projects, limit)` (pure Node)
+walks the transcripts recursively (depth-capped; subagent transcripts nest),
+reads each file's first `cwd` from a 64 KB head, dedupes by session id
+(newest wins) and returns `RecentSession {id, cwd, project, mtime}` newest
+first. Exposed read-only via `listRecentSessions` (the `sessions:recent` IPC
+guards that the dir is a known source root — never an arbitrary path).
+
+`crossAccountAdvice(accounts, limits)` (renderer, pure) compares every
+account's session and weekly windows and returns advice only when the
+binding account is ≥80 % utilized AND another account with a stored login is
+≥25 pts lower AND itself below 70 % — i.e. genuinely worth switching to.
+`crossResumeCommand(fromDir, toDir, id?)` emits the canonical
+`claude-cross-resume <fromRoot> <toRoot> <id>` (roots via `accountRoot()`,
+shell-quoted). ccmon NEVER copies or launches a session — it surfaces the
+command for the user to run their own wrapper.
+
 ## 6. Renderer conventions
 
 - One store: `src/store/useUsageStore.ts`. Subscribe with selectors
@@ -479,7 +506,9 @@ local "limit reached, resets at" marker even when there is no active block.
   nonzero days (needs ≥5 active days and MAD > 0, else no flags).
 - Plan value (InsightsView, renderer-only, no snapshot field): the current
   month's API-equivalent cost (current `monthly` row, current costMode) vs
-  the scoped accounts' subscription prices from `shared/plans.ts` (pro $20,
+  the scoped accounts' subscription prices via `planPriceUSD()` in
+  `src/lib/plans.ts` (shared with the accounts dashboard; table in
+  `shared/plans.ts`: pro $20,
   max 5x $100, max 20x $200; the single place to update; max with unknown
   tier assumes 5x). Team/enterprise are excluded (seat pricing unknown →
   no-plan placeholder). Scope resolution mirrors main's `sourceScope()` via
@@ -495,7 +524,67 @@ Keep changes scoped to one area per PR where possible:
 | analytics | `electron/services/parser.ts`, `blocks.ts`, `aggregate.ts` | `npm test` + `npm run smoke`; `npm run parity` when parsing/dedupe changes |
 | themes | `src/theme/themes.ts` | `npm run typecheck` (the `Theme` type enforces every token) |
 | views | one `src/views/<X>View.tsx` + its co-located css | `npm run typecheck` |
+| accounts | `electron/services/accounts.ts`, `cross-account.ts`, `account-setup.ts`, `src/lib/crossAccount.ts`, `src/views/AccountsView.tsx`, `src/components/accounts/` | `npm test` + `npm run smoke` |
 | wiring | `main.ts`, `preload.ts`, `watcher.ts`, store, bootstrap, `shared/` | all of the above |
 
 Cross-boundary changes (snapshot fields, IPC, settings) start in this spec
 and `shared/types.ts`, then fan out.
+
+## 8. Multi-account setup wizard — `electron/services/account-setup.ts`
+
+Pure Node, fully unit-tested, NEVER imports Electron. Turns the manual
+multi-account flow into a guided, idempotent, preview-first action that
+writes shell startup files. Design rule: **never edit an rc file in place**
+(except the opt-in tidy, below). **OS-aware**: a `family` (`posix` |
+`powershell`) is derived from `process.platform` and threaded through
+generation, detection, and linking — one family per run.
+
+- `resolveLoginShell()` trusts `/etc/passwd` (via `getent passwd $USER`)
+  over `$SHELL` — `$SHELL` lies in wrapped/nested shells (reads `zsh` while
+  the login shell is `zy`). Falls back to `$SHELL` only when `getent` is
+  absent (macOS). On Windows `resolvePowershellProfile()` asks
+  `pwsh`/`powershell` for `$PROFILE`, falling back to the PS7 default path.
+- `detectShells(env)` returns `{platform, shells}`. On Linux/macOS the
+  candidates are zy/zsh/bash (bash → `~/.bash_profile` on macOS, the file
+  login shells read there), but a shell is shown ONLY when it's the login
+  shell OR its rc already exists — an unconfigured shell the user doesn't run
+  (e.g. zsh with no `~/.zshrc`) is hidden rather than offered for creation.
+  The login shell is flagged `detected`. On Windows it's a single PowerShell
+  `$PROFILE` target. Injectable `env {home, loginShell, platform, psProfile}`
+  for tests, so every OS path is unit-tested on one host.
+- `renderManagedScript(accounts, home, family)` builds the contents of the
+  ONE ccmon-owned file — `~/.config/ccmon/claude-accounts.{sh,ps1}`. POSIX:
+  a `claude-<name>() { ( export CLAUDE_CONFIG_DIR=…; claude "$@" ); }`
+  launcher (`$HOME`-relative) per account plus a `claude-<to>-from-<from>`
+  resume helper per ordered pair. PowerShell: a
+  `function claude-<name> { $env:CLAUDE_CONFIG_DIR = …; claude @args }`
+  launcher per account (no `-from-` helpers — the bash cross-resume helper is
+  Unix-only). Regenerated wholesale on every apply.
+- `applySetup(opts)` (re)writes that file, then appends a single guarded
+  block (`# >>> ccmon managed >>>` … `. claude-accounts.sh` … `# <<< … <<<`)
+  to each chosen rc that lacks it, and optionally installs the embedded
+  `claude-cross-resume` helper to `~/.local/bin` (mode 0755). Idempotent: a
+  second apply links nothing new and never duplicates the block; by default
+  rc files are only ever appended to, never rewritten. `planSetup(opts)` is
+  the dry run — exact contents + per-rc append/no-op + helper status +
+  validation `problems` — and the UI requires it before `apply` is enabled,
+  so the user always sees the diff before any write.
+- **Conflict handling.** `scanRcForWrappers` finds pre-existing hand-written
+  definitions of any managed name (launchers + resume helpers, via the shared
+  `managedNames`/`crossPairs`) OUTSIDE ccmon's block. `planSetup` reports them
+  per-rc (`existing`) plus a non-blocking `warning`: identical managed copies
+  would merely shadow them (last-wins). Opt-in `tidyExisting` comments out the
+  single-line ones with a reversible `# ccmon superseded → ` prefix
+  (multi-line defs are flagged for manual removal, never auto-edited). Tidy is
+  the ONLY path that rewrites an rc, and it does so atomically (temp +
+  rename); it's idempotent (already-commented lines are skipped).
+- `createAccountDir(suffix)` makes `~/.claude-<suffix>/projects` (validated
+  suffix) so a new account shows up; live file-watching of it still needs an
+  app relaunch.
+
+IPC: `detectShells`, `previewSetup`, `applySetup`, `createAccount`. Within
+the POSIX family the wrapper body is identical across bash/zsh/zy; only the
+target rc differs. PowerShell uses its own syntax and skips the bash helper,
+so on Windows the dashboard's cross-resume command needs WSL/Git Bash. The
+read-only features (accounts dashboard, live limits, cross-account headroom)
+are platform-independent — only this wizard is shell/OS-specific.

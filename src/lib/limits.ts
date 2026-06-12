@@ -27,13 +27,20 @@ export function scopedDirs(sources: string[] | null | undefined, all: string[]):
 }
 
 /**
- * The binding live session window across scoped accounts — the one with the
- * highest utilization, since that's the limit you'll hit first. Returns
- * {pct, resetsAt} or null when no account has live data.
+ * The binding live session window — the one with the highest utilization,
+ * since that's the limit you'll hit first. `limits` now spans every account
+ * (polled independently of the data scope), so callers that mean "the window
+ * for the accounts I'm viewing" pass `dirs` = the scoped source dirs; omit it
+ * to bind across all logins (e.g. the accounts dashboard). Returns
+ * {pct, resetsAt} or null when no considered account has live data.
  */
-export function bindingSession(limits: LimitsMap = {}): LimitWindow | null {
+export function bindingSession(
+  limits: LimitsMap = {},
+  dirs?: string[],
+): LimitWindow | null {
   let best: LimitWindow | null = null;
-  for (const r of Object.values(limits)) {
+  for (const k of dirs ?? Object.keys(limits)) {
+    const r = limits[k];
     const s = r?.ok ? r.session : null;
     if (!s || (s.pct == null && !s.resetsAt)) continue;
     if (!best || (s.pct ?? 0) > (best.pct ?? 0)) best = s;
@@ -41,10 +48,14 @@ export function bindingSession(limits: LimitsMap = {}): LimitWindow | null {
   return best;
 }
 
-/** The binding weekly (all-models) window across scoped accounts. */
-export function bindingWeek(limits: LimitsMap = {}): LimitWindow | null {
+/** The binding weekly (all-models) window; `dirs` scopes it as bindingSession. */
+export function bindingWeek(
+  limits: LimitsMap = {},
+  dirs?: string[],
+): LimitWindow | null {
   let best: LimitWindow | null = null;
-  for (const r of Object.values(limits)) {
+  for (const k of dirs ?? Object.keys(limits)) {
+    const r = limits[k];
     const w = r?.ok ? r.week : null;
     if (!w || (w.pct == null && !w.resetsAt)) continue;
     if (!best || (w.pct ?? 0) > (best.pct ?? 0)) best = w;

@@ -6,6 +6,7 @@
 
 import { useUsageStore } from '../../store/useUsageStore';
 import { useNow } from '../../hooks/useNow';
+import { useScopedDirs } from '../../hooks/useScopedDirs';
 import { fmtUSD, fmtTok } from '../../lib/format';
 import { bindingWeek, limitColor } from '../../lib/limits';
 import { CountUp } from '../ui/CountUp';
@@ -18,9 +19,10 @@ import { CountUp } from '../ui/CountUp';
 export function WeekCard() {
   const week = useUsageStore((s) => s.snapshot?.week);
   const limits = useUsageStore((s) => s.limits);
+  const scoped = useScopedDirs();
   const now = useNow(30000);
 
-  const wk = bindingWeek(limits);
+  const wk = bindingWeek(limits, scoped);
   const pct = typeof wk?.pct === 'number' ? wk.pct : null;
   const resetDay =
     wk?.resetsAt && wk.resetsAt > now

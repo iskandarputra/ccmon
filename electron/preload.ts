@@ -6,7 +6,7 @@
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { CcmonApi } from '../shared/ipc';
-import type { AppSettings } from '../shared/types';
+import type { AppSettings, SetupOptions } from '../shared/types';
 
 /** Subscribe helper — returns an unsubscribe function. */
 const on =
@@ -25,6 +25,14 @@ const api: CcmonApi = {
   refreshPricing: () => ipcRenderer.invoke('pricing:refresh'),
   refreshLimits: () => ipcRenderer.invoke('limits:refresh'),
   refreshCurrency: () => ipcRenderer.invoke('currency:refresh'),
+
+  listRecentSessions: (projectDir: string, limit?: number) =>
+    ipcRenderer.invoke('sessions:recent', projectDir, limit),
+
+  detectShells: () => ipcRenderer.invoke('setup:detectShells'),
+  previewSetup: (opts: SetupOptions) => ipcRenderer.invoke('setup:preview', opts),
+  applySetup: (opts: SetupOptions) => ipcRenderer.invoke('setup:apply', opts),
+  createAccount: (suffix: string) => ipcRenderer.invoke('setup:createAccount', suffix),
 
   onSnapshot: on('usage:snapshot'),
   onEvents: on('usage:events'),

@@ -45,11 +45,13 @@ Claude Code data only, by scope. Contracts for everything shipped live in
 | Limits history + time-to-cap forecast | shipped | spec §5.3 | 60 s polls persisted; least-squares fit; "caps ~thu 15:04 at this pace"; 7-day sparkline. |
 | Limit-hit retrospective | shipped | spec §5.3 | Resets observed and how many happened at ≥95%. Follow-up: correlate with transcript reset markers; best-time-to-start hints. |
 | Historical pricing | shipped | spec §2 | Dated catalog layers + `engine.costAt`. Builds forward from first run; the past can't be refetched. |
+| Per-account dashboard + cross-account headroom | shipped | spec §5.2, §5.6 | Live limits now polled for every account (not just the scoped one); `AccountsView` shows all logins side by side; `crossAccountAdvice` nudges to the account with room. Follow-up: per-account lifetime spend (needs a per-root rollup in the aggregate). |
+| Shell-aware multi-account setup wizard | shipped | spec §8 | OS-aware (Linux/macOS POSIX shells incl. macOS `~/.bash_profile`; Windows PowerShell `$PROFILE`). Detects the login shell (passwd over `$SHELL`), generates the `claude-*` wrappers into one managed file, links it idempotently from the chosen rc, installs the cross-resume helper (Unix only); preview-before-apply. Conflict-aware: detects pre-existing hand-written `claude-*` defs and (opt-in) tidies the single-line ones with a reversible comment prefix. Limitation: a freshly created account dir needs an app relaunch for live file-watching. |
 
 ## Engineering debts (from the 2026-06 ccusage review)
 
 | Debt | Status | Notes |
 |---|---|---|
-| Tests | paid | 58 vitest cases over the pure services plus `npm run parity` (verified ≤0.004% token drift vs ccusage). CI runs typecheck + tests on every push. |
+| Tests | paid | 103 vitest cases over the pure services + renderer libs plus `npm run parity` (verified ≤0.004% token drift vs ccusage). CI runs typecheck + tests on every push. |
 | Performance | partly paid | Per-entry dollars resolve exactly once (costMemo; blocks and the feed reuse it); what-if rows resolve outside the entry loop. Measured ~200–250 ms per full recompute at 45k entries; the cost is Map/Set churn in the main pass, not pricing. The remaining fix is architectural: incremental day-bucket aggregation (re-reduce only buckets whose entries changed; full recompute stays as the rescan path). Do it before the dataset passes ~200k entries. |
 | Fragile dependencies | paid | The usage endpoint fails loudly on shape changes (guard in `accounts.ts`); plan prices live in `shared/plans.ts` as a single dated table. er-api/CoinGecko stay free tiers by design, both keep-last-good with verbose errors. |
