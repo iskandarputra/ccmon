@@ -98,6 +98,7 @@ export function SettingsView() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshingCur, setRefreshingCur] = useState(false);
   const [freshMeta, setFreshMeta] = useState<PricingMeta | null>(null);
+  const [showAllThemes, setShowAllThemes] = useState(false);
 
   // The only locally mirrored value: the custom token-limit input draft.
   const tokenLimit = settings?.tokenLimit;
@@ -199,10 +200,26 @@ export function SettingsView() {
 
   return (
     <div className="set-wrap">
-      <Panel title="theme" right={<span className="panel-note">{settings.theme}</span>}>
+      <Panel 
+        title="theme" 
+        right={
+          <div className="dc-head">
+            <span className="panel-note">{settings.theme}</span>
+            <button
+              type="button"
+              className="plim-refresh"
+              onClick={() => setShowAllThemes((v) => !v)}
+            >
+              {showAllThemes ? 'collapse' : `reveal all (${THEMES.length})`}
+            </button>
+          </div>
+        }
+      >
         <div className="set-themes">
-          {THEMES.map((t) => {
+          {THEMES.map((t, i) => {
             const active = t.id === settings.theme;
+            if (!showAllThemes && i >= 8 && !active) return null;
+            
             return (
               <button
                 key={t.id}

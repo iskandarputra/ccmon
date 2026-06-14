@@ -48,14 +48,16 @@
   flex-direction: column;
   gap: 5px;
   padding: 14px 16px 13px;
-  background: var(--bg1);
-  border: 1px solid var(--line);
+  background: var(--bg2);
+  border: 1px solid var(--line-soft);
   border-radius: var(--radius);
   min-width: 0;
-  transition: background 0.12s ease;
+  transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .act-stat:hover {
-  background: color-mix(in srgb, var(--bg2) 60%, var(--bg1));
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--text-dim) 35%, transparent);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.4);
 }
 
 .act-stat-label {
@@ -66,11 +68,21 @@
 }
 
 .act-stat-value {
-  font-family: var(--mono);
-  font-size: 20px;
+  font-family: var(--sans);
+  font-feature-settings: 'tnum' 1;
+  font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.2;
+  background: linear-gradient(
+    130deg,
+    var(--text) 35%,
+    color-mix(in srgb, var(--text) 58%, var(--amber))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--amber) 8%, transparent));
 }
 
 .act-dim {

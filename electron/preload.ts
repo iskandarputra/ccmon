@@ -43,6 +43,8 @@ const api: CcmonApi = {
   onLimits: on('limits:data'),
   onCurrency: on('currency:data'),
 
+  openUrl: (url: string) => ipcRenderer.send('app:openUrl', url),
+
   minimize: () => ipcRenderer.send('window:minimize'),
   toggleMaximize: () => ipcRenderer.send('window:maximize'),
   close: () => ipcRenderer.send('window:close'),

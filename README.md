@@ -107,7 +107,7 @@ Tagged pushes cut a GitHub release with Linux and Windows artifacts
 attached (`.github/workflows/build.yml`):
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 ## Configuration

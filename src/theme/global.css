@@ -4,36 +4,36 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --bg0: #131110;
-  --bg1: #181512;
-  --bg2: #201c18;
-  --line: #2a251f;
-  --line-soft: #221e19;
+  --bg0: #121212;
+  --bg1: #1a1a1a;
+  --bg2: #242424;
+  --line: #333333;
+  --line-soft: #262626;
 
-  --text: #eae4d6;
-  --text-dim: #9a9183;
-  --text-faint: #6b6354;
+  --text: #f4f4f5;
+  --text-dim: #a1a1aa;
+  --text-faint: #71717a;
 
-  --sage: #a8b894;
-  --amber: #d9a86c;
-  --rose: #c98a7d;
-  --blue: #8fa8bf;
+  --sage: #10b981;
+  --amber: #f97316;
+  --rose: #ef4444;
+  --blue: #3b82f6;
 
-  --chart-1: #a8b894;
-  --chart-2: #d9a86c;
-  --chart-3: #c98a7d;
-  --chart-4: #8fa8bf;
-  --chart-5: #b5a8c9;
-  --chart-6: #8f8a7b;
-  --ok: #a8b894;
-  --warn: #d9a86c;
-  --bad: #c98a7d;
-  --grain-opacity: 0.05;
+  --chart-1: #f97316;
+  --chart-2: #10b981;
+  --chart-3: #eab308;
+  --chart-4: #3b82f6;
+  --chart-5: #a855f7;
+  --chart-6: #71717a;
+  --ok: var(--sage);
+  --warn: var(--amber);
+  --bad: var(--rose);
+  --grain-opacity: 0.02;
 
   --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
-  /* Anthropic-first stack: the licensed Styrene fonts win when installed
-     on the system; Space Grotesk (bundled) is the closest open analog */
-  --sans: 'Styrene B', 'Styrene A', 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  /* Anthropic-first stack: Inter/system-ui for a clean, modern aesthetic */
+  --sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --serif: 'Tiempos Text', 'Georgia', 'Times New Roman', serif;
 
   --radius: 12px;
   --radius-sm: 8px;
@@ -55,8 +55,8 @@ body {
   background: var(--bg0);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 14.5px;
+  line-height: 1.5;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
@@ -103,24 +103,48 @@ button {
   height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  position: relative;
+  isolation: isolate;
+  background: var(--bg0);
 }
 
-/* ambient aurora — two accent-tinted glows drifting behind everything.
-   Chrome above is translucent + blurred so the light breathes through. */
+/* ambient aurora — two dynamic layers of accent-tinted glows drifting behind everything.
+   Sidebar and panels are translucent + blurred so this glows through them. */
 .app::before {
   content: '';
   position: fixed;
   inset: -20%;
   pointer-events: none;
   background:
-    radial-gradient(42% 36% at 16% 6%, color-mix(in srgb, var(--chart-2) 7%, transparent), transparent 70%),
-    radial-gradient(40% 36% at 86% 96%, color-mix(in srgb, var(--chart-4) 6%, transparent), transparent 70%),
-    radial-gradient(30% 28% at 72% 12%, color-mix(in srgb, var(--chart-1) 4%, transparent), transparent 70%);
-  animation: aurora-drift 90s ease-in-out infinite alternate;
+    radial-gradient(42% 36% at 16% 6%, color-mix(in srgb, var(--amber) 10%, transparent), transparent 70%),
+    radial-gradient(40% 36% at 86% 96%, color-mix(in srgb, var(--blue) 8%, transparent), transparent 70%),
+    radial-gradient(30% 28% at 72% 12%, color-mix(in srgb, var(--sage) 6%, transparent), transparent 70%);
+  animation: aurora-drift 40s ease-in-out infinite alternate;
+  mix-blend-mode: screen;
+  z-index: -2;
+}
+.app::after {
+  content: '';
+  position: fixed;
+  inset: -30%;
+  pointer-events: none;
+  background:
+    radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, var(--rose) 4%, transparent), transparent 80%),
+    radial-gradient(35% 35% at 20% 80%, color-mix(in srgb, var(--blue) 6%, transparent), transparent 75%);
+  animation: aurora-drift-reverse 60s ease-in-out infinite alternate;
+  mix-blend-mode: screen;
+  z-index: -1;
 }
 
 @keyframes aurora-drift {
-  to { transform: translate(2.5%, 3%) scale(1.07) rotate(1.2deg); }
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate(3%, 4%) scale(1.08) rotate(2deg); }
+  100% { transform: translate(-2%, -3%) scale(0.95) rotate(-1deg); }
+}
+@keyframes aurora-drift-reverse {
+  0% { transform: translate(0, 0) scale(1.05) rotate(0deg); }
+  50% { transform: translate(-4%, 2%) scale(0.95) rotate(-2deg); }
+  100% { transform: translate(3%, -3%) scale(1.1) rotate(1.5deg); }
 }
 
 .body {
@@ -161,18 +185,20 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 11px;
+  padding: 9px 12px;
   border-radius: var(--radius-sm);
-  font-family: var(--mono);
-  font-size: 11.5px;
-  letter-spacing: 0.05em;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0;
   color: var(--text-dim);
   text-align: left;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 .nav-item:hover {
   background: var(--bg1);
   color: var(--text);
+  transform: translateX(2px);
 }
 .nav-item.is-active {
   background: linear-gradient(
@@ -182,6 +208,7 @@ button {
     transparent
   );
   color: var(--text);
+  box-shadow: -2px 0 12px -4px color-mix(in srgb, var(--amber) 20%, transparent);
 }
 .nav-item.is-active::before {
   content: '';
@@ -204,7 +231,7 @@ button {
 .nav-item:hover .nav-icon { color: var(--text-dim); }
 .nav-item.is-active .nav-icon {
   color: var(--amber);
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--amber) 55%, transparent));
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--amber) 65%, transparent));
 }
 
 .nav-label {
@@ -231,6 +258,7 @@ button {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
+  scroll-behavior: smooth;
   padding: 18px clamp(16px, 2.2vw, 26px) 26px;
 }
 
@@ -297,10 +325,10 @@ button {
 .tb-glyph i:nth-child(3) { height: 5px;  background: var(--rose); }
 
 .tb-name {
-  font-family: var(--sans);
-  font-weight: 700;
-  font-size: 14.5px;
-  letter-spacing: 0.01em;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 16.5px;
+  letter-spacing: 0;
 }
 
 .tb-tag {
@@ -343,6 +371,22 @@ button {
   50%      { box-shadow: 0 0 0 5px color-mix(in srgb, var(--sage) 0%, transparent); }
 }
 
+.tb-github {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--text-faint);
+  transition: color 0.15s ease, background 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+.tb-github:hover {
+  color: var(--text);
+  background: var(--bg2);
+}
+
 .tb-controls {
   display: flex;
   height: 100%;
@@ -379,8 +423,8 @@ button {
   /* layered surface: faint top-light gradient + glass top edge + soft drop */
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--text) 2.5%, var(--bg1)) 0%,
-    var(--bg1) 52%
+    color-mix(in srgb, var(--text) 3.5%, var(--bg1)) 0%,
+    var(--bg1) 60%
   );
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -388,9 +432,9 @@ button {
   flex-direction: column;
   min-width: 0;
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.1),
-    0 12px 28px -18px rgba(0, 0, 0, 0.5);
+    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.15),
+    0 12px 28px -18px rgba(0, 0, 0, 0.6);
 }
 
 .panel-head {
@@ -403,12 +447,12 @@ button {
 }
 
 .panel-head h3 {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: lowercase;
-  letter-spacing: 0.12em;
-  color: var(--text-faint);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+  letter-spacing: 0.01em;
+  color: var(--text-dim);
 }
 
 .panel-note {
@@ -445,28 +489,34 @@ button {
   flex-direction: column;
 }
 
-/* ── stat cards ──────────────────────────────────────────────────────────── */
-
 .stat-card {
+  height: 100%;
   padding: 14px 16px 13px;
   gap: 6px;
+  transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--text-dim) 35%, transparent);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.4);
 }
 
 .stat-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   color: var(--text-faint);
 }
 
 .stat-value {
-  /* hero numerals in the display face (Styrene/Space Grotesk), tabular */
+  /* hero numerals in the display face */
   font-family: var(--sans);
   font-feature-settings: 'tnum' 1;
-  font-size: 27px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.15;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
   /* gradient ink — the hero numerals carry a whisper of the cost accent */
   background: linear-gradient(
     130deg,
@@ -476,6 +526,7 @@ button {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--amber) 8%, transparent));
 }
 .stat-value.dim {
   color: var(--text-faint);
@@ -489,17 +540,19 @@ button {
   justify-content: space-between;
   gap: 8px;
   min-height: 17px;
+  margin-top: auto;
 }
 
 .stat-sub {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: 12.5px;
   color: var(--text-dim);
 }
 
 .stat-delta {
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 12px;
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -513,7 +566,7 @@ button {
 .bar {
   height: 5px;
   border-radius: 3px;
-  background: var(--bg2);
+  background: color-mix(in srgb, var(--line) 70%, var(--bg2));
   overflow: hidden;
   margin: 4px 0 2px;
 }
@@ -525,7 +578,8 @@ button {
     color-mix(in srgb, var(--amber) 65%, transparent),
     var(--amber)
   );
-  transition: width 1s linear;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--amber) 50%, transparent);
+  transition: width 1s var(--ease-out);
 }
 
 /* ── pills / small buttons ───────────────────────────────────────────────── */
@@ -555,13 +609,14 @@ button {
 /* ── charts ──────────────────────────────────────────────────────────────── */
 
 .chart-tip {
-  background: var(--bg2);
-  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg2) 80%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
   padding: 9px 12px;
   font-family: var(--mono);
   font-size: 11px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .tip-title {
   color: var(--text-faint);
@@ -675,6 +730,14 @@ button {
   gap: 10px;
   font-family: var(--mono);
   font-size: 11.5px;
+  padding: 8px 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.ms-row:hover {
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  transform: translateX(4px);
 }
 .ms-name {
   color: var(--text-dim);
@@ -752,17 +815,23 @@ button {
 
 .feed-item {
   display: grid;
-  grid-template-columns: 62px minmax(80px, 1.1fr) 86px 1fr auto;
-  gap: 10px;
+  grid-template-columns: 70px minmax(80px, 1.1fr) 86px 1fr auto;
+  gap: 12px;
   align-items: baseline;
   font-family: var(--mono);
-  font-size: 11px;
-  padding: 5px 8px;
+  font-size: 12.5px;
+  padding: 6px 10px;
   border-radius: 6px;
   animation: slidein 0.25s ease;
+  transition: background 0.15s ease, border-left-color 0.15s ease, transform 0.15s ease;
+  border-left: 2px solid transparent;
 }
 .feed-item:nth-child(odd) { background: color-mix(in srgb, var(--text) 1.5%, transparent); }
-.feed-item:hover { background: var(--bg2); }
+.feed-item:hover {
+  background: color-mix(in srgb, var(--amber) 6%, var(--bg2));
+  border-left-color: var(--amber);
+  transform: translateX(4px);
+}
 
 @keyframes slidein {
   from { opacity: 0; transform: translateY(-4px); }
@@ -820,15 +889,15 @@ button {
   width: 100%;
   border-collapse: collapse;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12.5px;
 }
 .tbl th {
   text-align: right;
-  font-weight: 500;
-  font-size: 10px;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
   color: var(--text-faint);
-  padding: 2px 8px 8px;
+  padding: 4px 8px 10px;
   position: sticky;
   top: 0;
   background: var(--bg1);
@@ -852,21 +921,25 @@ button {
   text-overflow: ellipsis;
 }
 .tbl td.t-cost { color: var(--text); }
-.tbl tr:hover td { background: color-mix(in srgb, var(--text) 2%, transparent); }
+.tbl tr:hover td {
+  background: color-mix(in srgb, var(--amber) 4%, color-mix(in srgb, var(--text) 2.5%, transparent));
+  color: var(--text);
+}
 
 /* ── statusbar ───────────────────────────────────────────────────────────── */
 
 .statusbar {
   position: relative;
-  height: 33px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
+  padding: 0 16px;
   background: color-mix(in srgb, var(--bg0) 80%, transparent);
   backdrop-filter: blur(16px) saturate(1.15);
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 500;
   color: var(--text-faint);
   user-select: none;
 }
@@ -878,7 +951,7 @@ button {
   right: 0;
   top: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--line-soft) 12%, var(--line-soft) 88%, transparent);
+  background: linear-gradient(90deg, transparent, var(--line) 12%, var(--line) 88%, transparent);
 }
 
 .sb-left,
@@ -1114,20 +1187,26 @@ button {
 .panel {
   transition:
     border-color var(--dur-2) var(--ease-out),
-    box-shadow var(--dur-2) var(--ease-out);
+    box-shadow var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out);
 }
 .panel:hover {
-  border-color: color-mix(in srgb, var(--text-faint) 28%, var(--line));
+  border-color: color-mix(in srgb, var(--text-faint) 32%, var(--line));
+  transform: translateY(-1.5px);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.1),
-    0 16px 34px -16px rgba(0, 0, 0, 0.55);
+    inset 0 1px 0 color-mix(in srgb, var(--text) 12%, transparent),
+    0 3px 6px rgba(0, 0, 0, 0.12),
+    0 18px 38px -14px rgba(0, 0, 0, 0.6);
 }
 
 /* press feedback on every small control */
 .pill,
 .sb-btn,
-.nav-item {
+.nav-item,
+.tb-github,
+.plim-refresh,
+.hint-btn,
+.set-btn {
   transition:
     background var(--dur-1) ease,
     color var(--dur-1) ease,
@@ -1135,7 +1214,11 @@ button {
 }
 .pill:active,
 .sb-btn:active,
-.nav-item:active {
+.nav-item:active,
+.tb-github:active,
+.plim-refresh:active,
+.hint-btn:active,
+.set-btn:active {
   transform: scale(0.96);
 }
 
@@ -1176,12 +1259,23 @@ button {
 
 /* heatmap cells crossfade as data/theme shifts */
 .hm-cell {
-  transition: background-color var(--dur-2) ease;
+  transition:
+    background-color var(--dur-2) ease,
+    transform var(--dur-1) var(--ease-out);
+}
+.hm-cell:hover {
+  position: relative;
+  transform: scale(1.25);
+  z-index: 2;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 
 /* table rows acknowledge hover smoothly */
 .tbl td {
-  transition: background var(--dur-1) ease;
+  transition: background var(--dur-1) ease, color var(--dur-1) ease;
+}
+.tbl tbody tr:hover td {
+  background: color-mix(in srgb, var(--amber) 5%, transparent);
 }
 
 /* lazy-view fallback fades in late so fast loads never flash it */

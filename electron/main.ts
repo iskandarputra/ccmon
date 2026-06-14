@@ -453,6 +453,10 @@ ipcMain.handle('app:openDataDir', () => {
   if (state.sourceDirs[0]) void shell.openPath(state.sourceDirs[0]);
 });
 
+ipcMain.on('app:openUrl', (_e, url: string) => {
+  if (typeof url === 'string' && url.startsWith('https://')) void shell.openExternal(url);
+});
+
 ipcMain.on('window:minimize', () => state.win?.minimize());
 ipcMain.on('window:maximize', () => {
   const w = state.win;

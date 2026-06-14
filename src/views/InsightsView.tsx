@@ -395,7 +395,7 @@ export function InsightsView() {
       {/* spend trend + weekly rhythm */}
       <div className="g8">
         <Panel
-          title="spend trend · 30 days"
+          title={<>spend trend · 30 days <Hint label="how to read this">Daily cost over the last 30 days. The line is a 7-day moving average. Spikes are identified using a robust statistical threshold to flag days that are significantly above your typical usage pattern.</Hint></>}
           right={
             <span className="panel-note">
               bars daily · line 7-day average{ins.spikeDays > 0 ? ' · amber = spike day' : ''}
@@ -443,7 +443,7 @@ export function InsightsView() {
               </Bar>
               <Line
                 dataKey="ma7"
-                type="monotone"
+                type="linear"
                 stroke="var(--chart-1)"
                 strokeWidth={1.8}
                 dot={false}
@@ -454,7 +454,7 @@ export function InsightsView() {
         </Panel>
       </div>
       <div className="g4">
-        <Panel title="weekday rhythm" right={<span className="panel-note">avg est cost</span>}>
+        <Panel title={<>weekday rhythm <Hint label="what is this?">Averages your daily spend by day of the week over the last 35 days, revealing which days you are most active.</Hint></>} right={<span className="panel-note">avg est cost</span>}>
           <ResponsiveContainer width="100%" height={232}>
             <BarChart data={ins.weekdays} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
               <defs>
@@ -495,7 +495,7 @@ export function InsightsView() {
 
       {/* longer horizons */}
       <div className="g6">
-        <Panel title="week over week" right={<span className="panel-note">≤12 weeks</span>}>
+        <Panel title={<>week over week <Hint label="how to read this">Weekly spend totals for up to the last 12 weeks. The percentage shown in the tooltip is the change compared to the previous week.</Hint></>} right={<span className="panel-note">≤12 weeks</span>}>
           <ResponsiveContainer width="100%" height={208}>
             <BarChart data={ins.weekly} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
               <defs>
@@ -537,7 +537,7 @@ export function InsightsView() {
       </div>
       <div className="g6">
         <Panel
-          title="plan value"
+          title={<>plan value <Hint label="how it's computed">api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded.</Hint></>}
           right={
             <span className="panel-note">
               {ins.curMonth ? `${monthLabel(ins.curMonth.month)} · ` : ''}
@@ -593,28 +593,16 @@ export function InsightsView() {
                   <b>{plan.projMultiple != null ? `×${plan.projMultiple.toFixed(1)}` : '—'}</b>
                 </li>
               </ul>
-              <Hint label="how it's computed">
-                api-equivalent is this month's usage priced at api rates under the
-                current cost mode. plan prices assumed: pro $20 · max 5x $100 ·
-                max 20x $200, with the tier read from your stored login.
-                team/enterprise seats have no public price and are excluded.
-              </Hint>
             </div>
           ) : (
             <div className="ins-empty">
               <span>no subscription detected</span>
-              <Hint label="what is this?">
-                plan value compares this month's api-equivalent spend to your
-                subscription price (pro $20 · max 5x $100 · max 20x $200). it appears
-                once a Claude Code login with one of those plans is found in the
-                scoped accounts.
-              </Hint>
             </div>
           )}
         </Panel>
       </div>
       <div className="g6">
-        <Panel title="cache economics" right={<span className="panel-note">all-time</span>}>
+        <Panel title={<>cache economics <Hint label="what is this?">Compares your actual API spend to what it would have cost without prompt caching.</Hint></>} right={<span className="panel-note">all-time</span>}>
           <div className="ins-cache">
             <div className="ins-cache-row">
               <span className="ins-cache-label">actual spend</span>
@@ -662,7 +650,7 @@ export function InsightsView() {
       </div>
       <div className="g6">
         <Panel
-          title="cache ttl · cost of walking away"
+          title={<>cache ttl · cost of walking away <Hint label="why?">stepping away past a cache tier's ttl (5 min / 1 h) expires the session's prompt cache, so the next turn re-writes it at write rates instead of reading it back. extra spent = those writes minus what reads would have cost. prompt edits can also invalidate caches, so treat this as an upper bound on idle cost.</Hint></>}
           right={<span className="panel-note">all-time</span>}
         >
           <div className="ins-cache">
@@ -691,20 +679,13 @@ export function InsightsView() {
                 <b>{fmtInt(idle.events)}×</b>
               </li>
             </ul>
-            <Hint label="why?">
-              stepping away past a cache tier's ttl (5 min / 1 h) expires the
-              session's prompt cache, so the next turn re-writes it at write rates
-              instead of reading it back. extra spent = those writes minus what
-              reads would have cost. prompt edits can also invalidate caches, so
-              treat this as an upper bound on idle cost.
-            </Hint>
           </div>
         </Panel>
       </div>
 
       {/* economics table + records */}
       <div className="g7">
-        <Panel title="model economics" right={<span className="panel-note">all-time · top 8</span>}>
+        <Panel title={<>model economics <Hint label="how to read this">Breakdown of the top 8 models by all-time cost, showing what percentage of your spend goes to each, along with efficiency metrics like cost per message.</Hint></>} right={<span className="panel-note">all-time · top 8</span>}>
           <div className="tbl-wrap">
             <table className="tbl">
               <thead>
@@ -739,7 +720,7 @@ export function InsightsView() {
         </Panel>
       </div>
       <div className="g5">
-        <Panel title="records" right={<span className="panel-note">all-time</span>}>
+        <Panel title={<>records <Hint label="what is this?">Your all-time highs and averages across all tracked sessions.</Hint></>} right={<span className="panel-note">all-time</span>}>
           <ul className="ins-records">
             <li>
               <span>best day</span>
@@ -777,6 +758,22 @@ export function InsightsView() {
             <li>
               <span>avg / active day</span>
               <b>{fmtUSD(records.avgDailyCost)}</b>
+            </li>
+            <li title="average context window size (input + cache read tokens) sent to the model per CLI turn">
+              <span>avg context / turn</span>
+              <b>
+                {fmtTok(
+                  Math.round(
+                    (snapshot.totals.in + snapshot.totals.read) /
+                      Math.max(1, snapshot.totals.entries),
+                  ),
+                )}{' '}
+                tok
+              </b>
+            </li>
+            <li title="average estimated cost per CLI turn (input, output, and caching cost)">
+              <span>avg cost / turn</span>
+              <b>{fmtUSD(snapshot.totals.cost / Math.max(1, snapshot.totals.entries))}</b>
             </li>
             <li>
               <span>busiest hour · 30d</span>

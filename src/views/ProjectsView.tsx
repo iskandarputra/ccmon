@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react';
 import { ResponsiveContainer, AreaChart, Area, Tooltip } from 'recharts';
 import { Panel } from '../components/ui/Panel';
+import { Hint } from '../components/ui/Hint';
 import { useUsageStore } from '../store/useUsageStore';
 import { useNow } from '../hooks/useNow';
 import { fmtUSD, fmtTok, fmtInt, fmtPct, relTime, dayLabel, projectName, tildify } from '../lib/format';
@@ -62,7 +63,7 @@ function Sparkline({ daily }: SparklineProps) {
           content={<SparkTip />}
         />
         <Area
-          type="monotone"
+          type="linear"
           dataKey="cost"
           stroke="var(--chart-1)"
           strokeWidth={1.5}
@@ -163,7 +164,7 @@ export function ProjectsView() {
     <div className="grid">
       <div className="g12">
         <Panel
-          title="projects"
+          title={<>projects <Hint label="what is this?">A breakdown of cost and activity scoped to individual project directories.</Hint></>}
           right={
             <div className="prj-controls">
               <input

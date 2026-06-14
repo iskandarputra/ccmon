@@ -17,6 +17,7 @@ import {
   Tooltip,
 } from 'recharts';
 import { Panel } from '../components/ui/Panel';
+import { Hint } from '../components/ui/Hint';
 import { useUsageStore } from '../store/useUsageStore';
 import { axisUSD, fmtUSD, fmtTok, fmtInt, shortModel, dayLabel, monthLabel } from '../lib/format';
 import { ACCENTS, withAlpha } from '../lib/palette';
@@ -224,7 +225,7 @@ export function ActivityView() {
       )}
 
       <div className="g12">
-        <Panel title="daily cost by model" right={pills}>
+        <Panel title={<>daily cost by model <Hint label="how is this stacked?">Costs are grouped by model for the selected range. The top 5 models are shown explicitly, and the rest are grouped into "other".</Hint></>} right={pills}>
           {series.length ? (
             <>
               <ResponsiveContainer width="100%" height={240}>
@@ -279,7 +280,7 @@ export function ActivityView() {
 
       <div className="g12">
         <Panel
-          title="cumulative cost"
+          title={<>cumulative cost <Hint label="what is this?">A running total of your estimated spend over the selected date range.</Hint></>}
           right={<span className="panel-note">{fmtUSD(rangeCost)} · last {range}d</span>}
         >
           {cumRows.length ? (
@@ -303,7 +304,7 @@ export function ActivityView() {
                 />
                 <Tooltip cursor={{ stroke: 'var(--line)' }} content={<CumTip />} />
                 <Area
-                  type="monotone"
+                  type="linear"
                   dataKey="cum"
                   stroke="var(--chart-2)"
                   strokeWidth={1.5}
@@ -322,7 +323,7 @@ export function ActivityView() {
 
       <div className="g6">
         <Panel
-          title="weekly"
+          title={<>weekly <Hint label="how to read this">Data rolls up to the start of each week. The current week is still accumulating.</Hint></>}
           right={<span className="panel-note">last {weekly.length} wk</span>}
         >
           {weekly.length ? (
@@ -369,7 +370,7 @@ export function ActivityView() {
 
       <div className="g6">
         <Panel
-          title="monthly"
+          title={<>monthly <Hint label="how to read this">Data rolls up to the start of each month. The current month is still accumulating.</Hint></>}
           right={<span className="panel-note">last {monthly.length} mo</span>}
         >
           {monthly.length ? (

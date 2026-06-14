@@ -16,6 +16,14 @@
   grid-template-columns: 110px 1fr auto;
   align-items: center;
   gap: 12px;
+  padding: 8px 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.ins-cache-row:hover {
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  transform: translateX(4px);
 }
 
 .ins-cache-label {
@@ -168,13 +176,20 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 9px;
+  padding: 8px 10px;
+  margin: 0 -10px;
   border-bottom: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.ins-records li:hover {
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  border-bottom-color: transparent;
+  transform: translateX(4px);
 }
 
 .ins-records li:last-child {
   border-bottom: none;
-  padding-bottom: 0;
 }
 
 .ins-records span {

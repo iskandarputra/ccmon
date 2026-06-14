@@ -10,6 +10,7 @@ import { useScopedDirs } from '../../hooks/useScopedDirs';
 import { fmtUSD, fmtTok, clockTime, countdown, relTime } from '../../lib/format';
 import { bindingSession, displayWindow } from '../../lib/limits';
 import { CountUp } from '../ui/CountUp';
+import { Hint } from '../ui/Hint';
 
 /**
  * The current 5-hour rate-limit window: estimated cost, progress through the
@@ -81,6 +82,9 @@ export function BlockCard() {
           {countdown(remaining)} → {clockTime(win.end)}
         </span>
       </div>
+      <Hint label="how blocks work">
+        Anthropic enforces a dynamic rate limit over a rolling 5-hour window. This component tracks your progress, cost, and token burn rate through the active window until it resets.
+      </Hint>
     </div>
   );
 }
