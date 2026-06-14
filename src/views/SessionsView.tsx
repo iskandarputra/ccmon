@@ -6,6 +6,7 @@
 
 import { useMemo, useState } from 'react';
 import { Panel } from '../components/ui/Panel';
+import { Hint } from '../components/ui/Hint';
 import { useUsageStore } from '../store/useUsageStore';
 import { useNow } from '../hooks/useNow';
 import {
@@ -155,7 +156,7 @@ export function SessionsView() {
     return (
       <div className="grid">
         <div className="g12">
-          <Panel title="sessions">
+          <Panel title={<>sessions <Hint label="what is this?">A complete, searchable list of all your local Claude Code sessions.</Hint></>}>
             <p className="ses-empty">no sessions recorded yet</p>
           </Panel>
         </div>
@@ -167,7 +168,7 @@ export function SessionsView() {
     <div className="grid">
       <div className="g12">
         <Panel
-          title="sessions"
+          title={<>sessions <Hint label="what is this?">A complete, searchable list of all your local Claude Code sessions.</Hint></>}
           right={
             <div className="ses-head">
               <input

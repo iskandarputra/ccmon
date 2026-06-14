@@ -162,100 +162,113 @@ export function SetupWizard() {
       title="multi-account setup"
       right={<span className="panel-note">generate the claude-* wrappers for your shell</span>}
     >
-      {/* 1 — accounts + their wrapper names */}
-      <div className="wiz-step">
-        <div className="wiz-step-label">1 · accounts → wrapper command</div>
-        {roots.map((root) => (
-          <div className="wiz-acct" key={root}>
+      <div className="wiz-columns">
+        {/* Step 1 Column */}
+        <div className="wiz-col">
+          <div className="wiz-step-label">1 · accounts → wrapper command</div>
+          <div className="wiz-accts-list">
+            {roots.map((root) => (
+              <div className="wiz-acct" key={root}>
+                <input
+                  className="wiz-name"
+                  value={names[root] ?? ''}
+                  spellCheck={false}
+                  onChange={(e) => {
+                    setNames((p) => ({ ...p, [root]: e.target.value }));
+                    invalidate();
+                  }}
+                />
+                <span className="wiz-arrow">→</span>
+                <code className="wiz-root">{tildify(root)}</code>
+              </div>
+            ))}
+          </div>
+          <div className="wiz-add">
+            <span className="wiz-add-pre">~/.claude-</span>
             <input
-              className="wiz-name"
-              value={names[root] ?? ''}
+              className="wiz-suffix"
+              value={newSuffix}
+              placeholder="work"
               spellCheck={false}
-              onChange={(e) => {
-                setNames((p) => ({ ...p, [root]: e.target.value }));
-                invalidate();
-              }}
+              onChange={(e) => setNewSuffix(e.target.value)}
             />
-            <span className="wiz-arrow">→</span>
-            <code className="wiz-root">{tildify(root)}</code>
-          </div>
-        ))}
-        <div className="wiz-add">
-          <span className="wiz-add-pre">~/.claude-</span>
-          <input
-            className="wiz-suffix"
-            value={newSuffix}
-            placeholder="work"
-            spellCheck={false}
-            onChange={(e) => setNewSuffix(e.target.value)}
-          />
-          <button
-            type="button"
-            className="acc-scope-btn"
-            disabled={busy || !newSuffix.trim()}
-            onClick={createAccount}
-          >
-            create account dir
-          </button>
-          {createErr && <span className="wiz-err">{createErr}</span>}
-        </div>
-      </div>
-
-      {/* 2 — which shell's startup file to link */}
-      <div className="wiz-step">
-        <div className="wiz-step-label">
-          2 · shell to link {platform && <span className="wiz-os">· {osLabel(platform)} detected</span>}
-        </div>
-        <div className="wiz-shells">
-          {shells.map((s) => (
             <button
-              key={s.rcPath}
               type="button"
-              className={`wiz-shell${picked.has(s.rcPath) ? ' is-picked' : ''}${s.detected ? ' is-detected' : ''}`}
-              onClick={() => togglePick(s.rcPath)}
+              className="acc-scope-btn"
+              disabled={busy || !newSuffix.trim()}
+              onClick={createAccount}
             >
-              <span className="wiz-shell-name">{s.shell}</span>
-              <span className="wiz-shell-rc">{tildify(s.rcPath)}</span>
-              <span className="wiz-shell-note">{s.note}</span>
+              create account dir
             </button>
-          ))}
-        </div>
-        {platform === 'win32' ? (
-          <div className="wiz-os-note">
-            on Windows ccmon writes a PowerShell <code>function</code> per account and
-            dot-sources them from your <code>$PROFILE</code>. The bash{' '}
-            <code>claude-cross-resume</code> helper is Unix-only, so cross-account resume from
-            the dashboard needs WSL or Git Bash.
+            {createErr && <span className="wiz-err">{createErr}</span>}
           </div>
-        ) : (
-          <label className="wiz-helper">
+        </div>
+
+        {/* Step 2 Column */}
+        <div className="wiz-col">
+          <div className="wiz-step-label">
+            2 · shell to link {platform && <span className="wiz-os">· {osLabel(platform)} detected</span>}
+          </div>
+          <div className="wiz-shells">
+            {shells.map((s) => (
+              <button
+                key={s.rcPath}
+                type="button"
+                className={`wiz-shell${picked.has(s.rcPath) ? ' is-picked' : ''}${s.detected ? ' is-detected' : ''}`}
+                onClick={() => togglePick(s.rcPath)}
+              >
+                <div className="wiz-shell-top">
+                  <span className="wiz-shell-name">{s.shell}</span>
+                  <div className="wiz-shell-radio" aria-hidden="true" />
+                </div>
+                <span className="wiz-shell-rc">{tildify(s.rcPath)}</span>
+                <span className="wiz-shell-note">{s.note}</span>
+              </button>
+            ))}
+          </div>
+          {platform === 'win32' ? (
+            <div className="wiz-os-note">
+              on Windows ccmon writes a PowerShell <code>function</code> per account and
+              dot-sources them from your <code>$PROFILE</code>. The bash{' '}
+              <code>claude-cross-resume</code> helper is Unix-only, so cross-account resume from
+              the dashboard needs WSL or Git Bash.
+            </div>
+          ) : (
+            <label className="wiz-toggle">
+              <input
+                type="checkbox"
+                checked={installHelper}
+                onChange={(e) => {
+                  setInstallHelper(e.target.checked);
+                  invalidate();
+                }}
+              />
+              <span className="wiz-toggle-track" aria-hidden="true" />
+              <span className="wiz-toggle-text">
+                install the <code>claude-cross-resume</code> helper to ~/.local/bin
+              </span>
+            </label>
+          )}
+          <label className="wiz-toggle">
             <input
               type="checkbox"
-              checked={installHelper}
+              checked={tidy}
               onChange={(e) => {
-                setInstallHelper(e.target.checked);
+                setTidy(e.target.checked);
                 invalidate();
               }}
             />
-            install the <code>claude-cross-resume</code> helper to ~/.local/bin
+            <span className="wiz-toggle-track" aria-hidden="true" />
+            <span className="wiz-toggle-text">
+              tidy up: comment out any existing hand-written <code>claude-*</code> defs the
+              managed file replaces (single-line only · shown in preview)
+            </span>
           </label>
-        )}
-        <label className="wiz-helper">
-          <input
-            type="checkbox"
-            checked={tidy}
-            onChange={(e) => {
-              setTidy(e.target.checked);
-              invalidate();
-            }}
-          />
-          tidy up: comment out any existing hand-written <code>claude-*</code> defs the
-          managed file replaces (single-line only · shown in the preview)
-        </label>
+        </div>
       </div>
 
-      {/* 3 — preview (always) then apply */}
-      <div className="wiz-step">
+      {/* Step 3 — review & apply */}
+      <div className="wiz-step wiz-step-apply">
         <div className="wiz-step-label">3 · review &amp; apply</div>
         <div className="wiz-actions">
           <button type="button" className="acc-scope-btn" onClick={preview} disabled={busy}>

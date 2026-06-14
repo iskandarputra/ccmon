@@ -156,7 +156,7 @@ function CostByModelChart({ days, series }: CostByModelChartProps) {
               key={s.key}
               dataKey={s.key}
               stackId="cost"
-              type="monotone"
+              type="linear"
               stroke={s.color}
               strokeWidth={1.2}
               fill={withAlpha(s.color, 0.4)}
@@ -326,12 +326,6 @@ function WhatIfPanel({ rows, actual }: WhatIfPanelProps) {
           </div>
         );
       })}
-      <Hint label="how it's computed">
-        every recorded request is re-priced onto each model with its exact token
-        splits (input / output / cache read / cache write) and tier rules — the
-        same engine that prices your real usage. quality differences between
-        models are not priced in; this is the bill, not the value.
-      </Hint>
     </div>
   );
 }
@@ -408,22 +402,22 @@ export function ModelsView() {
     <div className="grid">
       <div className="g8">
         <Panel
-          title="daily cost by model"
+          title={<>daily cost by model <Hint label="how to read this">Shows your estimated spend over the last 35 days stacked by model. The top 5 models are shown individually, while the rest are grouped into "other".</Hint></>}
           right={<span className="panel-note">est cost · 35 days</span>}
         >
-          <CostByModelChart days={days} series={series} />
+          <CostByModelChart days={days.slice(-35)} series={series} />
         </Panel>
       </div>
 
       <div className="g4">
-        <Panel title="cost share" right={<span className="panel-note">all time</span>}>
+        <Panel title={<>cost share <Hint label="what is this?">A breakdown of your all-time spend by model.</Hint></>} right={<span className="panel-note">all time</span>}>
           <CostDonut models={models} />
         </Panel>
       </div>
 
       <div className="g12">
         <Panel
-          title="cache economics"
+          title={<>cache economics <Hint label="how it's computed">Shows how much you paid versus how much you saved because of prompt caching. Hit rate is cache read tokens divided by total input tokens.</Hint></>}
           right={<span className="panel-note">prompt caching</span>}
         >
           <CacheEconomics cache={snapshot.cache} totalCost={snapshot.totals?.cost || 0} />
@@ -432,7 +426,7 @@ export function ModelsView() {
 
       <div className="g12">
         <Panel
-          title="what-if · all traffic on one model"
+          title={<>what-if · all traffic on one model <Hint label="how it's computed">every recorded request is re-priced onto each model with its exact token splits (input / output / cache read / cache write) and tier rules — the same engine that prices your real usage. quality differences between models are not priced in; this is the bill, not the value.</Hint></>}
           right={<span className="panel-note">entry-exact re-pricing · all time</span>}
         >
           <WhatIfPanel rows={snapshot.whatIf || []} actual={snapshot.totals?.cost || 0} />
@@ -441,7 +435,7 @@ export function ModelsView() {
 
       <div className="g12">
         <Panel
-          title="models"
+          title={<>models <Hint label="what is this?">A comprehensive list of every model you've used, sorted by total cost.</Hint></>}
           right={<span className="panel-note">{models.length} model{models.length === 1 ? '' : 's'}</span>}
         >
           <ModelsTable models={models} now={now} />

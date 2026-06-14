@@ -15,6 +15,28 @@ import { countdown, fmtPct, relTime, sourceLabel } from '../../lib/format';
 import { limitColor } from '../../lib/limits';
 import type { LimitSample, LimitWindow, WindowForecast } from '../../../shared/types';
 
+function fmtErr(err: string | undefined): string {
+  if (!err) return '';
+  const lower = err.toLowerCase();
+  if (lower.includes('429') || lower.includes('rate_limit') || lower.includes('too many requests')) {
+    return 'rate limited by anthropic';
+  }
+  if (lower.includes('401') || lower.includes('403')) return 'auth failed — check token';
+  if (lower.includes('500') || lower.includes('502') || lower.includes('503')) return 'anthropic api down';
+  if (lower.includes('fetch') || lower.includes('econn') || lower.includes('timeout')) return 'network error';
+  
+  // Try to cleanly cut off raw JSON or parenthesis
+  const brace = err.indexOf('{');
+  const paren = err.indexOf('(');
+  const cut = Math.min(brace > 0 ? brace : 999, paren > 0 ? paren : 999);
+  if (cut > 5 && cut < 999) {
+    const clean = err.substring(0, cut).replace(/—\s*$/, '').trim();
+    if (clean) return clean;
+  }
+  
+  return err.length > 50 ? err.substring(0, 47) + '...' : err;
+}
+
 const resetLabel = (ts: number) =>
   new Date(ts).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -46,7 +68,7 @@ function WindowTile({ label, win, forecast, now }: WindowTileProps) {
     <div className="plim-win">
       <div className="plim-win-head">
         <span className="plim-win-label">{label}</span>
-        <b className="plim-win-pct" style={{ color }}>
+        <b className={`plim-win-pct${(pct ?? 0) >= 100 ? ' is-capped' : ''}`} style={{ color }}>
           {pct == null ? '—' : fmtPct(pct)}
         </b>
       </div>
@@ -88,12 +110,15 @@ function HistorySpark({ samples }: { samples: LimitSample[] }) {
     .join(' ');
   return (
     <div
-      className="plim-spark"
+      className="plim-spark-wrap"
       title={`weekly utilization over the last ${Math.round(span / 3600e3)}h of polls`}
     >
-      <svg viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden>
-        <path d={d} />
-      </svg>
+      <span className="plim-spark-label">7d utilization trend</span>
+      <div className="plim-spark">
+        <svg viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden>
+          <path d={d} />
+        </svg>
+      </div>
     </div>
   );
 }
@@ -163,7 +188,7 @@ export function PlanLimits() {
                 )}
                 {!r?.ok && (
                   <span className="plim-err" title={r?.error}>
-                    {r?.error || 'unavailable'}
+                    {fmtErr(r?.error) || 'unavailable'}
                     {r ? ` · ${retryNote}` : ''}
                   </span>
                 )}
@@ -193,7 +218,7 @@ export function PlanLimits() {
                   {r.stale && (
                     <div className="plim-stale" title={r.lastError?.error}>
                       showing data from {relTime(r.fetchedAt, now)} —{' '}
-                      {r.lastError?.error || 'latest refresh failed'} · {retryNote}
+                      {fmtErr(r.lastError?.error) || 'latest refresh failed'} · {retryNote}
                     </div>
                   )}
                 </>

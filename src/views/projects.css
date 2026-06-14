@@ -98,11 +98,14 @@
   background: var(--bg0);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 .prj-card:hover {
-  border-color: color-mix(in srgb, var(--text-faint) 35%, var(--line));
-  background: color-mix(in srgb, var(--bg2) 40%, var(--bg0));
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 60%, var(--bg0));
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--amber) 4%, transparent),
+              0 2px 4px -2px color-mix(in srgb, var(--bg3) 40%, transparent);
 }
 
 .prj-title {

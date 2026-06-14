@@ -13,9 +13,10 @@ interface StatCardProps {
   /** percentage vs yesterday; rendered as ▲/▼ when finite */
   delta?: number | null;
   aside?: ReactNode;
+  hint?: ReactNode;
 }
 
-export function StatCard({ label, value, sub, delta, aside }: StatCardProps) {
+export function StatCard({ label, value, sub, delta, aside, hint }: StatCardProps) {
   return (
     <div className="panel stat-card">
       <div className="stat-label">{label}</div>
@@ -33,6 +34,7 @@ export function StatCard({ label, value, sub, delta, aside }: StatCardProps) {
           <span className="stat-delta">{aside}</span>
         ) : null}
       </div>
+      {hint}
     </div>
   );
 }

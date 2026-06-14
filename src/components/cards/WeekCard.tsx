@@ -8,8 +8,9 @@ import { useUsageStore } from '../../store/useUsageStore';
 import { useNow } from '../../hooks/useNow';
 import { useScopedDirs } from '../../hooks/useScopedDirs';
 import { fmtUSD, fmtTok } from '../../lib/format';
-import { bindingWeek, limitColor } from '../../lib/limits';
+import { limitColor, bindingWeek } from '../../lib/limits';
 import { CountUp } from '../ui/CountUp';
+import { Hint } from '../ui/Hint';
 
 /**
  * This week's spend, plus the real weekly plan limit (binding account) when
@@ -55,6 +56,9 @@ export function WeekCard() {
           </span>
         )}
       </div>
+      <Hint label="why 7d?">
+        Your Anthropic account is subject to a hard weekly spend limit. This tracks your rolling 7-day cost and resets at the exact hour specified.
+      </Hint>
     </div>
   );
 }

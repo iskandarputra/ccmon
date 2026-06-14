@@ -80,6 +80,8 @@ export interface CcmonApi {
   onLimits(cb: (limits: LimitsMap) => void): Unsubscribe;
   onCurrency(cb: (rates: CurrencyRates) => void): Unsubscribe;
 
+  openUrl(url: string): void;
+
   minimize(): void;
   toggleMaximize(): void;
   close(): void;

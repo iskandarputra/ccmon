@@ -38,6 +38,14 @@
   grid-template-columns: 150px 1fr 92px 96px;
   align-items: center;
   gap: 12px;
+  padding: 8px 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.mdl-wi-row:hover {
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  transform: translateX(4px);
 }
 .mdl-wi-name {
   color: var(--text-dim);

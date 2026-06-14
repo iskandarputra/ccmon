@@ -159,7 +159,7 @@ function ActiveHero({ block, now, hideLocalLimit, liveSession }: ActiveHeroProps
       }
     : block.projection;
   return (
-    <Panel className="blk-hero" title="active block · 5h window" right={<BurnBadge burn={block.burn} />}>
+    <Panel className="blk-hero" title={<>active block · 5h window <Hint label="how blocks work">Anthropic enforces rate limits in rolling 5-hour windows. This shows your current window's utilization, estimated cost, and tokens consumed.</Hint></>} right={<BurnBadge burn={block.burn} />}>
       <div className="blk-hero-top">
         <div className="blk-hero-cell">
           <div className="blk-sub-label">est cost</div>
@@ -270,7 +270,7 @@ function UtilizationPanel({ usage, maxBlockTokens }: UtilizationPanelProps) {
   return (
     <div className="g12">
     <Panel
-      title="block utilization · 30d"
+      title={<>block utilization · 30d <Hint label="why?">each completed 5h window's tokens, measured against your biggest-ever block ({fmtTok(maxBlockTokens)} tok) — a local proxy for capacity, since anthropic doesn't publish block token limits. many light blocks means windows opened for a quick question; each still starts the 5h session clock.</Hint></>}
       right={<span className="panel-note">fill vs your biggest block</span>}
     >
       <div className="blk-hist">
@@ -300,12 +300,6 @@ function UtilizationPanel({ usage, maxBlockTokens }: UtilizationPanelProps) {
           </li>
         </ul>
       </div>
-      <Hint label="why?">
-        each completed 5h window's tokens, measured against your biggest-ever block
-        ({fmtTok(maxBlockTokens)} tok) — a local proxy for capacity, since anthropic
-        doesn't publish block token limits. many light blocks means windows opened
-        for a quick question; each still starts the 5h session clock.
-      </Hint>
     </Panel>
     </div>
   );
@@ -442,7 +436,7 @@ export function BlocksView() {
 
       <div className="g12">
         <Panel
-          title="block history · last 30 days"
+          title={<>block history · last 30 days <Hint label="what is this?">A chronological log of your past 5-hour billing windows and the quiet gaps between them.</Hint></>}
           right={
             <span className="panel-note">
               {fmtInt(usage.length)} blocks · {fmtInt(gapCount)} gaps

@@ -21,6 +21,9 @@ jobs:
           - os: windows-latest
             name: windows
             args: --win
+          - os: macos-latest
+            name: macos
+            args: --mac
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +57,8 @@ jobs:
             release/*.deb
             release/*.AppImage
             release/*.exe
+            release/*.dmg
+            release/*.zip
           if-no-files-found: error
 
   release:

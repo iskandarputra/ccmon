@@ -7,6 +7,7 @@
 import { useUsageStore } from '../store/useUsageStore';
 import { useScopedDirs } from '../hooks/useScopedDirs';
 import { CountUp } from '../components/ui/CountUp';
+import { Hint } from '../components/ui/Hint';
 import { StatCard } from '../components/cards/StatCard';
 import { PlanLimits } from '../components/cards/PlanLimits';
 import { BlockCard } from '../components/cards/BlockCard';
@@ -36,6 +37,11 @@ export function OverviewView() {
           value={<CountUp value={today.cost} format={fmtUSD} />}
           delta={today.vsYesterdayPct}
           sub={`${fmtTok(today.tokens)} tok · ${today.sessions} session${today.sessions === 1 ? '' : 's'}`}
+          hint={
+            <Hint label="how it's computed">
+              Cost is estimated locally by taking your token usage from the CLI and multiplying it by the bundled Anthropic pricing sheet.
+            </Hint>
+          }
         />
       </div>
       <div className="g3">
@@ -56,6 +62,11 @@ export function OverviewView() {
                   year: 'numeric',
                 })}`
               : null
+          }
+          hint={
+            <Hint label="what is this?">
+              Your all-time total estimated spend and token usage recorded by the local CLI since you began tracking.
+            </Hint>
           }
         />
       </div>

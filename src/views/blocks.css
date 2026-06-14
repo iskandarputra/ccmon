@@ -318,11 +318,12 @@
   font-size: 11px;
   padding: 6px 10px;
   border-left: 2px solid transparent;
-  border-radius: 6px;
-  transition: background 0.12s ease;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 .blk-row:hover {
-  background: var(--bg2);
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  transform: translateX(4px);
 }
 
 /* active block — accent left border */
@@ -332,6 +333,7 @@
 }
 .blk-row-live:hover {
   background: color-mix(in srgb, var(--amber) 7%, transparent);
+  transform: translateX(4px);
 }
 
 .blk-live-tag {
@@ -457,6 +459,14 @@
   grid-template-columns: 64px 1fr 32px;
   align-items: center;
   gap: 12px;
+  padding: 8px 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.blk-hist-row:hover {
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  transform: translateX(4px);
 }
 
 .blk-hist-label {

@@ -113,11 +113,37 @@ interface AccountCardProps {
   now: number;
 }
 
+const avatarStyle = (label: string, accent: string) => {
+  const hash = label.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const angles = [135, 45, 90, 180, 225];
+  const angle = angles[hash % angles.length];
+  return {
+    background: `linear-gradient(${angle}deg, ${accent} 0%, color-mix(in srgb, ${accent} 30%, var(--bg1)) 100%)`,
+    color: 'var(--text)',
+    textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+    boxShadow: `0 4px 10px -3px color-mix(in srgb, ${accent} 35%, transparent)`,
+  };
+};
+
 /** One account: identity, login state, live limit windows, plan price. */
 function AccountCard({ dir, acct, limit, inScope, canScope, accent, now }: AccountCardProps) {
   const label = sourceLabel(dir);
   const price = planPriceUSD(acct?.plan ?? null, acct?.tier ?? null);
   const loggedIn = acct?.hasCredentials ?? false;
+
+  const [recent, setRecent] = useState<RecentSession[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    if (window.ccmon?.listRecentSessions) {
+      void window.ccmon.listRecentSessions(dir, 3).then((rows) => {
+        if (alive) setRecent(rows || []);
+      });
+    }
+    return () => {
+      alive = false;
+    };
+  }, [dir]);
 
   return (
     <Panel
@@ -125,7 +151,7 @@ function AccountCard({ dir, acct, limit, inScope, canScope, accent, now }: Accou
       style={cssVars({ '--acc': accent })}
       title={
         <span className="acc-head">
-          <span className="acc-avatar" aria-hidden>
+          <span className="acc-avatar" style={avatarStyle(label, accent)} aria-hidden>
             {monogram(label)}
           </span>
           <span className="acc-name">{label}</span>
@@ -172,6 +198,20 @@ function AccountCard({ dir, acct, limit, inScope, canScope, accent, now }: Accou
             : limit && !limit.ok
               ? limit.error
               : 'no live limits yet'}
+        </div>
+      )}
+
+      {recent.length > 0 && (
+        <div className="acc-recent">
+          <div className="acc-recent-title">recent activity</div>
+          <ul className="acc-recent-list">
+            {recent.map((s) => (
+              <li key={s.id} title={`${s.project} · ${s.cwd ? tildify(s.cwd) : ''}`}>
+                <span className="acc-recent-name">{s.project}</span>
+                <span className="acc-recent-time">{relTime(s.mtime, now)}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
