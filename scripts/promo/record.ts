@@ -3,14 +3,15 @@
  * @brief Films a scripted ccmon tour over CDP — synthetic data, live feed, screencast frames.
  * @author Iskandar Putra <www.iskandarputra.com>
  *
- * Launches the BUILT app, drives a ~29s choreography through the headline
- * views and captures compositor frames via Page.startScreencast into
- * promo/take/.
+ * Launches the BUILT app, drives a ~32s choreography through the headline
+ * views — including the multi-account dashboard — and captures compositor
+ * frames via Page.startScreencast into promo/take/.
  * The window appears on screen for the duration — hands off mouse/keyboard.
  *
  * By default the subject is the REAL ~/.claude (read-only: a throwaway $HOME
  * keeps userData isolated and nothing is ever written into the data dir).
- * --demo films the synthetic dataset from demo-data.ts instead.
+ * --demo films the synthetic multi-account world from demo-data.ts instead,
+ * with env-gated synthetic plan limits so the accounts view renders fully.
  *
  *   tsx scripts/promo/record.ts [--demo] [--days N] [--seed N] [--skip-gen] [--rebuild]
  *
@@ -22,7 +23,13 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import WebSocket from 'ws';
-import { DEFAULT_ROOT, generate, selfCheck, startLiveTicker } from './demo-data';
+import {
+  DEFAULT_ROOT,
+  accountProjectDirs,
+  generateAccounts,
+  selfCheckAccounts,
+  startLiveTicker,
+} from './demo-data';
 
 const REPO = path.resolve(__dirname, '..', '..');
 const TAKE_DIR = path.join(REPO, 'promo', 'take');
@@ -30,7 +37,7 @@ const FRAMES_DIR = path.join(TAKE_DIR, 'frames');
 const CDP_PORT = 9223; // not 9222 — keep clear of the dev-session convention
 const WIN = { width: 1600, height: 1000 };
 const HERO_THEME = 'nord'; // the app default — the ad opens and closes on it
-const THEME_TOUR = ['lofi', 'synthwave', 'daylight', HERO_THEME];
+const THEME_TOUR = ['tokyo night', 'catppuccin', 'synthwave', HERO_THEME];
 /** 3D finale: every data mode, bars view only ('rhythm $' mirrors rhythm). */
 const SPATIAL_MODES = ['rhythm', 'models', 'projects', 'blocks', 'sessions', 'tools', 'what-if'];
 
@@ -141,13 +148,14 @@ async function main(): Promise<void> {
   const fakeHome = demo ? DEFAULT_ROOT : path.join(os.tmpdir(), 'ccmon-real-home');
   if (demo) {
     if (!flag('skip-gen')) {
-      const sum = generate({
-        root: fakeHome,
+      const sums = generateAccounts(fakeHome, {
         days: Number(opt('days') ?? 75),
         seed: Number(opt('seed') ?? 20260612),
       });
-      console.log(`[record] demo data: ${sum.files} sessions, ${sum.lines} lines`);
-      await selfCheck(fakeHome);
+      const files = sums.reduce((n, s) => n + s.files, 0);
+      const lines = sums.reduce((n, s) => n + s.lines, 0);
+      console.log(`[record] demo data: ${sums.length} accounts, ${files} sessions, ${lines} lines`);
+      await selfCheckAccounts(fakeHome);
     }
   } else {
     // film the real ~/.claude; make sure no stale demo tree shadows it
@@ -155,10 +163,11 @@ async function main(): Promise<void> {
   }
   const cfgDir = path.join(fakeHome, '.config', 'ccmon');
   fs.mkdirSync(cfgDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(cfgDir, 'settings.json'),
-    JSON.stringify({ theme: HERO_THEME, pricingOffline: true }, null, 2),
-  );
+  const settings: Record<string, unknown> = { theme: HERO_THEME, pricingOffline: true };
+  // demo: scope every view to all synthetic accounts at once, so the data
+  // views read full and the accounts dashboard shows "all in view".
+  if (demo) settings.sources = accountProjectDirs(fakeHome);
+  fs.writeFileSync(path.join(cfgDir, 'settings.json'), JSON.stringify(settings, null, 2));
   fs.writeFileSync(
     path.join(cfgDir, 'window-state.json'),
     JSON.stringify({ x: 80, y: 80, width: WIN.width, height: WIN.height, maximized: false }),
@@ -173,6 +182,9 @@ async function main(): Promise<void> {
     delete env[k];
   }
   if (!demo) env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), '.claude');
+  // demo: serve synthetic plan limits so the accounts meters + cross-account
+  // headroom banner render without a real Anthropic login (see accounts.ts).
+  if (demo) env.CCMON_DEMO_LIMITS = '1';
   const electronPath = require('electron') as unknown as string;
   console.log('[record] launching app — window will appear, hands off for ~45s');
   const el: ChildProcess = spawn(
@@ -282,6 +294,17 @@ async function main(): Promise<void> {
       })()`);
       if (!ok) console.warn(`[record] rail button "${label}" not found`);
     };
+    /** Click a sidebar nav item by its label — settings has no number hotkey. */
+    const clickNav = async (label: string): Promise<void> => {
+      const ok = await evaluate<boolean>(`(() => {
+        const item = [...document.querySelectorAll('.nav-item')]
+          .find((el) => ((el.querySelector('.nav-label')?.textContent) || '').trim() === ${JSON.stringify(label)});
+        if (!item) return false;
+        item.click();
+        return true;
+      })()`);
+      if (!ok) console.warn(`[record] nav item "${label}" not found`);
+    };
 
     // 4. wait for the snapshot to land (real datasets take a few seconds)
     let ready = false;
@@ -352,8 +375,9 @@ async function main(): Promise<void> {
       everyNthFrame: 1,
     });
 
-    // ---- choreography (~28s) ----
-    beat('overview'); // ~2s on screen
+    // ---- choreography (~32s) ----
+    // act 1 — the hero opener
+    beat('overview');
     await sleep(400);
     const statBoxes: Box[] = [];
     for (let i = 0; i < 2; i++) {
@@ -361,42 +385,69 @@ async function main(): Promise<void> {
       if (b) statBoxes.push(b);
     }
     await glide(statBoxes.map((b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 })), 800);
-    await sleep(400);
+    await sleep(500);
 
+    // act 2 — the analytics sweep
     await key('2');
     beat('activity');
-    await sleep(800);
-    await hoverStops('.recharts-wrapper', [0.3, 0.45, 0.6], 450); // 3 bars, no more
-    await sleep(800);
+    await sleep(700);
+    await hoverStops('.recharts-wrapper', [0.3, 0.45, 0.6], 420); // 3 bars, no more
+    await sleep(600);
 
     await key('3');
     beat('insights');
-    await sleep(2400);
-
-    await key('6');
-    beat('blocks');
-    await sleep(2600);
+    await sleep(2200);
 
     await key('7');
     beat('models');
     await sleep(500);
-    await hoverStops('.recharts-wrapper', [0.35, 0.6], 450);
-    await sleep(500);
+    await hoverStops('.recharts-wrapper', [0.35, 0.6], 420);
+    await sleep(600);
 
     await key('8');
     beat('projects');
+    await sleep(2000);
+
+    await key('6');
+    beat('blocks');
     await sleep(2200);
 
+    // act 3 — the multi-account dashboard + cross-account headroom
     await key('9');
+    beat('accounts');
+    // limits poll fires at startup, but wait for the banner to be safe on camera
+    for (let i = 0; i < 12; i++) {
+      if (await evaluate<boolean>(`!!document.querySelector('.acc-headroom')`)) break;
+      await sleep(250);
+    }
+    await sleep(1100);
+    await evaluate(
+      `document.querySelector('.acc-headroom')?.scrollIntoView({ block: 'start', behavior: 'smooth' })`,
+    );
+    await sleep(900);
+    await hoverStops('.hr-cmd', [0.5, 0.85], 480); // the ready-to-run resume command
+    await sleep(700);
+    await wheel(360, '.content'); // pan down across the per-account cards + meters
+    await sleep(1500);
+
+    // act 4 — make it yours: settings has no number hotkey now, open the rail
+    await clickNav('settings');
     beat('themes');
     await sleep(500);
+    // reveal the full theme collection — the newer themes live past the first 8
+    await evaluate(`(() => {
+      const btn = [...document.querySelectorAll('button')]
+        .find((el) => ((el.textContent) || '').trim().toLowerCase().startsWith('reveal all'));
+      if (btn) btn.click();
+    })()`);
+    await sleep(450);
     await evaluate(
       `document.querySelector('.set-themes')?.scrollIntoView({ block: 'center', behavior: 'smooth' })`,
     );
     await sleep(500);
     for (const t of THEME_TOUR) {
       await clickTheme(t);
-      await sleep(600);
+      await sleep(650);
     }
 
     // finale: every data mode in 3D, bars only, with a slow dolly-in

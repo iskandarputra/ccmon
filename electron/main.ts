@@ -13,7 +13,7 @@ import { createPricingEngine, costForMode, type PricingEngine } from './services
 import { PricingArchive } from './services/pricing-archive';
 import { UsageWatcher } from './services/watcher';
 import { buildSnapshot, toFeedEvent } from './services/aggregate';
-import { accountsFor, fetchLiveLimits } from './services/accounts';
+import { accountsFor, demoLimits, fetchLiveLimits } from './services/accounts';
 import { recentSessions } from './services/cross-account';
 import { applySetup, createAccountDir, detectShells, planSetup } from './services/account-setup';
 import { LimitsHistory } from './services/limits-history';
@@ -189,7 +189,9 @@ async function refreshLimits(force = false): Promise<void> {
       dirs.map(async (d) => {
         const bo = state.limitsBackoff.get(d);
         if (!force && bo && now < bo.nextAttemptAt) return null; // backing off — keep current entry
-        return fetchLiveLimits(d);
+        // promo recordings (record.ts --demo) swap in synthetic limits so the
+        // accounts dashboard renders without a real login; off in production.
+        return process.env.CCMON_DEMO_LIMITS ? demoLimits(d, now) : fetchLiveLimits(d);
       }),
     );
     const limits: LimitsMap = {};

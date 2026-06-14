@@ -247,3 +247,38 @@ export async function fetchLiveLimits(projectDir: string): Promise<LimitsResult>
     clearTimeout(timer);
   }
 }
+
+/**
+ * Synthetic plan limits for promo recordings — NEVER used in production. The
+ * limits poll swaps to this only when `CCMON_DEMO_LIMITS` is set (record.ts in
+ * --demo). Returns deterministic per-account utilization tuned so the
+ * cross-account headroom banner fires: the `.claude-work` account sits near a
+ * cap while the default `.claude` account keeps room (see src/lib/crossAccount
+ * thresholds HIGH 80 / GAP 25 / ROOM 70). A gentle time wobble keeps the
+ * "live" dot and sparkline from reading as frozen on camera.
+ */
+export function demoLimits(projectDir: string, now: number): LimitsResult {
+  const isWork = path.basename(rootOf(projectDir)) !== '.claude';
+  const wobble = Math.sin(now / 30_000) * 1.5;
+  const win = (pct: number, resetInHours: number): LimitWindow => ({
+    pct: Math.max(0, Math.min(100, pct)),
+    resetsAt: now + resetInHours * 3_600_000,
+  });
+  return isWork
+    ? {
+        ok: true,
+        fetchedAt: now,
+        session: win(90 + wobble, 2.5),
+        week: win(76 + wobble * 0.5, 88),
+        weekOpus: win(83 + wobble * 0.5, 88),
+        weekSonnet: win(61 + wobble * 0.5, 88),
+      }
+    : {
+        ok: true,
+        fetchedAt: now,
+        session: win(24 + wobble, 4),
+        week: win(31 + wobble * 0.5, 104),
+        weekOpus: win(27 + wobble * 0.5, 104),
+        weekSonnet: win(19 + wobble * 0.5, 104),
+      };
+}

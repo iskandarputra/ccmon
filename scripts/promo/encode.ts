@@ -93,16 +93,16 @@ function main(): void {
   console.log(`[encode] ${tourMp4}  ${mb(tourMp4)}  ${probeDuration(tourMp4).toFixed(1)}s`);
 
   // ---- highlight cut (gif + teaser) ---- (times relative to the trimmed master)
-  // one stop per sidebar tab, in tab order; the 3D stop shows exactly two
-  // data modes (terrain + the first hop)
+  // one stop per headline view in tour order — including the accounts
+  // dashboard; the 3D stop shows the terrain plus the first mode hop
   const segs: Array<[number, number]> = [
     [rel('overview') + 0.4 - mStart, 1.6],
     [rel('activity') + 0.8 - mStart, 1.8],
     [rel('insights') + 0.5 - mStart, 1.6],
-    [rel('spatial') + 0.4 - mStart, 2.3],
-    [rel('blocks') + 0.5 - mStart, 1.6],
     [rel('models') + 0.7 - mStart, 1.8],
     [rel('projects') + 0.5 - mStart, 1.6],
+    [rel('accounts') + 1.0 - mStart, 2.0],
+    [rel('spatial') + 0.4 - mStart, 2.3],
   ].map(([s, len]) => {
     const start = Math.min(Math.max(0, s), dur - 0.1);
     return [start, Math.min(len, Math.max(0.1, dur - start))];
