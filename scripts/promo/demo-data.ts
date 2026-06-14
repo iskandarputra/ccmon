@@ -1,15 +1,19 @@
 /**
  * @file demo-data.ts
- * @brief Synthetic Claude Code transcripts for promo recordings — seeded history plus a live ticker.
+ * @brief Synthetic Claude Code transcripts for promo recordings — seeded history, multi-account worlds, and a live ticker.
  * @author Iskandar Putra <www.iskandarputra.com>
  *
  * Generates a fake `<root>/.claude/projects/**` tree that parses, dedupes and
  * prices exactly like real data (validated through the real parser + pricing
  * engine in selfCheck), so promo footage never shows real project names.
+ * `generateAccounts()` builds several such roots side by side (`.claude`,
+ * `.claude-work`, …) with synthetic identity + credentials, so the accounts
+ * dashboard and cross-account headroom render without any real login.
  *
  *   tsx scripts/promo/demo-data.ts [--root DIR] [--days N] [--seed N]
- *   tsx scripts/promo/demo-data.ts --live          # append entries until killed
- *   tsx scripts/promo/demo-data.ts --check         # validate an existing tree
+ *   tsx scripts/promo/demo-data.ts --accounts       # build the multi-account world
+ *   tsx scripts/promo/demo-data.ts --live           # append entries until killed
+ *   tsx scripts/promo/demo-data.ts --check          # validate an existing tree
  */
 
 import fs from 'fs';
@@ -78,16 +82,25 @@ class Dice {
 
 // ---- the synthetic world --------------------------------------------------
 
-const PROJECTS: ReadonlyArray<readonly [string, number]> = [
+const WORK_PROJECTS: ReadonlyArray<readonly [string, number]> = [
   ['/home/dev/work/api-gateway', 3.0],
   ['/home/dev/work/web-dashboard', 2.4],
   ['/home/dev/work/payments-service', 1.6],
   ['/home/dev/work/mobile-app', 1.2],
   ['/home/dev/work/ml-pipeline', 1.0],
   ['/home/dev/work/infra', 0.8],
-  ['/home/dev/oss/ccmon', 1.4],
-  ['/home/dev/oss/dotfiles', 0.5],
 ];
+
+const PERSONAL_PROJECTS: ReadonlyArray<readonly [string, number]> = [
+  ['/home/dev/oss/ccmon', 1.4],
+  ['/home/dev/oss/dotfiles', 0.6],
+  ['/home/dev/personal/blog', 0.9],
+  ['/home/dev/personal/homelab', 0.7],
+  ['/home/dev/oss/cli-tools', 0.5],
+];
+
+/** Combined set — single-account generate() keeps its original project mix. */
+const PROJECTS: ReadonlyArray<readonly [string, number]> = [...WORK_PROJECTS, ...PERSONAL_PROJECTS];
 
 const MODELS: ReadonlyArray<readonly [string, number]> = [
   ['claude-opus-4-8', 0.5],
@@ -251,25 +264,32 @@ export interface GenSummary {
   days: number;
 }
 
-/** Wipe + regenerate `<root>/.claude/projects`. Root must look demo-ish. */
-export function generate(opts: { root?: string; days?: number; seed?: number } = {}): GenSummary {
-  const root = opts.root ?? DEFAULT_ROOT;
-  const days = opts.days ?? 75;
-  const seed = opts.seed ?? 20260612;
-  if (!path.basename(root).includes('ccmon-demo')) {
-    throw new Error(`refusing to wipe ${root} — root dir name must contain "ccmon-demo"`);
-  }
-  const projectsDir = path.join(root, '.claude', 'projects');
+/** Wipe + fill an arbitrary `projectsDir` from a seeded Dice and project mix. */
+function fillProjects(
+  d: Dice,
+  projectsDir: string,
+  projects: ReadonlyArray<readonly [string, number]>,
+  days: number,
+): { files: number; lines: number } {
   fs.rmSync(projectsDir, { recursive: true, force: true });
   fs.mkdirSync(projectsDir, { recursive: true });
 
-  const d = new Dice(mulberry32(seed));
   const now = Date.now();
   const endCap = now - 15 * 60_000; // history stops shortly before "now"
   const hours: ReadonlyArray<readonly [number, number]> = HOUR_W.map((w, h) => [h, w] as const);
 
   let files = 0;
   let lineCount = 0;
+  const writeSession = (cwd: string, start: number): void => {
+    const session = genSession(d, start, cwd, endCap);
+    if (!session.lines.length) return;
+    const dir = path.join(projectsDir, encodeProjectDir(cwd));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${session.sessionId}.jsonl`), session.lines.join('\n') + '\n');
+    files++;
+    lineCount += session.lines.length;
+  };
+
   for (let back = days - 1; back >= 0; back--) {
     const day = new Date(now - back * 86_400_000);
     const dow = day.getDay();
@@ -279,7 +299,7 @@ export function generate(opts: { root?: string; days?: number; seed?: number } =
     const spike = d.chance(0.05) ? 2.2 : 1;
     const nSessions = Math.min(11, Math.round((3.4 + d.f() * 5.5) * weekend * ramp * spike));
     for (let s = 0; s < nSessions; s++) {
-      const cwd = d.pick(PROJECTS);
+      const cwd = d.pick(projects);
       const startHour = d.pick(hours);
       const start = new Date(
         day.getFullYear(),
@@ -290,30 +310,150 @@ export function generate(opts: { root?: string; days?: number; seed?: number } =
         d.int(0, 59),
       ).getTime();
       if (start > endCap) continue;
-      const session = genSession(d, start, cwd, endCap);
-      if (!session.lines.length) continue;
-      const dir = path.join(projectsDir, encodeProjectDir(cwd));
-      fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, `${session.sessionId}.jsonl`), session.lines.join('\n') + '\n');
-      files++;
-      lineCount += session.lines.length;
+      writeSession(cwd, start);
     }
   }
   // a recent burst so "today" and the current 5h block read busy on camera,
   // whatever local hour the recording happens at
   for (let s = 0; s < 3; s++) {
-    const cwd = d.pick(PROJECTS);
-    const start = now - (45 + d.f() * 255) * 60_000;
-    const session = genSession(d, start, cwd, endCap);
-    if (!session.lines.length) continue;
-    const dir = path.join(projectsDir, encodeProjectDir(cwd));
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `${session.sessionId}.jsonl`), session.lines.join('\n') + '\n');
-    files++;
-    lineCount += session.lines.length;
+    writeSession(d.pick(projects), now - (45 + d.f() * 255) * 60_000);
   }
-  return { root, files, lines: lineCount, days };
+  return { files, lines: lineCount };
 }
+
+/** Wipe + regenerate `<root>/.claude/projects`. Root must look demo-ish. */
+export function generate(opts: { root?: string; days?: number; seed?: number } = {}): GenSummary {
+  const root = opts.root ?? DEFAULT_ROOT;
+  const days = opts.days ?? 75;
+  const seed = opts.seed ?? 20260612;
+  if (!path.basename(root).includes('ccmon-demo')) {
+    throw new Error(`refusing to wipe ${root} — root dir name must contain "ccmon-demo"`);
+  }
+  const d = new Dice(mulberry32(seed));
+  const { files, lines } = fillProjects(d, path.join(root, '.claude', 'projects'), PROJECTS, days);
+  return { root, files, lines, days };
+}
+
+// ---- multi-account world --------------------------------------------------
+
+interface DemoAccountSpec {
+  /** display label (also the credential token suffix) */
+  label: string;
+  /** root dir name under the demo home — '.claude' is the default account */
+  rootDirName: string;
+  projects: ReadonlyArray<readonly [string, number]>;
+  /** added to the base seed so each account's history differs */
+  seedOffset: number;
+  identity: {
+    email: string;
+    organization: string;
+    /** PLAN_LABELS key, e.g. 'claude_max' */
+    organizationType: string;
+    /** resolved plan label shown on the card, e.g. 'max' */
+    subscriptionType: string;
+    /** e.g. 'default_claude_max_20x' → tier '20x' */
+    rateLimitTier: string;
+  };
+}
+
+/** The synthetic accounts the promo films — a believable personal + work split. */
+export const DEMO_ACCOUNTS: ReadonlyArray<DemoAccountSpec> = [
+  {
+    label: 'personal',
+    rootDirName: '.claude',
+    projects: PERSONAL_PROJECTS,
+    seedOffset: 0,
+    identity: {
+      email: 'sam@hey.com',
+      organization: 'Personal',
+      organizationType: 'claude_max',
+      subscriptionType: 'max',
+      rateLimitTier: 'default_claude_max_20x',
+    },
+  },
+  {
+    label: 'work',
+    rootDirName: '.claude-work',
+    projects: WORK_PROJECTS,
+    seedOffset: 101,
+    identity: {
+      email: 'sam@northwind.dev',
+      organization: 'Northwind Labs',
+      organizationType: 'claude_max',
+      subscriptionType: 'max',
+      rateLimitTier: 'default_claude_max_5x',
+    },
+  },
+];
+
+/** Write the non-secret identity + (demo) credentials a Claude Code account root carries. */
+function writeAccountIdentity(home: string, acct: DemoAccountSpec): void {
+  const rootDir = path.join(home, acct.rootDirName);
+  fs.mkdirSync(rootDir, { recursive: true });
+  // The default ~/.claude account's config is the SIBLING ~/.claude.json;
+  // every other root keeps its config inside itself (see accounts.ts).
+  const configPath =
+    acct.rootDirName === '.claude'
+      ? path.join(home, '.claude.json')
+      : path.join(rootDir, '.claude.json');
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify(
+      {
+        oauthAccount: {
+          emailAddress: acct.identity.email,
+          organizationName: acct.identity.organization,
+          organizationType: acct.identity.organizationType,
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  fs.writeFileSync(
+    path.join(rootDir, '.credentials.json'),
+    JSON.stringify(
+      {
+        claudeAiOauth: {
+          accessToken: `demo-${acct.label}`,
+          expiresAt: Date.now() + 365 * 86_400_000,
+          subscriptionType: acct.identity.subscriptionType,
+          rateLimitTier: acct.identity.rateLimitTier,
+        },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+/**
+ * Build the full multi-account demo world under a throwaway home: every account
+ * gets its own `<root>/projects` history plus identity + credentials, so the
+ * accounts dashboard, per-account meters and cross-account headroom all render.
+ * Live limits are supplied separately by the env-gated demoLimits() provider.
+ */
+export function generateAccounts(
+  home: string,
+  opts: { days?: number; seed?: number } = {},
+): GenSummary[] {
+  if (!path.basename(home).includes('ccmon-demo')) {
+    throw new Error(`refusing to wipe ${home} — home dir name must contain "ccmon-demo"`);
+  }
+  const days = opts.days ?? 75;
+  const baseSeed = opts.seed ?? 20260612;
+  return DEMO_ACCOUNTS.map((acct) => {
+    const rootDir = path.join(home, acct.rootDirName);
+    const d = new Dice(mulberry32(baseSeed + acct.seedOffset));
+    const { files, lines } = fillProjects(d, path.join(rootDir, 'projects'), acct.projects, days);
+    writeAccountIdentity(home, acct);
+    return { root: rootDir, files, lines, days };
+  });
+}
+
+/** Every demo account's `<root>/projects` dir — used to scope all views to the full world. */
+export const accountProjectDirs = (home: string): string[] =>
+  DEMO_ACCOUNTS.map((a) => path.join(home, a.rootDirName, 'projects'));
 
 // ---- live ticker ----------------------------------------------------------
 
@@ -324,9 +464,11 @@ export function generate(opts: { root?: string; days?: number; seed?: number } =
  */
 export function startLiveTicker(root: string = DEFAULT_ROOT, seed = 1): () => void {
   const d = new Dice(mulberry32(seed));
+  // the ticker targets the default (personal) account root, so keep its live
+  // sessions on personal projects for a consistent recent-activity feed
   const sessions = [
-    { cwd: '/home/dev/work/api-gateway', model: 'claude-opus-4-8', id: d.uuid(), ctx: 28_000 },
-    { cwd: '/home/dev/oss/ccmon', model: 'claude-fable-5', id: d.uuid(), ctx: 9_000 },
+    { cwd: '/home/dev/oss/ccmon', model: 'claude-opus-4-8', id: d.uuid(), ctx: 28_000 },
+    { cwd: '/home/dev/personal/homelab', model: 'claude-fable-5', id: d.uuid(), ctx: 9_000 },
   ];
   let timer: NodeJS.Timeout | null = null;
   let stopped = false;
@@ -382,8 +524,10 @@ export function startLiveTicker(root: string = DEFAULT_ROOT, seed = 1): () => vo
 
 // ---- validation through the real pipeline ---------------------------------
 
-export async function selfCheck(root: string = DEFAULT_ROOT): Promise<void> {
-  const projectsDir = path.join(root, '.claude', 'projects');
+export async function selfCheck(
+  projectsDir: string = path.join(DEFAULT_ROOT, '.claude', 'projects'),
+  minEntries = 3000,
+): Promise<void> {
   const jsonls: string[] = [];
   const walk = (dir: string): void => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -440,7 +584,37 @@ export async function selfCheck(root: string = DEFAULT_ROOT): Promise<void> {
     console.log(`[demo-data]   ${model.padEnd(28)} ${String(m.n).padStart(6)} entries  $${m.cost.toFixed(2)}`);
     if (m.cost === 0) throw new Error(`model ${model} priced at $0 — not in the bundled snapshot?`);
   }
-  if (entries.length < 3000) throw new Error('suspiciously few entries generated');
+  if (entries.length < minEntries) throw new Error('suspiciously few entries generated');
+}
+
+/** Validate every account tree parses and carries a distinct, non-empty identity. */
+export async function selfCheckAccounts(home: string): Promise<void> {
+  const emails = new Set<string>();
+  for (const acct of DEMO_ACCOUNTS) {
+    const rootDir = path.join(home, acct.rootDirName);
+    await selfCheck(path.join(rootDir, 'projects'), 1500);
+    const configPath =
+      acct.rootDirName === '.claude'
+        ? path.join(home, '.claude.json')
+        : path.join(rootDir, '.claude.json');
+    const cfg = readJsonFile<{ oauthAccount?: { emailAddress?: string } }>(configPath);
+    const email = cfg?.oauthAccount?.emailAddress ?? '';
+    if (!email) throw new Error(`account ${acct.label} has no email in ${configPath}`);
+    if (emails.has(email)) throw new Error(`account ${acct.label} reuses email ${email}`);
+    emails.add(email);
+    if (!fs.existsSync(path.join(rootDir, '.credentials.json'))) {
+      throw new Error(`account ${acct.label} missing .credentials.json`);
+    }
+    console.log(`[demo-data]   account ${acct.label.padEnd(10)} ${email}`);
+  }
+}
+
+function readJsonFile<T>(file: string): T | null {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
+  } catch {
+    return null;
+  }
 }
 
 // ---- CLI ------------------------------------------------------------------
@@ -465,15 +639,23 @@ async function main(): Promise<void> {
     });
     return;
   }
+  const days = Number(arg('days') ?? 75);
+  const seed = Number(arg('seed') ?? 20260612);
+  if (process.argv.includes('--accounts')) {
+    if (!process.argv.includes('--check')) {
+      const sums = generateAccounts(root, { days, seed });
+      for (const s of sums) {
+        console.log(`[demo-data] ${path.basename(s.root).padEnd(14)} ${s.files} files, ${s.lines} lines`);
+      }
+    }
+    await selfCheckAccounts(root);
+    return;
+  }
   if (!process.argv.includes('--check')) {
-    const sum = generate({
-      root,
-      days: Number(arg('days') ?? 75),
-      seed: Number(arg('seed') ?? 20260612),
-    });
+    const sum = generate({ root, days, seed });
     console.log(`[demo-data] generated ${sum.files} session files (${sum.lines} lines) in ${sum.root}`);
   }
-  await selfCheck(root);
+  await selfCheck(path.join(root, '.claude', 'projects'));
 }
 
 if (require.main === module) {

@@ -7,15 +7,15 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Electron-42-47848F?logo=electron&logoColor=white" alt="Electron 42">
-  <img src="https://img.shields.io/badge/platform-Linux%20·%20Windows-555555" alt="Linux and Windows">
+  <img src="https://img.shields.io/badge/platform-Linux%20·%20Windows%20·%20macOS-555555" alt="Linux, Windows and macOS">
   <img src="https://img.shields.io/badge/local--first-no%20telemetry-2EA44F" alt="Local-first, no telemetry">
 </p>
 
 <p align="center">
-  <img src="docs/media/ccmon-hero.gif" alt="ccmon — live Claude Code usage dashboard" width="900">
+  <img src="docs/media/ccmon-hero.gif" alt="ccmon, a live Claude Code usage dashboard" width="900">
 </p>
 
-<p align="center"><i>Real footage from <code>~/.claude</code>, recorded with <code>npm run promo</code>.</i></p>
+<p align="center"><i>A scripted tour across a synthetic multi-account dataset, recorded with <code>npm run promo</code>.</i></p>
 
 Claude Code already writes every response it gives you, with exact token
 counts, to local transcript files. ccmon watches those files and turns them
@@ -41,11 +41,18 @@ in Claude Code reads. Then it learns your pace and tells you when you'll hit
 the cap. "Caps around Friday 1am at this pace" is more useful than a
 percentage.
 
+**Every account, side by side.** Got more than one Claude Code login? ccmon
+shows each account's identity, plan, and live limits at once. When one is
+about to cap while another sits idle, it tells you, and hands you the exact
+`claude-cross-resume` command to pick up where you left off on the account
+that still has room. There's a setup wizard that writes the per-shell
+`claude-*` wrappers for you.
+
 **The current 5-hour block.** Burn rate, countdown, and a projection of
 where the block lands. Plus 30 days of block history, idle gaps included.
 
 **Plan value.** What this month would have cost on the API, next to what
-your subscription costs. The multiple tends to be persuasive.
+your subscription costs. The gap is usually bigger than you'd expect.
 
 **Cache economics.** Including the cost of walking away: leave a session
 longer than the cache TTL and your next message re-writes context you
@@ -59,17 +66,18 @@ Spike days. Streaks. Historical pricing, so old months keep their old rates.
 
 **A 3D view.** Nine ways to slice your usage, seven ways to draw each one.
 Terrain, ridges, surfaces, a cumulative spend trail that snakes through the
-calendar. It is mostly for joy, and that's fine.
+calendar. It's mostly there for fun, and that's fine.
 
-Also: nine views on keys `1` to `9`, seventeen themes, and your costs in any
-of 160+ currencies, including the top ten crypto. Rates refresh hourly.
+Also: ten views (keys `1` to `9`, plus settings), twenty-nine themes, and
+your costs in any of 160+ currencies, including the top ten crypto. Rates
+refresh hourly.
 
 ## Can I trust the numbers?
 
 Yes, and you can check. An automated parity test (`npm run parity`)
 cross-checks the token math against [ccusage](https://github.com/ccusage/ccusage)
 (MIT), the established CLI for Claude Code usage reports; current drift is
-under 0.005 percent. 58 unit tests cover the parsing, pricing, block, and
+under 0.005 percent. 103 unit tests cover the parsing, pricing, block, and
 forecast math, and CI runs them on every push.
 
 Costs are API list prices. On a Pro or Max subscription, read them as
@@ -97,13 +105,14 @@ written anywhere except your own disk.
 ./build.sh deb         # Debian/Ubuntu package
 ./build.sh appimage    # portable AppImage
 ./build.sh win         # Windows NSIS installer + portable exe
-./build.sh all         # everything
+./build.sh mac         # macOS .dmg + .zip (run on a Mac; unsigned)
+./build.sh all         # Linux + Windows
 ```
 
 Artifacts land in `release/`. Install the deb with
 `sudo apt install ./release/ccmon-*.deb`.
 
-Tagged pushes cut a GitHub release with Linux and Windows artifacts
+Tagged pushes cut a GitHub release with Linux, Windows and macOS artifacts
 attached (`.github/workflows/build.yml`):
 
 ```bash
