@@ -179,9 +179,10 @@ function CostByModelChart({ days, series }: CostByModelChartProps) {
 
 interface CostDonutProps {
   models: ModelRow[];
+  rangeLabel: string;
 }
 
-function CostDonut({ models }: CostDonutProps) {
+function CostDonut({ models, rangeLabel }: CostDonutProps) {
   const slices = models.filter((m) => m.cost > 0);
   if (!slices.length) {
     return <p className="view-placeholder">no cost data yet</p>;
@@ -210,7 +211,7 @@ function CostDonut({ models }: CostDonutProps) {
         </ResponsiveContainer>
         <div className="mix-center">
           <b>{fmtUSD(total)}</b>
-          <span>all time</span>
+          <span>{rangeLabel}</span>
         </div>
       </div>
       <ul className="mix-legend">
@@ -397,21 +398,24 @@ export function ModelsView() {
   const models = snapshot.models || [];
   const days = snapshot.days || [];
   const series = buildSeries(models);
+  const isAll = snapshot.range.preset === 'all';
+  const rangeLabel = snapshot.range.label;
+  const dailyData = isAll ? days.slice(-35) : days;
 
   return (
     <div className="grid">
       <div className="g8">
         <Panel
-          title={<>daily cost by model <Hint label="how to read this">Shows your estimated spend over the last 35 days stacked by model. The top 5 models are shown individually, while the rest are grouped into "other".</Hint></>}
-          right={<span className="panel-note">est cost · 35 days</span>}
+          title={<>daily cost by model <Hint label="how to read this">Shows your estimated spend over the selected range, stacked by model. The top 5 models are shown individually, while the rest are grouped into "other".</Hint></>}
+          right={<span className="panel-note">est cost · {isAll ? '35 days' : rangeLabel}</span>}
         >
-          <CostByModelChart days={days.slice(-35)} series={series} />
+          <CostByModelChart days={dailyData} series={series} />
         </Panel>
       </div>
 
       <div className="g4">
-        <Panel title={<>cost share <Hint label="what is this?">A breakdown of your all-time spend by model.</Hint></>} right={<span className="panel-note">all time</span>}>
-          <CostDonut models={models} />
+        <Panel title={<>cost share <Hint label="what is this?">A breakdown of your spend by model over the selected range.</Hint></>} right={<span className="panel-note">{rangeLabel}</span>}>
+          <CostDonut models={models} rangeLabel={rangeLabel} />
         </Panel>
       </div>
 
@@ -427,7 +431,7 @@ export function ModelsView() {
       <div className="g12">
         <Panel
           title={<>what-if · all traffic on one model <Hint label="how it's computed">every recorded request is re-priced onto each model with its exact token splits (input / output / cache read / cache write) and tier rules — the same engine that prices your real usage. quality differences between models are not priced in; this is the bill, not the value.</Hint></>}
-          right={<span className="panel-note">entry-exact re-pricing · all time</span>}
+          right={<span className="panel-note">entry-exact re-pricing · {rangeLabel}</span>}
         >
           <WhatIfPanel rows={snapshot.whatIf || []} actual={snapshot.totals?.cost || 0} />
         </Panel>

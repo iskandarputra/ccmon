@@ -1,0 +1,88 @@
+/* inline re-login control (.login- prefix) */
+
+.login-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.login-prompt.is-awaiting {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.login-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+
+.login-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* primary action — uses the accent so it reads as the obvious next step */
+.login-btn {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--amber);
+  padding: 3px 12px;
+  border: 1px solid color-mix(in srgb, var(--amber) 50%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  white-space: nowrap;
+  transition: all var(--dur-1) ease;
+}
+.login-btn:hover:not(:disabled) {
+  color: var(--bg0);
+  background: var(--amber);
+}
+.login-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.login-code {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg0);
+}
+.login-code:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+}
+
+.login-link {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 3px 4px;
+  transition: color var(--dur-1) ease;
+}
+.login-link:hover:not(:disabled) {
+  color: var(--text);
+}
+.login-link:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.login-err {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--rose);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

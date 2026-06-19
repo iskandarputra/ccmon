@@ -59,7 +59,27 @@ export interface CompactMarker {
   source?: string | null;
 }
 
-export type ParsedLine = ({ kind: 'entry' } & UsageEntry) | ResetMarker | CompactMarker | null;
+/**
+ * A tool_result returned on a user-side line — NON-billable (carries no usage),
+ * kept ONLY to size the tool output that gets re-fed as context on later turns.
+ * Deliberately separate from usage entries so token parity is never affected.
+ */
+export interface ToolResultMarker {
+  kind: 'toolresult';
+  ts: number;
+  sessionId: string;
+  /** total characters of tool_result content on this line */
+  chars: number;
+  /** owning data root, stamped by the watcher (scope filtering) */
+  source?: string | null;
+}
+
+export type ParsedLine =
+  | ({ kind: 'entry' } & UsageEntry)
+  | ResetMarker
+  | CompactMarker
+  | ToolResultMarker
+  | null;
 
 /** Token splits accepted by the pricing engine's cost(). */
 export interface TokenCounts {
@@ -153,6 +173,10 @@ export interface AppSettings {
   currency: string;
   /** null (primary account) | array of project dirs (multi-account scoping) */
   sources: string[] | null;
+  /** opt-in: fire an OS notification when any account crosses ~90% of a window */
+  notifyNearCap: boolean;
+  /** model id the AI usage advisor uses (reuses the Claude Code login) */
+  aiModel: string;
 }
 
 // ---- currency (§5) ----------------------------------------------------------
@@ -474,6 +498,42 @@ export interface SnapshotTotals {
   lastTs: number | null;
 }
 
+/**
+ * Global analytics time range. The renderer picks a preset (or a custom
+ * from–to span); the main process resolves it to concrete day-key bounds at
+ * recompute time via {@link resolveRange}. Scopes the historical body of the
+ * snapshot (totals, daily/weekly/monthly series, models, projects, sessions,
+ * cache, what-if, tools, insights). Live plan limits and per-account spend are
+ * separate paths and never range-scoped.
+ */
+export type RangePreset =
+  | 'today'
+  | '7d'
+  | '30d'
+  | '90d'
+  | 'month'
+  | 'lastMonth'
+  | 'all'
+  | 'custom';
+
+export interface TimeRange {
+  preset: RangePreset;
+  /** inclusive 'YYYY-MM-DD' local day keys — only meaningful for preset 'custom' */
+  customStart?: string | null;
+  customEnd?: string | null;
+}
+
+/** A {@link TimeRange} resolved against a concrete `now` to absolute bounds. */
+export interface ResolvedRange {
+  preset: RangePreset;
+  /** inclusive lower bound local day key, or null = unbounded (from first entry) */
+  startKey: string | null;
+  /** inclusive upper bound local day key, or null = unbounded (through today) */
+  endKey: string | null;
+  /** human label for display, e.g. 'last 30 days', 'June 2026', 'all time' */
+  label: string;
+}
+
 export interface Snapshot {
   generatedAt: number;
   version: string;
@@ -481,6 +541,12 @@ export interface Snapshot {
   entryCount: number;
   costMode: CostMode;
   unknownModels: string[];
+  /**
+   * The time range this snapshot's historical body was computed over. 'all'
+   * (the default) means lifetime totals with the standard daily window — the
+   * pre-range behavior. Live limits / account spend ignore this.
+   */
+  range: ResolvedRange;
   totals: SnapshotTotals;
   today: TodayRow;
   /** rolling last-7-days incl today */
@@ -518,8 +584,109 @@ export interface Snapshot {
   stopReasons: Record<string, number>;
   /** total context compactions across the scoped entries */
   compactions: number;
+  /**
+   * Estimated cost of re-ingesting context immediately after compactions: the
+   * input+cache-read cost of the first turn in each session following a
+   * compaction marker. A floor — only the first post-compaction turn is counted.
+   */
+  compactionReread: { costUSD: number; turns: number };
+  /**
+   * Volume of tool_result output returned to the model (re-fed as input on the
+   * next turn). `estTokens` is a chars/4 ESTIMATE — the transcripts carry no
+   * per-result token count. Sized from user-side lines, never billed.
+   */
+  toolResults: { count: number; chars: number; estTokens: number };
   records: UsageRecords;
   recentEvents: FeedEvent[];
+  /**
+   * Lifetime + recent spend per account root, scope-INDEPENDENT (every
+   * discovered login, like live limits) — powers the accounts dashboard.
+   */
+  accountSpend: AccountSpendMap;
+}
+
+/** Lifetime + recent spend for one account root (scope-independent). */
+export interface AccountSpend {
+  /** lifetime USD across all retained entries for this root */
+  cost: number;
+  /** lifetime input+output tokens */
+  tokens: number;
+  /** lifetime input+output+cache-read+cache-write tokens */
+  allTokens: number;
+  entries: number;
+  sessions: number;
+  /** first/last activity timestamps (epoch ms), or null when empty */
+  firstTs: number | null;
+  lastTs: number | null;
+  /** USD spent today (local day) */
+  today: number;
+  /** USD spent over the rolling last 7 days */
+  week: number;
+  /** USD spent over the rolling last 30 days */
+  month: number;
+}
+
+/** source dir → lifetime/recent spend */
+export type AccountSpendMap = Record<string, AccountSpend>;
+
+// ---- AI usage advisor -------------------------------------------------------
+
+/** One turn in an advisor conversation. */
+export interface AdvisorMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/** Result of an advisor turn: the answer, or a verbose reason it failed. */
+export type AdvisorResult = { ok: true; answer: string } | { ok: false; error: string };
+
+/** Candidate models offered in Settings for the advisor. */
+export const ADVISOR_MODELS = ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5'] as const;
+
+// ---- CSV export -------------------------------------------------------------
+
+/** Which snapshot table to export as CSV. */
+export type ExportKind = 'days' | 'sessions' | 'projects' | 'models';
+
+/** Result of a CSV export: written path, user cancellation, or a failure. */
+export type ExportResult =
+  | { ok: true; path: string; rows: number }
+  | { ok: false; canceled?: boolean; error?: string };
+
+/** One ranked contributor to a day's spend (project / model / session). */
+export interface DayContributor {
+  /** project path, model id, or session id depending on the list */
+  key: string;
+  /** display label (project basename, short model, or session project) */
+  label: string;
+  cost: number;
+  /** share of the day's total cost, 0–100 */
+  pct: number;
+}
+
+/**
+ * On-demand breakdown of a single local day — "why was this day expensive".
+ * Recomputed from the scoped entries when the user drills into a day, so it
+ * never bloats the snapshot. Compared against the median active day.
+ */
+export interface DayBreakdown {
+  date: string;
+  cost: number;
+  tokens: number;
+  entries: number;
+  sessions: number;
+  /** median cost across active days in scope (robust baseline) */
+  medianCost: number;
+  /** how far above/below the median this day sits, in %, or null when no baseline */
+  vsMedianPct: number | null;
+  topProjects: DayContributor[];
+  topModels: DayContributor[];
+  topSessions: DayContributor[];
+  toolTurns: number;
+  toolInvocations: number;
+  compactions: number;
+  /** projects whose first-ever activity (in scope) landed on this day */
+  newProjects: string[];
 }
 
 // ---- accounts & live limits (§5) --------------------------------------------
@@ -610,6 +777,23 @@ export type LimitsResult =
 export type AccountsMap = Record<string, AccountInfo>;
 /** source dir → live plan-limit result */
 export type LimitsMap = Record<string, LimitsResult>;
+
+/**
+ * Outcome of a user-initiated re-login (auth.ts). A silent refresh resolves
+ * 'refreshed'; a dead refresh token opens the browser and resolves
+ * 'awaiting-code' (the renderer then collects the pasted code); anything else
+ * is 'error' with a verbose reason.
+ */
+export type LoginResult =
+  | { status: 'refreshed' }
+  | { status: 'awaiting-code' }
+  | { status: 'error'; error: string };
+
+/** Outcome of submitting the pasted authorization code to finish a browser login. */
+export interface LoginCodeResult {
+  ok: boolean;
+  error?: string;
+}
 
 // ---- multi-account setup wizard (§8) ---------------------------------------
 

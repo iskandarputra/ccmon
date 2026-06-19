@@ -13,6 +13,9 @@ const DAY_LABELS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 /** Weekday × hour token intensity over the last 30 days. */
 export function Heatmap() {
   const hourly = useUsageStore((s) => s.snapshot?.hourly);
+  // the heat window follows a bounded range, else stays the rolling 30 days
+  const range = useUsageStore((s) => s.snapshot?.range);
+  const rangeLabel = !range || range.preset === 'all' ? 'last 30 days' : range.label;
   if (!hourly) return null;
 
   const max = Math.max(1, ...hourly.flat());
@@ -22,7 +25,7 @@ export function Heatmap() {
   const nowHour = t.getHours();
 
   return (
-    <Panel title="rhythm · 30 days" right={<span className="panel-note">tokens by hour</span>}>
+    <Panel title={`rhythm · ${rangeLabel}`} right={<span className="panel-note">tokens by hour</span>}>
       <div className="hm-grid">
         <span className="hm-label" />
         {Array.from({ length: 24 }, (_, h) => (

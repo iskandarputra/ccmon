@@ -5,6 +5,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import { useVirtualRows } from '../hooks/useVirtualRows';
 import { Panel } from '../components/ui/Panel';
 import { Hint } from '../components/ui/Hint';
 import { useUsageStore } from '../store/useUsageStore';
@@ -33,6 +34,8 @@ type ColumnKey =
   | 'context';
 
 type SortDir = 'asc' | 'desc';
+
+const SES_ROW_H = 49; // fixed row height (px) the virtualizer assumes — see sessions.css
 
 const COLUMNS: Array<{ key: ColumnKey; label: string }> = [
   { key: 'project', label: 'project' },
@@ -152,6 +155,11 @@ export function SessionsView() {
         : { key, dir: key === 'project' ? 'asc' : 'desc' }
     );
 
+  // virtualize the table body — only visible rows hit the DOM, so the list
+  // stays smooth even at the 500-session cap (rows are a fixed SES_ROW_H tall)
+  const vr = useVirtualRows(sorted.length, SES_ROW_H);
+  const visible = sorted.slice(vr.start, vr.end);
+
   if (!sessions.length) {
     return (
       <div className="grid">
@@ -187,7 +195,7 @@ export function SessionsView() {
             </div>
           }
         >
-          <div className="ses-tbl-wrap">
+          <div className="ses-tbl-wrap" ref={vr.ref}>
             <table className="tbl ses-tbl">
               <thead>
                 <tr>
@@ -209,7 +217,12 @@ export function SessionsView() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((s) => (
+                {vr.padTop > 0 && (
+                  <tr aria-hidden style={{ height: vr.padTop }}>
+                    <td colSpan={COLUMNS.length} />
+                  </tr>
+                )}
+                {visible.map((s) => (
                   <tr key={`${s.id}|${s.project}`}>
                     <td className="ses-proj" title={tildify(s.project || '')}>
                       <div className="ses-proj-name">{projectName(s.project)}</div>
@@ -228,6 +241,11 @@ export function SessionsView() {
                     </td>
                   </tr>
                 ))}
+                {vr.padBottom > 0 && (
+                  <tr aria-hidden style={{ height: vr.padBottom }}>
+                    <td colSpan={COLUMNS.length} />
+                  </tr>
+                )}
                 {sorted.length === 0 && (
                   <tr>
                     <td colSpan={COLUMNS.length}>

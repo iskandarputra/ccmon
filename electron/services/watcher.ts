@@ -10,7 +10,7 @@ import { EventEmitter } from 'events';
 import { StringDecoder } from 'string_decoder';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { parseLine } from './parser';
-import type { CompactMarker, UsageEntry } from '../../shared/types';
+import type { CompactMarker, ToolResultMarker, UsageEntry } from '../../shared/types';
 import type { ScanProgress } from '../../shared/ipc';
 
 const fsp = fs.promises;
@@ -70,6 +70,8 @@ export class UsageWatcher extends EventEmitter {
   resetTs: number | null = null;
   /** context-compaction markers (isCompactSummary lines), source-stamped */
   readonly compactions: CompactMarker[] = [];
+  /** tool_result size markers (user-side lines), source-stamped — never billed */
+  readonly toolResults: ToolResultMarker[] = [];
   private readonly busy = new Map<string, Promise<void>>(); // file → tail promise chain
   private watchers: FSWatcher[] = [];
   private rescanning = false;
@@ -214,6 +216,11 @@ export class UsageWatcher extends EventEmitter {
             this.compactions.push(parsed);
             continue;
           }
+          if (parsed.kind === 'toolresult') {
+            parsed.source = this.sourceOf(file);
+            this.toolResults.push(parsed);
+            continue;
+          }
           parsed.source = this.sourceOf(file);
           const verdict = this.accept(parsed);
           if (verdict === 'new') out.push(parsed);
@@ -315,6 +322,7 @@ export class UsageWatcher extends EventEmitter {
         this.byMsg.clear();
         this.resetTs = null;
         this.compactions.length = 0;
+        this.toolResults.length = 0;
         this.busy.clear();
         return this.start();
       })

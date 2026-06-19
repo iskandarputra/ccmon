@@ -339,6 +339,15 @@
   cursor: default;
 }
 
+.set-export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.set-export .set-btn {
+  flex: 1 1 auto;
+}
+
 .set-input {
   font-family: var(--mono);
   font-size: 11px;

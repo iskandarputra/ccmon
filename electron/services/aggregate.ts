@@ -7,9 +7,15 @@
 import { computeBlocks } from './blocks';
 import { costForMode, costWith, type PricingEngine } from './pricing';
 import { localDateKey } from './parser';
+import { dayKeyInRange, isBoundedRange } from '../../shared/range';
+import type { ResolvedRange } from '../../shared/types';
 import type {
+  AccountSpendMap,
   AppSettings,
   CompactMarker,
+  CostMode,
+  DayBreakdown,
+  DayContributor,
   DayRow,
   FeedEvent,
   ModelRow,
@@ -21,19 +27,21 @@ import type {
   RateRow,
   StartOfWeek,
   SumRow,
+  ToolResultMarker,
   UsageEntry,
   WeeklyRow,
   WhatIfRow,
 } from '../../shared/types';
 
 const DAY_MS = 86400000;
-const DAYS_WINDOW = 35; //      daily series length (zero-filled)
+const DAYS_WINDOW = 35; //      default daily series length (zero-filled) when unbounded
+const MAX_RANGE_DAYS = 200; //  cap the daily series for long custom ranges (weekly/monthly carry the rest)
 const PROJECT_DAYS = 14; //     per-project sparkline length
 const WEEKLY_BUCKETS = 12;
 const MONTHLY_BUCKETS = 12;
 const HEAT_DAYS = 30; //        activity-rhythm window
 const FEED_SEED = 15; //        recent events bundled into the snapshot
-const SESSION_LIMIT = 150;
+const SESSION_LIMIT = 500; // sessions view virtualizes, so it can hold many more
 const PROJECT_LIMIT = 40;
 const CONTEXT_WINDOW_MS = 48 * 3600 * 1000; // context gauge only for live-ish sessions
 const TTL_5M_MS = 5 * 60_000; //  5-minute cache tier — idle past this re-writes w5m
@@ -57,6 +65,28 @@ function dayKeysBack(n: number, now: number): string[] {
 /** Noon-anchored Date for a 'YYYY-MM-DD' key (safe for day arithmetic). */
 function dateAtNoon(dateKey: string): Date {
   return new Date(`${dateKey}T12:00:00`);
+}
+
+/**
+ * Ascending local day keys for the resolved range's daily series. An unbounded
+ * end means "today"; an unbounded start falls back to the default
+ * {@link DAYS_WINDOW} ending at that end (so 'all time' keeps the pre-range
+ * 35-day chart). Long spans are capped to {@link MAX_RANGE_DAYS}, anchored at
+ * the end — weekly/monthly rollups carry the longer history.
+ */
+function dayKeysForRange(range: ResolvedRange | null, now: number): string[] {
+  if (!range || !isBoundedRange(range)) return dayKeysBack(DAYS_WINDOW, now);
+  const end = range.endKey ? dateAtNoon(range.endKey) : (() => { const d = new Date(now); d.setHours(12, 0, 0, 0); return d; })();
+  const start = range.startKey
+    ? dateAtNoon(range.startKey)
+    : (() => { const d = new Date(end); d.setDate(d.getDate() - (DAYS_WINDOW - 1)); return d; })();
+  const keys: string[] = [];
+  const cur = new Date(end);
+  while (cur.getTime() >= start.getTime() && keys.length < MAX_RANGE_DAYS) {
+    keys.unshift(localDateKey(cur.getTime()));
+    cur.setDate(cur.getDate() - 1);
+  }
+  return keys.length ? keys : [localDateKey(end.getTime())];
 }
 
 /** 'YYYY-MM-DD' of the week containing dateKey, per startOfWeek setting. */
@@ -169,6 +199,194 @@ export interface BuildSnapshotOptions {
   resetTs?: number | null;
   /** compaction markers from the watcher, ALREADY scope-filtered by main */
   compactions?: CompactMarker[] | null;
+  /** tool_result size markers from the watcher, ALREADY scope-filtered by main */
+  toolResults?: ToolResultMarker[] | null;
+  /**
+   * ALL entries (scope-independent) for the per-account spend rollup. Defaults
+   * to the scoped `entries`; main passes the full set so the accounts
+   * dashboard can show every login regardless of the current data scope.
+   */
+  accountEntries?: UsageEntry[];
+  /**
+   * Global analytics time range (already resolved against `now`). When bounded,
+   * the historical body is computed over entries within the range and the daily
+   * series spans it. Omitted/`all` = lifetime with the default window (the
+   * pre-range behavior — keeps ccusage parity unchanged).
+   */
+  range?: ResolvedRange | null;
+}
+
+/**
+ * Lifetime + recent spend bucketed by account root (`e.source`). A lean pass —
+ * sums and small per-source session Sets only — so it can run over the FULL
+ * entry set (every login) without the Map/Set churn of buildSnapshot. Cost
+ * resolves via costForMode, matching the rest of the engine.
+ */
+export function accountSpend(
+  entries: UsageEntry[],
+  {
+    pricing = null,
+    costMode = 'auto',
+    now = Date.now(),
+  }: { pricing?: PricingEngine | null; costMode?: CostMode; now?: number } = {},
+): AccountSpendMap {
+  const costOf = (e: UsageEntry) => (pricing ? costForMode(e, costMode, pricing) : e.costUSD || 0);
+  const todayKey = localDateKey(now);
+  const weekCut = now - 7 * DAY_MS;
+  const monthCut = now - 30 * DAY_MS;
+  interface Acc {
+    cost: number; in: number; out: number; read: number; write: number;
+    entries: number; sessions: Set<string>;
+    firstTs: number; lastTs: number; today: number; week: number; month: number;
+  }
+  const map = new Map<string, Acc>();
+  for (const e of entries) {
+    const src = e.source ?? '';
+    let a = map.get(src);
+    if (!a) {
+      a = { cost: 0, in: 0, out: 0, read: 0, write: 0, entries: 0, sessions: new Set(),
+            firstTs: e.ts, lastTs: e.ts, today: 0, week: 0, month: 0 };
+      map.set(src, a);
+    }
+    const cost = costOf(e);
+    a.cost += cost;
+    a.in += e.in; a.out += e.out; a.read += e.read; a.write += e.w5m + e.w1h;
+    a.entries += 1;
+    a.sessions.add(e.sessionId);
+    if (e.ts < a.firstTs) a.firstTs = e.ts;
+    if (e.ts > a.lastTs) a.lastTs = e.ts;
+    if (e.dateKey === todayKey) a.today += cost;
+    if (e.ts >= weekCut) a.week += cost;
+    if (e.ts >= monthCut) a.month += cost;
+  }
+  const out: AccountSpendMap = {};
+  for (const [src, a] of map) {
+    if (!src) continue; // entries with no stamped source can't be attributed
+    out[src] = {
+      cost: a.cost,
+      tokens: a.in + a.out,
+      allTokens: a.in + a.out + a.read + a.write,
+      entries: a.entries,
+      sessions: a.sessions.size,
+      firstTs: a.entries ? a.firstTs : null,
+      lastTs: a.entries ? a.lastTs : null,
+      today: a.today,
+      week: a.week,
+      month: a.month,
+    };
+  }
+  return out;
+}
+
+/** Median of a numeric array (sorted copy); 0 for empty. */
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+/**
+ * "Why was this day expensive": an on-demand breakdown of ONE local day,
+ * recomputed from the (already scope-filtered) entries. Ranks the projects,
+ * models, and sessions that drove the day's cost, counts tool turns and
+ * compactions, flags projects that debuted that day, and compares the day to
+ * the median active day in scope. Cost resolves via costForMode like the rest
+ * of the engine. Returns null only when the day has no entries.
+ */
+export function dayBreakdown(
+  entries: UsageEntry[],
+  dateKey: string,
+  {
+    pricing = null,
+    costMode = 'auto',
+    compactions = null,
+  }: { pricing?: PricingEngine | null; costMode?: CostMode; compactions?: CompactMarker[] | null } = {},
+): DayBreakdown | null {
+  const costOf = (e: UsageEntry) => (pricing ? costForMode(e, costMode, pricing) : e.costUSD || 0);
+  const dayCost = new Map<string, number>(); // dateKey → total cost (for the median baseline)
+  const projFirstTs = new Map<string, number>(); // project → earliest ts in scope
+  const proj = new Map<string, number>(); //    project → cost on this day
+  const modelC = new Map<string, number>(); //  model   → cost on this day
+  const sess = new Map<string, { project: string; cost: number }>(); // session → cost on this day
+  let cost = 0;
+  let inTok = 0;
+  let outTok = 0;
+  let entryCount = 0;
+  let toolTurns = 0;
+  let toolInvocations = 0;
+  const daySessions = new Set<string>();
+
+  for (const e of entries) {
+    const c = costOf(e);
+    dayCost.set(e.dateKey, (dayCost.get(e.dateKey) || 0) + c);
+    const pf = projFirstTs.get(e.project);
+    if (pf === undefined || e.ts < pf) projFirstTs.set(e.project, e.ts);
+    if (e.dateKey !== dateKey) continue;
+
+    cost += c;
+    inTok += e.in;
+    outTok += e.out;
+    entryCount += 1;
+    daySessions.add(e.sessionId);
+    proj.set(e.project, (proj.get(e.project) || 0) + c);
+    modelC.set(e.model, (modelC.get(e.model) || 0) + c);
+    const sv = sess.get(e.sessionId);
+    if (sv) sv.cost += c;
+    else sess.set(e.sessionId, { project: e.project, cost: c });
+    if (e.tools?.length) {
+      toolTurns += 1;
+      toolInvocations += e.tools.length;
+    }
+  }
+
+  if (!entryCount) return null;
+
+  const share = (v: number) => (cost > 0 ? (v / cost) * 100 : 0);
+  const topN = <T>(arr: T[], by: (t: T) => number, n = 5) =>
+    [...arr].sort((a, b) => by(b) - by(a)).slice(0, n);
+
+  // labels stay RAW (path / model id) — the renderer applies projectName /
+  // shortModel, matching how every other rollup is formatted
+  const topProjects: DayContributor[] = topN([...proj.entries()], ([, c]) => c).map(([key, c]) => ({
+    key,
+    label: key,
+    cost: c,
+    pct: share(c),
+  }));
+  const topModels: DayContributor[] = topN([...modelC.entries()], ([, c]) => c).map(([key, c]) => ({
+    key,
+    label: key,
+    cost: c,
+    pct: share(c),
+  }));
+  const topSessions: DayContributor[] = topN([...sess.entries()], ([, v]) => v.cost).map(
+    ([key, v]) => ({ key, label: v.project, cost: v.cost, pct: share(v.cost) }),
+  );
+
+  const med = median([...dayCost.values()].filter((c) => c > 0));
+  const newProjects = [...proj.keys()].filter((p) => {
+    const ft = projFirstTs.get(p);
+    return ft !== undefined && localDateKey(ft) === dateKey;
+  });
+  const dayCompactions = (compactions || []).filter((c) => localDateKey(c.ts) === dateKey).length;
+
+  return {
+    date: dateKey,
+    cost,
+    tokens: inTok + outTok,
+    entries: entryCount,
+    sessions: daySessions.size,
+    medianCost: med,
+    vsMedianPct: med > 0 ? ((cost - med) / med) * 100 : null,
+    topProjects,
+    topModels,
+    topSessions,
+    toolTurns,
+    toolInvocations,
+    compactions: dayCompactions,
+    newProjects, // raw paths — renderer shortens
+  };
 }
 
 /**
@@ -193,6 +411,9 @@ export function buildSnapshot(
     settings = {},
     resetTs = null,
     compactions = null,
+    toolResults = null,
+    accountEntries,
+    range = null,
   }: BuildSnapshotOptions = {},
 ): Snapshot {
   const costMode = settings.costMode || 'auto';
@@ -203,7 +424,21 @@ export function buildSnapshot(
   const costMemo = new WeakMap<UsageEntry, number>();
   const costOfMemo = (e: UsageEntry) => costMemo.get(e) ?? costOf(e);
 
-  const dayKeys = dayKeysBack(DAYS_WINDOW, now);
+  // resolved range carried onto the snapshot for labels; 'all' when none given
+  const resolvedRange: ResolvedRange =
+    range ?? { preset: 'all', startKey: null, endKey: null, label: 'all time' };
+  // restrict the historical body to the range. Markers (compactions / tool
+  // results) are filtered to match so their counts track the same window.
+  // accountEntries (per-account spend) and live limits are NOT range-scoped.
+  const bounded = isBoundedRange(resolvedRange);
+  if (bounded) {
+    entries = entries.filter((e) => dayKeyInRange(e.dateKey, resolvedRange));
+    if (compactions) compactions = compactions.filter((c) => dayKeyInRange(localDateKey(c.ts), resolvedRange));
+    if (toolResults) toolResults = toolResults.filter((t) => dayKeyInRange(localDateKey(t.ts), resolvedRange));
+  }
+
+  const dayKeys = dayKeysForRange(resolvedRange, now);
+  const DAY_SLOTS = dayKeys.length;
   const dayIndex = new Map<string, number>(dayKeys.map((k, i) => [k, i]));
   const todayKey = dayKeys[dayKeys.length - 1];
   const yesterdayKey = dayKeys[dayKeys.length - 2];
@@ -211,7 +446,10 @@ export function buildSnapshot(
   const projDayKeys = dayKeys.slice(-PROJECT_DAYS);
   const projDaySet = new Set(projDayKeys);
   const weekSet = new Set(dayKeys.slice(-7));
-  const heatCutoff = now - HEAT_DAYS * DAY_MS;
+  // heat window follows the range when bounded, else the rolling 30-day rhythm
+  const heatCutoff = bounded && resolvedRange.startKey
+    ? dateAtNoon(resolvedRange.startKey).getTime()
+    : now - HEAT_DAYS * DAY_MS;
 
   const totals = { cost: 0, in: 0, out: 0, read: 0, write: 0 };
   const allSessions = new Set<string>();
@@ -233,9 +471,27 @@ export function buildSnapshot(
   let toolInvocations = 0;
   const stopReasons: Record<string, number> = {};
   const compactBySession = new Map<string, number>();
+  // pending compaction timestamps per session (ascending) — drained in the main
+  // loop to attribute the first post-compaction turn's re-read cost
+  const compactQueue = new Map<string, number[]>();
   for (const c of compactions || []) {
     compactBySession.set(c.sessionId, (compactBySession.get(c.sessionId) || 0) + 1);
+    let q = compactQueue.get(c.sessionId);
+    if (!q) compactQueue.set(c.sessionId, (q = []));
+    q.push(c.ts);
   }
+  for (const q of compactQueue.values()) q.sort((a, b) => a - b);
+  const compactionReread = { costUSD: 0, turns: 0 };
+  // input+cache-read cost only (the re-read), never the fresh output generation
+  const rereadSplit = { in: 0, out: 0, read: 0, w5m: 0, w1h: 0 };
+  const rereadCostOf = (e: UsageEntry): number => {
+    if (!pricing) return 0;
+    const row = pricing.rates(e.model);
+    if (!row) return 0;
+    rereadSplit.in = e.in;
+    rereadSplit.read = e.read;
+    return costWith(row, rereadSplit);
+  };
 
   for (const e of entries) {
     const write = e.w5m + e.w1h;
@@ -253,6 +509,21 @@ export function buildSnapshot(
       sidechain.entries += 1;
     }
 
+    // first turn at/after one or more pending compactions in this session pays
+    // to re-ingest the summarized context — attribute its input+read cost once
+    const cq = compactQueue.get(e.sessionId);
+    if (cq && cq.length && cq[0] <= e.ts) {
+      let popped = 0;
+      while (cq.length && cq[0] <= e.ts) {
+        cq.shift();
+        popped += 1;
+      }
+      if (popped > 0) {
+        compactionReread.turns += 1;
+        compactionReread.costUSD += rereadCostOf(e);
+      }
+    }
+
     if (e.stop) stopReasons[e.stop] = (stopReasons[e.stop] || 0) + 1;
 
     if (e.tools?.length) {
@@ -262,7 +533,7 @@ export function buildSnapshot(
       const bumpDay = (name: string) => {
         if (di === undefined) return;
         let arr = toolDayMap.get(name);
-        if (!arr) toolDayMap.set(name, (arr = new Array<number>(DAYS_WINDOW).fill(0)));
+        if (!arr) toolDayMap.set(name, (arr = new Array<number>(DAY_SLOTS).fill(0)));
         arr[di] += 1;
       };
       if (e.tools.length === 1) {
@@ -565,7 +836,7 @@ export function buildSnapshot(
       }
     }
     const sums = new Array<number>(candidates.length).fill(0);
-    const dailySums = candidates.map(() => new Array<number>(DAYS_WINDOW).fill(0));
+    const dailySums = candidates.map(() => new Array<number>(DAY_SLOTS).fill(0));
     const splits = { in: 0, out: 0, read: 0, w5m: 0, w1h: 0 };
     for (const e of entries) {
       splits.in = e.in;
@@ -630,6 +901,19 @@ export function buildSnapshot(
     avgDailyCost: activeKeys.length ? totals.cost / activeKeys.length : 0,
   };
 
+  // per-account spend covers EVERY login (scope-independent), so it runs over
+  // the full set when main supplies it; otherwise it mirrors the scoped pass
+  const accountSpendMap = accountSpend(accountEntries ?? entries, { pricing, costMode, now });
+
+  // tool_result volume re-fed as context (estimate; chars/4, not billed)
+  let toolResultChars = 0;
+  for (const t of toolResults || []) toolResultChars += t.chars;
+  const toolResultsRollup = {
+    count: (toolResults || []).length,
+    chars: toolResultChars,
+    estTokens: Math.round(toolResultChars / 4),
+  };
+
   return {
     generatedAt: now,
     version,
@@ -637,6 +921,7 @@ export function buildSnapshot(
     entryCount: entries.length,
     costMode,
     unknownModels: pricing ? pricing.unknown() : [],
+    range: resolvedRange,
     totals: {
       ...totals,
       tokens: totals.in + totals.out,
@@ -690,7 +975,10 @@ export function buildSnapshot(
     },
     stopReasons,
     compactions: (compactions || []).length,
+    compactionReread,
+    toolResults: toolResultsRollup,
     records,
     recentEvents: entries.slice(-FEED_SEED).map((e) => toFeedEvent(e, costOfMemo(e))),
+    accountSpend: accountSpendMap,
   };
 }

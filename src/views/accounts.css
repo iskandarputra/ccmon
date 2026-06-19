@@ -61,25 +61,53 @@
   font-size: 22px;
   color: var(--text-faint);
 }
-.hr-verdict {
+
+/* ranked list of accounts with room, most headroom first */
+.hr-targets {
+  flex: 1;
+  min-width: 240px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-left: auto;
-  padding-left: 22px;
-  border-left: 1px solid var(--line-soft);
-  font-family: var(--sans);
-  font-size: 15px;
-  color: var(--text);
+  gap: 12px;
 }
-.hr-verdict b {
-  color: var(--amber);
-  font-weight: 600;
+.hr-target {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.hr-verdict span {
+.hr-target .acc-ring {
+  flex: none;
+  width: 46px;
+  height: 46px;
+}
+.hr-target .acc-ring-num {
+  font-size: 13px;
+}
+.hr-rank {
+  flex: none;
+  width: 12px;
+  text-align: center;
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--text-faint);
+}
+.hr-target-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hr-target-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.hr-target .hr-cmd {
+  margin-top: 0;
 }
 
 /* donut gauge */
@@ -313,9 +341,70 @@
 }
 
 .acc-nolimit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
   margin-top: 14px;
   font-family: var(--mono);
   font-size: 12px;
+  color: var(--text-faint);
+}
+.acc-nolimit-msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* per-account spend rollup — lifetime + recent, from local transcripts */
+.acc-spend {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.acc-spend-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.acc-spend-total {
+  font-family: var(--sans);
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.acc-spend-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+.acc-spend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+  gap: 8px;
+}
+.acc-spend-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.acc-spend-cell b {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+.acc-spend-since {
+  font-family: var(--mono);
+  font-size: 9.5px;
   color: var(--text-faint);
 }
 

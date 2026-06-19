@@ -8,6 +8,7 @@ import './planlimits.css';
 import { useState } from 'react';
 import { Panel } from '../ui/Panel';
 import { Hint } from '../ui/Hint';
+import { LoginPrompt } from '../auth/LoginPrompt';
 import { useUsageStore } from '../../store/useUsageStore';
 import { useNow } from '../../hooks/useNow';
 import { useScopedDirs } from '../../hooks/useScopedDirs';
@@ -15,13 +16,18 @@ import { countdown, fmtPct, relTime, sourceLabel } from '../../lib/format';
 import { limitColor } from '../../lib/limits';
 import type { LimitSample, LimitWindow, WindowForecast } from '../../../shared/types';
 
+/** A failure that re-authenticating would fix — show the in-app Log in control. */
+function isAuthIssue(err: string | undefined): boolean {
+  return /expired|rejected|401|403|no stored login|refresh/i.test(err ?? '');
+}
+
 function fmtErr(err: string | undefined): string {
   if (!err) return '';
   const lower = err.toLowerCase();
   if (lower.includes('429') || lower.includes('rate_limit') || lower.includes('too many requests')) {
     return 'rate limited by anthropic';
   }
-  if (lower.includes('401') || lower.includes('403')) return 'auth failed — check token';
+  if (lower.includes('401') || lower.includes('403')) return 'auth failed — log in';
   if (lower.includes('500') || lower.includes('502') || lower.includes('503')) return 'anthropic api down';
   if (lower.includes('fetch') || lower.includes('econn') || lower.includes('timeout')) return 'network error';
   
@@ -193,6 +199,7 @@ export function PlanLimits() {
                   </span>
                 )}
               </div>
+              {!r?.ok && isAuthIssue(r?.error) && <LoginPrompt dir={dir} />}
               {r?.ok && (
                 <>
                   <div className="plim-wins">

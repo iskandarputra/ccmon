@@ -13,6 +13,7 @@ import type {
   LimitsMap,
   PricingMeta,
   Snapshot,
+  TimeRange,
 } from '../../shared/types';
 import type { ScanProgress } from '../../shared/ipc';
 
@@ -28,6 +29,7 @@ export type ViewId =
   | 'models'
   | 'projects'
   | 'accounts'
+  | 'advisor'
   | 'settings';
 
 export type StoreStatus = 'connecting' | 'scanning' | 'ready' | 'error';
@@ -51,8 +53,11 @@ export interface UsageState {
   limits: LimitsMap;
   /** hourly USD exchange rates for display conversion */
   currency: CurrencyRates | null;
+  /** the user-selected global analytics range (drives the snapshot's body) */
+  range: TimeRange;
 
   setView: (view: ViewId) => void;
+  setRange: (range: TimeRange) => void;
   setSettings: (settings: AppSettings | null) => void;
   setProgress: (progress: ScanProgress) => void;
   setLimits: (limits: LimitsMap | null | undefined) => void;
@@ -80,8 +85,14 @@ export const useUsageStore = create<UsageState>((set) => ({
   accounts: {},
   limits: {},
   currency: null,
+  range: { preset: 'all' },
 
   setView: (view) => set({ view }),
+  // optimistic local update; main re-scopes and pushes a fresh snapshot
+  setRange: (range) => {
+    set({ range });
+    void window.ccmon?.setRange(range);
+  },
   setSettings: (settings) => set({ settings }),
   setProgress: (progress) => set({ progress }),
   setLimits: (limits) => set({ limits: limits || {} }),

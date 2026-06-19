@@ -125,9 +125,12 @@ function BucketTip<T extends { cost: number; tokens: number; entries: number; da
 export function ActivityView() {
   const snapshot = useUsageStore((s) => s.snapshot)!;
   const [range, setRange] = useState(14);
+  // when a global range is active it governs the window; the local 7/14/35
+  // pills only sub-slice in all-time mode
+  const bounded = snapshot.range.preset !== 'all';
 
   const { rows, series, cumRows, rangeCost } = useMemo(() => {
-    const days = (snapshot.days || []).slice(-range);
+    const days = bounded ? (snapshot.days || []) : (snapshot.days || []).slice(-range);
 
     // rank models by total cost over the range; keep top 5, fold rest into "other"
     const totals = new Map<string, number>();
@@ -163,13 +166,17 @@ export function ActivityView() {
       cumRows.push({ date: d.date, cum: running, cost: d.cost });
     }
     return { rows, series, cumRows, rangeCost: running };
-  }, [snapshot.days, range]);
+  }, [snapshot.days, range, bounded]);
 
   const weekly = snapshot.weekly || [];
   const monthly = snapshot.monthly || [];
   const records = snapshot.records;
 
-  const pills = (
+  // local sub-range pills only in all-time mode; otherwise the global range
+  // label stands in their place
+  const pills = bounded ? (
+    <span className="panel-note">{snapshot.range.label}</span>
+  ) : (
     <div className="pills">
       {RANGES.map((r) => (
         <button

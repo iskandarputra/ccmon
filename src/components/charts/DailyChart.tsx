@@ -58,8 +58,12 @@ function DayTip({ active, payload }: DayTipProps) {
 
 export function DailyChart() {
   const days = useUsageStore((s) => s.snapshot?.days) || [];
+  const range = useUsageStore((s) => s.snapshot?.range);
   const [mode, setMode] = useState<'cost' | 'tokens'>('cost');
-  const data = days.slice(-30);
+  // a bounded range already sizes the daily series; only the unbounded default
+  // trims to the last 30 days for the at-a-glance chart
+  const isAll = !range || range.preset === 'all';
+  const data = isAll ? days.slice(-30) : days;
 
   const active = data.filter((d) => d.cost > 0);
   const avgCost = active.length
@@ -68,7 +72,7 @@ export function DailyChart() {
 
   return (
     <Panel
-      title="last 30 days"
+      title={isAll ? 'last 30 days' : range.label}
       right={
         <div className="dc-head">
           {avgCost > 0 && (

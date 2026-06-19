@@ -12,7 +12,8 @@ import { useNow } from '../hooks/useNow';
 import { fmtInt, fmtTok, relTime, tildify, sourceLabel, primarySource } from '../lib/format';
 import { CRYPTO_SYMBOLS } from '../lib/format';
 import { THEMES } from '../theme/themes';
-import type { CostMode, PricingMeta, PricingSource } from '../../shared/types';
+import { ADVISOR_MODELS } from '../../shared/types';
+import type { CostMode, ExportKind, PricingMeta, PricingSource } from '../../shared/types';
 import './settings.css';
 
 /* swatch strip = bg0 band + these five token chips (depicts OTHER themes,
@@ -82,6 +83,53 @@ function Toggle({ checked, onChange, label, note }: ToggleProps) {
         {note && <span className="set-opt-desc">{note}</span>}
       </span>
     </label>
+  );
+}
+
+const EXPORTS: { kind: ExportKind; label: string }[] = [
+  { kind: 'days', label: 'daily' },
+  { kind: 'sessions', label: 'sessions' },
+  { kind: 'projects', label: 'projects' },
+  { kind: 'models', label: 'models' },
+];
+
+/** CSV export buttons + transient result line. */
+function ExportPanel() {
+  const [busy, setBusy] = useState<ExportKind | null>(null);
+  const [msg, setMsg] = useState<string>('');
+
+  async function run(kind: ExportKind) {
+    if (busy) return;
+    setBusy(kind);
+    setMsg('');
+    const r = await window.ccmon?.exportCsv(kind);
+    setBusy(null);
+    if (!r) return setMsg('export unavailable');
+    if (r.ok) setMsg(`saved ${r.rows} ${kind} rows → ${r.path}`);
+    else if (!r.canceled) setMsg(`export failed — ${r.error || 'unknown error'}`);
+  }
+
+  return (
+    <Panel title="export data">
+      <div className="set-export">
+        {EXPORTS.map((e) => (
+          <button
+            key={e.kind}
+            type="button"
+            className="set-btn"
+            onClick={() => run(e.kind)}
+            disabled={busy !== null}
+          >
+            {busy === e.kind ? 'saving…' : `${e.label} csv`}
+          </button>
+        ))}
+      </div>
+      {msg && <p className="set-note" title={msg}>{msg}</p>}
+      <p className="set-note">
+        exports the current data scope as CSV with full-precision numbers (USD +
+        token splits) — for spreadsheets and external analysis.
+      </p>
+    </Panel>
   );
 }
 
@@ -326,6 +374,13 @@ export function SettingsView() {
             label="compact numbers"
             note="abbreviate large counts — 1.2M instead of 1,234,567"
           />
+          <div className="set-divider" />
+          <Toggle
+            checked={settings.notifyNearCap}
+            onChange={(v) => updateSettings({ notifyNearCap: v })}
+            label="near-cap notifications"
+            note="OS alert when any account crosses ~90% of a session or weekly window"
+          />
         </Panel>
       </div>
 
@@ -425,6 +480,31 @@ export function SettingsView() {
             open.er-api.com, crypto via coingecko · refreshed hourly
           </p>
         </Panel>
+
+        <Panel title="ai advisor">
+          <div className="set-kv">
+            <div>
+              <span>model</span>
+              <select
+                className="set-input"
+                value={settings.aiModel}
+                onChange={(e) => updateSettings({ aiModel: e.target.value })}
+              >
+                {ADVISOR_MODELS.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="set-note">
+            the advisor (in the sidebar) answers questions about your usage using
+            this model. it reuses your Claude Code login and sends only computed
+            aggregates — never transcripts, prompts, or code. note: Anthropic's
+            terms scope that login to Claude Code itself, so the API may decline.
+          </p>
+        </Panel>
+
+        <ExportPanel />
 
         <Panel title="data">
           {sourceDirs?.length > 1 ? (

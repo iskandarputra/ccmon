@@ -59,6 +59,14 @@ const ICONS: Record<ViewId, ReactNode> = {
       <path d="M5 20a7 7 0 0 1 14 0" />
     </>
   ),
+  advisor: (
+    <>
+      <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+      <circle cx="9" cy="10.5" r="1" />
+      <circle cx="12" cy="10.5" r="1" />
+      <circle cx="15" cy="10.5" r="1" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3.2" />
@@ -82,6 +90,7 @@ export const VIEWS: ViewDef[] = [
   { id: 'models', label: 'models' },
   { id: 'projects', label: 'projects' },
   { id: 'accounts', label: 'accounts' },
+  { id: 'advisor', label: 'advisor' },
   { id: 'settings', label: 'settings' },
 ];
 

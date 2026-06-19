@@ -367,12 +367,23 @@ independent of the data scope, since the account about to cap may not be the
 one whose usage is on screen (this powers the accounts dashboard and
 cross-account headroom). The overview's `<PlanLimits/>` then scope-filters
 `limits` to the viewed account(s) via `useScopedDirs()`, so its behavior is
-unchanged. Polling uses `<root>/.credentials.json` read-only. Tokens are
-NEVER refreshed:
-refresh-token rotation would invalidate the user's Claude Code login;
-expired logins report an error string instead. Accounts with no stored
-login are omitted. A shape guard fails loudly if the endpoint answers 200
-with no recognizable windows (it is undocumented and may change).
+unchanged. Polling uses `<root>/.credentials.json` read-only. The poller
+NEVER refreshes tokens (refresh-token rotation could invalidate the user's
+Claude Code login); an expired login reports an error string instead, and the
+UI offers a "Log in" control. Accounts with no stored login are omitted. A
+shape guard fails loudly if the endpoint answers 200 with no recognizable
+windows (it is undocumented and may change).
+
+Re-login (`auth.ts`) is the ONLY place ccmon writes credentials and runs
+solely from that explicit user action. A click first tries the refresh-token
+grant against `https://console.anthropic.com/v1/oauth/token` (public Claude
+Code client `9d1c250a-…`); a dead refresh token falls back to a browser PKCE
+flow (authorize on `claude.ai/oauth/authorize` with `code=true`, the user
+pastes the returned `code#state`). Both grants persist the rotated pair back
+to `.credentials.json` atomically (temp + rename, mode 0600), reusing the
+account's existing scopes so a re-login never downgrades them — which is what
+keeps ccmon and Claude Code in lockstep. Exposed as `login(dir)` /
+`submitLoginCode(dir, code)` on `CcmonApi`.
 
 Results per dir, `{ok, fetchedAt, session, week, weekOpus, weekSonnet}`
 with windows as `{pct, resetsAt}` (from `five_hour` / `seven_day` /

@@ -18,13 +18,24 @@ import type { AccountsMap, LimitsMap } from '../../shared/types';
 
 export type LimitKind = 'session' | 'week';
 
+export interface CrossTarget {
+  /** an account with room — its `<root>/projects` dir and utilization */
+  dir: string;
+  pct: number;
+}
+
 export interface CrossAccountAdvice {
   /** which window triggered the advice */
   kind: LimitKind;
   /** the capping account's `<root>/projects` dir, and its utilization */
   fromDir: string;
   fromPct: number;
-  /** the account with headroom (must have a stored login to resume) */
+  /**
+   * every other logged-in account that genuinely has room, most headroom
+   * first. Always non-empty when an advice is returned.
+   */
+  targets: CrossTarget[];
+  /** the single best target (= `targets[0]`), kept for one-pick callers */
   toDir: string;
   toPct: number;
 }
@@ -75,15 +86,18 @@ function adviceForKind(
   if (cands.length < 2) return null;
   // the account about to cap…
   const from = cands.reduce((a, b) => (b.pct > a.pct ? b : a));
-  // …and the account with the most room that can actually take the session
-  const alt = cands
-    .filter((c) => c.dir !== from.dir && c.hasLogin)
-    .reduce<Candidate | null>((a, b) => (a == null || b.pct < a.pct ? b : a), null);
-  if (!alt) return null;
   if (from.pct < ADVICE.HIGH) return null;
-  if (alt.pct >= ADVICE.ROOM) return null;
-  if (from.pct - alt.pct < ADVICE.GAP) return null;
-  return { kind, fromDir: from.dir, fromPct: from.pct, toDir: alt.dir, toPct: alt.pct };
+  // …and every other logged-in account that genuinely has room (clearly
+  // below its own cap and a worthwhile gap below the capping one), ranked
+  // most-headroom first. The user picks which one to resume on.
+  const targets = cands
+    .filter((c) => c.dir !== from.dir && c.hasLogin)
+    .filter((c) => c.pct < ADVICE.ROOM && from.pct - c.pct >= ADVICE.GAP)
+    .sort((a, b) => a.pct - b.pct)
+    .map<CrossTarget>((c) => ({ dir: c.dir, pct: c.pct }));
+  if (targets.length === 0) return null;
+  const best = targets[0];
+  return { kind, fromDir: from.dir, fromPct: from.pct, targets, toDir: best.dir, toPct: best.pct };
 }
 
 /**

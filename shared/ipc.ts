@@ -10,10 +10,17 @@
 
 import type {
   AccountsMap,
+  AdvisorMessage,
+  AdvisorResult,
   AppSettings,
   CurrencyRates,
+  DayBreakdown,
+  ExportKind,
+  ExportResult,
   FeedEvent,
   LimitsMap,
+  LoginCodeResult,
+  LoginResult,
   PricingMeta,
   RecentSession,
   SetupOptions,
@@ -21,6 +28,7 @@ import type {
   SetupReport,
   ShellDetection,
   Snapshot,
+  TimeRange,
 } from './types';
 
 export interface ScanProgress {
@@ -58,8 +66,41 @@ export interface CcmonApi {
   refreshLimits(): Promise<LimitsMap>;
   refreshCurrency(): Promise<CurrencyRates | null>;
 
+  /**
+   * Set the global analytics time range. Re-scopes the historical body of the
+   * snapshot (totals, daily/weekly/monthly, models, projects, sessions, cache,
+   * what-if, tools, insights) and pushes a fresh `usage:snapshot`. Live plan
+   * limits and per-account spend are not range-scoped.
+   */
+  setRange(range: TimeRange): Promise<void>;
+
+  /**
+   * Re-authenticate one account when its login has expired. Tries a silent
+   * refresh of the stored token first; if that token is dead it opens the
+   * system browser to the OAuth page and resolves 'awaiting-code', after which
+   * the renderer calls {@link submitLoginCode} with the pasted code.
+   */
+  login(projectDir: string): Promise<LoginResult>;
+  /** Finish a browser login by submitting the pasted `code#state` string. */
+  submitLoginCode(projectDir: string, code: string): Promise<LoginCodeResult>;
+
   /** Most recent resumable sessions under an account's `<root>/projects` dir. */
   listRecentSessions(projectDir: string, limit?: number): Promise<RecentSession[]>;
+
+  /** On-demand "why was this day expensive" breakdown for a local YYYY-MM-DD day. */
+  dayBreakdown(dateKey: string): Promise<DayBreakdown | null>;
+
+  /** Export a snapshot table to CSV via a native save dialog. */
+  exportCsv(kind: ExportKind): Promise<ExportResult>;
+
+  /**
+   * Ask the AI usage advisor a question. Sends only snapshot aggregates (never
+   * transcripts), reusing the Claude Code login. `history` is the prior turns.
+   * `dir` selects which account's login to spend the request on (a
+   * `<root>/projects` path); omit to use the primary account. Picking an
+   * account with headroom avoids 429s when the primary is at its cap.
+   */
+  askAdvisor(question: string, history: AdvisorMessage[], dir?: string): Promise<AdvisorResult>;
 
   // ---- multi-account setup wizard -----------------------------------------
   /** OS + shells whose rc could hold the wrappers, login/default shell flagged. */

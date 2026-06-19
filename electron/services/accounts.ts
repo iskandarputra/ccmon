@@ -17,9 +17,11 @@ import type { AccountInfo, AccountsMap, LimitsResult, LimitWindow } from '../../
  * OAuth credentials live in `<root>/.credentials.json`.
  *
  * Live limits use the same endpoint Claude Code's /usage screen calls, with
- * the stored access token, read-only. We deliberately NEVER refresh tokens:
- * Anthropic rotates refresh tokens, and consuming one here would invalidate
- * the user's Claude Code login. An expired token just reports a reason.
+ * the stored access token, read-only. The background poller NEVER refreshes
+ * tokens: Anthropic rotates refresh tokens, and consuming one here would risk
+ * invalidating the user's Claude Code login. An expired token just reports a
+ * reason — re-authentication is a deliberate user action handled by `auth.ts`
+ * (which always persists the rotated pair back so Claude Code stays in sync).
  */
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
@@ -78,6 +80,10 @@ function readJson<T>(file: string): T | null {
 
 const rootOf = (projectDir: string) => path.dirname(projectDir);
 
+/** Absolute path to a source dir's OAuth credentials file (`<root>/.credentials.json`). */
+export const credentialsPath = (projectDir: string): string =>
+  path.join(rootOf(projectDir), '.credentials.json');
+
 function accountConfig(projectDir: string): ClaudeConfig | null {
   const root = rootOf(projectDir);
   const inside = readJson<ClaudeConfig>(path.join(root, '.claude.json'));
@@ -89,7 +95,7 @@ function accountConfig(projectDir: string): ClaudeConfig | null {
 }
 
 function credentials(projectDir: string): OauthCredentials | null {
-  const creds = readJson<CredentialsFile>(path.join(rootOf(projectDir), '.credentials.json'));
+  const creds = readJson<CredentialsFile>(credentialsPath(projectDir));
   return creds?.claudeAiOauth || null;
 }
 
@@ -163,7 +169,7 @@ function parseRetryAfter(res: Response): number | null {
 /** Plain-language explanation for a usage-endpoint HTTP status. */
 function httpReason(status: number): string {
   if (status === 429) return 'rate limited by anthropic — too many requests to the usage endpoint';
-  if (status === 401 || status === 403) return 'token rejected — open Claude Code once to refresh the login';
+  if (status === 401 || status === 403) return 'token rejected — click Log in to refresh the login';
   if (status >= 500) return 'anthropic server error';
   return 'request failed';
 }
@@ -188,7 +194,7 @@ export async function fetchLiveLimits(projectDir: string): Promise<LimitsResult>
     return {
       ok: false,
       at: Date.now(),
-      error: `login expired ${new Date(creds.expiresAt).toLocaleString()} — open Claude Code to refresh it`,
+      error: `login expired ${new Date(creds.expiresAt).toLocaleString()} — click Log in to refresh it`,
     };
   }
 

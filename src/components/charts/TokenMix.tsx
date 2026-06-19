@@ -12,6 +12,7 @@ import { TOKEN_COLORS } from '../../lib/palette';
 
 export function TokenMix() {
   const totals = useUsageStore((s) => s.snapshot?.totals);
+  const rangeLabel = useUsageStore((s) => s.snapshot?.range.label) ?? 'all time';
   if (!totals) return null;
 
   const slices = [
@@ -23,7 +24,7 @@ export function TokenMix() {
   const sum = slices.reduce((a, s) => a + s.value, 0) || 1;
 
   return (
-    <Panel title="token mix · all time">
+    <Panel title={`token mix · ${rangeLabel}`}>
       <div className="mix-wrap">
         <div className="mix-chart">
           <ResponsiveContainer width="100%" height="100%">
