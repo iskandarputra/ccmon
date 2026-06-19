@@ -6,6 +6,7 @@
 
 import { useUsageStore } from '../../store/useUsageStore';
 import { useNow } from '../../hooks/useNow';
+import { RangePicker } from '../RangePicker';
 
 const LIVE_WINDOW_MS = 90_000;
 
@@ -40,6 +41,12 @@ export function TitleBar() {
   const lastEventTs = useUsageStore((s) => s.lastEventTs);
   const now = useNow(5000);
   const live = lastEventTs && now - lastEventTs < LIVE_WINDOW_MS;
+  // the range control is meaningful only once there's a snapshot and on views
+  // whose data it actually scopes — Accounts (live limits + fixed spend
+  // buckets) and Settings carry no range-scoped data, so hide it there
+  const showRange = useUsageStore(
+    (s) => !!s.snapshot && s.view !== 'settings' && s.view !== 'accounts',
+  );
 
   return (
     <header className="titlebar" onDoubleClick={() => window.ccmon?.toggleMaximize()}>
@@ -49,6 +56,7 @@ export function TitleBar() {
         <span className="tb-tag">claude code monitor</span>
       </div>
       <div className="tb-right">
+        {showRange && <RangePicker />}
         <span className={`tb-live ${live ? 'is-live' : ''}`}>
           <span className="dot" />
           {live ? 'live' : 'idle'}

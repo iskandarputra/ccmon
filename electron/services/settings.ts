@@ -22,6 +22,8 @@ export const DEFAULTS: AppSettings = {
   compactNumbers: true,
   currency: 'USD', //         display currency (ISO code) — internals stay USD
   sources: null, //           null (primary account) | array of project dirs
+  notifyNearCap: false, //    opt-in OS notifications when an account nears a cap
+  aiModel: 'claude-sonnet-4-6', // advisor model (reuses the Claude Code login)
 };
 
 export class Settings {

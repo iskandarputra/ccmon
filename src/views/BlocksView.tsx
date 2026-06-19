@@ -251,10 +251,11 @@ const FILL_BUCKETS = [
 interface UtilizationPanelProps {
   usage: BlockRow[];
   maxBlockTokens: number;
+  rangeLabel: string;
 }
 
 /** How full the completed 5h windows run, vs the all-time biggest block. */
-function UtilizationPanel({ usage, maxBlockTokens }: UtilizationPanelProps) {
+function UtilizationPanel({ usage, maxBlockTokens, rangeLabel }: UtilizationPanelProps) {
   const done = usage.filter((b) => !b.isActive);
   if (done.length < 3 || !maxBlockTokens) return null;
   const counts = [0, 0, 0, 0];
@@ -270,7 +271,7 @@ function UtilizationPanel({ usage, maxBlockTokens }: UtilizationPanelProps) {
   return (
     <div className="g12">
     <Panel
-      title={<>block utilization · 30d <Hint label="why?">each completed 5h window's tokens, measured against your biggest-ever block ({fmtTok(maxBlockTokens)} tok) — a local proxy for capacity, since anthropic doesn't publish block token limits. many light blocks means windows opened for a quick question; each still starts the 5h session clock.</Hint></>}
+      title={<>block utilization · {rangeLabel} <Hint label="why?">each completed 5h window's tokens, measured against your biggest-ever block ({fmtTok(maxBlockTokens)} tok) — a local proxy for capacity, since anthropic doesn't publish block token limits. many light blocks means windows opened for a quick question; each still starts the 5h session clock.</Hint></>}
       right={<span className="panel-note">fill vs your biggest block</span>}
     >
       <div className="blk-hist">
@@ -368,6 +369,10 @@ export function BlocksView() {
 
   const block = snapshot.block;
   const blocks = snapshot.blocks || [];
+  // blocks reflect the global range; keep the natural '30d' wording for all-time
+  const isAll = snapshot.range.preset === 'all';
+  const blkShort = isAll ? '30d' : snapshot.range.label;
+  const blkLong = isAll ? 'last 30 days' : snapshot.range.label;
 
   const usage = blocks.filter((b) => !b.isGap);
   const gapCount = blocks.length - usage.length;
@@ -420,7 +425,7 @@ export function BlocksView() {
       )}
 
       <div className="g3">
-        <StatCard label="blocks · 30d" value={fmtInt(usage.length)} sub="5h billing windows" />
+        <StatCard label={`blocks · ${blkShort}`} value={fmtInt(usage.length)} sub="5h billing windows" />
       </div>
       <div className="g3">
         <StatCard label="idle gaps" value={fmtInt(gapCount)} sub="quiet stretches > 5h" />
@@ -429,14 +434,14 @@ export function BlocksView() {
         <StatCard label="max block tokens" value={fmtTok(maxBlockTokens)} sub="single-window record" />
       </div>
       <div className="g3">
-        <StatCard label="avg cost / block" value={fmtUSD(avgCost)} sub="non-gap · last 30 days" />
+        <StatCard label="avg cost / block" value={fmtUSD(avgCost)} sub={`non-gap · ${blkLong}`} />
       </div>
 
-      <UtilizationPanel usage={usage} maxBlockTokens={maxBlockTokens} />
+      <UtilizationPanel usage={usage} maxBlockTokens={maxBlockTokens} rangeLabel={blkShort} />
 
       <div className="g12">
         <Panel
-          title={<>block history · last 30 days <Hint label="what is this?">A chronological log of your past 5-hour billing windows and the quiet gaps between them.</Hint></>}
+          title={<>block history · {blkLong} <Hint label="what is this?">A chronological log of your past 5-hour billing windows and the quiet gaps between them.</Hint></>}
           right={
             <span className="panel-note">
               {fmtInt(usage.length)} blocks · {fmtInt(gapCount)} gaps

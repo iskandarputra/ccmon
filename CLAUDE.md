@@ -2,7 +2,7 @@
 
 Electron + React + **TypeScript (strict)** realtime monitor for Claude Code
 usage. Reads `~/.claude/projects/**/*.jsonl` locally; local-first with
-exactly three network paths (see Gotchas).
+five network paths (see Gotchas) — three background, two user-initiated.
 
 ## Commands
 
@@ -88,14 +88,24 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
 - Pricing is layered: bundled LiteLLM → 24h-cached refetch → models.dev →
   user regex overrides (always win). Plan prices are NOT fetchable — they
   live as a dated table in `shared/plans.ts`.
-- The three network paths, all keep-last-good with verbose errors:
+- The four network paths, all keep-last-good with verbose errors:
   1. daily pricing refetch (optional, `pricingOffline` disables);
   2. live plan limits every 60 s via Anthropic's OAuth usage endpoint with
-     the stored Claude Code login — read-only, and NEVER refresh those
-     tokens (rotation would log the user out of Claude Code); a shape guard
+     the stored Claude Code login — read-only; the **poller never refreshes
+     tokens** (rotation could log the user out of Claude Code); a shape guard
      fails loudly if the undocumented response changes;
   3. hourly display-currency rates (open.er-api.com fiat + CoinGecko
-     top-10 crypto).
+     top-10 crypto);
+  4. user-initiated re-login (`auth.ts`, the "Log in" control) — a
+     refresh-token grant, falling back to a browser PKCE code-paste flow.
+     Runs ONLY on an explicit click, never in a poller, and ALWAYS persists
+     the rotated tokens back to `.credentials.json` (atomic, mode 0600) so
+     Claude Code stays in sync;
+  5. user-initiated AI advisor (`advisor.ts`, the advisor view) — POSTs the
+     Messages API reusing the stored login token (read-only), sending ONLY
+     snapshot aggregates, never transcripts. Anthropic's ToS scopes that
+     token to Claude Code, so the call sends the Claude Code identity system
+     prompt and surfaces a verbose error if the API declines.
 - Day bucketing is LOCAL timezone everywhere (entries, day keys, archive
   dates). There is no timezone setting yet.
 - Parity quirk: ccmon can scan extra roots (e.g. `~/.claude-work`) that

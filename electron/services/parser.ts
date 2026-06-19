@@ -27,6 +27,27 @@ export function decodeProjectDir(dirName: string): string {
 /** Usage-limit marker embedded in API-error lines: `...reached|<unix seconds>`. */
 const USAGE_LIMIT_RE = /Claude AI usage limit reached\|(\d+)/;
 
+/**
+ * Character length of a tool_result `content` field, which is either a plain
+ * string or an array of content blocks (text / image / nested). Text blocks
+ * count their text; anything else counts its serialized length as a fallback.
+ */
+function contentChars(content: unknown): number {
+  if (typeof content === 'string') return content.length;
+  if (Array.isArray(content)) {
+    let n = 0;
+    for (const b of content) {
+      if (b && typeof b === 'object' && typeof (b as { text?: unknown }).text === 'string') {
+        n += (b as { text: string }).text.length;
+      } else if (b != null) {
+        n += JSON.stringify(b).length;
+      }
+    }
+    return n;
+  }
+  return 0;
+}
+
 /** The slice of a transcript line the parser reads (everything else ignored). */
 interface TranscriptLine {
   type?: string;
@@ -42,7 +63,7 @@ interface TranscriptLine {
     id?: string;
     model?: string;
     stop_reason?: string | null;
-    content?: Array<{ type?: string; name?: string }>;
+    content?: Array<{ type?: string; name?: string; content?: unknown }>;
     usage?: {
       input_tokens?: number;
       output_tokens?: number;
@@ -100,6 +121,27 @@ export function parseLine(raw: string, file: string, lineNo: number): ParsedLine
       ts: cts,
       sessionId: j.sessionId || path.basename(file, '.jsonl'),
     };
+  }
+
+  // User-side tool_result lines carry NO usage, so they never become entries —
+  // but we size their content to estimate the tool output re-fed as context on
+  // later turns. Measured before the assistant gate; kept as a separate marker.
+  if (j.type === 'user' && Array.isArray(j.message?.content)) {
+    let chars = 0;
+    for (const b of j.message.content) {
+      if (b && b.type === 'tool_result') chars += contentChars(b.content);
+    }
+    if (chars > 0) {
+      const tts = Date.parse(j.timestamp ?? '');
+      if (Number.isFinite(tts)) {
+        return {
+          kind: 'toolresult',
+          ts: tts,
+          sessionId: j.sessionId || path.basename(file, '.jsonl'),
+          chars,
+        };
+      }
+    }
   }
 
   if (j.type !== 'assistant' || !j.message || !j.message.usage) return null;

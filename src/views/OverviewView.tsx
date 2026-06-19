@@ -27,7 +27,8 @@ export function OverviewView() {
   // limits cover every account now — gate this overview card on the scoped one
   const haveLimits = scoped.some((d) => limits[d]);
   if (!snapshot) return null;
-  const { today, totals } = snapshot;
+  const { today, totals, range } = snapshot;
+  const isAll = range.preset === 'all';
 
   return (
     <div className="grid">
@@ -52,20 +53,24 @@ export function OverviewView() {
       </div>
       <div className="g3">
         <StatCard
-          label="all time"
+          label={isAll ? 'all time' : range.label}
           value={<CountUp value={totals.cost} format={fmtUSD} />}
           sub={`${fmtTok(totals.tokens)} tok · ${fmtInt(totals.sessions)} sessions`}
           aside={
-            totals.firstTs
+            isAll && totals.firstTs
               ? `since ${new Date(totals.firstTs).toLocaleDateString([], {
                   month: 'short',
                   year: 'numeric',
                 })}`
-              : null
+              : isAll
+                ? null
+                : `${fmtInt(totals.entries)} entries`
           }
           hint={
             <Hint label="what is this?">
-              Your all-time total estimated spend and token usage recorded by the local CLI since you began tracking.
+              {isAll
+                ? 'Your all-time total estimated spend and token usage recorded by the local CLI since you began tracking.'
+                : `Estimated spend and token usage over the selected range (${range.label}). Change it from the range control in the title bar.`}
             </Hint>
           }
         />

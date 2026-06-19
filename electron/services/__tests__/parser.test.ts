@@ -161,4 +161,28 @@ describe('parseLine — markers', () => {
     const parsed = parseLine(raw, FILE, 1);
     expect(parsed).toMatchObject({ kind: 'compact', sessionId: 'sess-9' });
   });
+
+  it('returns a toolresult marker sizing tool_result content (string + blocks)', () => {
+    const raw = JSON.stringify({
+      type: 'user',
+      timestamp: '2026-06-01T10:00:00Z',
+      sessionId: 'sess-tr',
+      message: {
+        content: [
+          { type: 'tool_result', tool_use_id: 't1', content: 'hello' }, // 5 chars
+          { type: 'tool_result', tool_use_id: 't2', content: [{ type: 'text', text: 'world!' }] }, // 6 chars
+        ],
+      },
+    });
+    expect(parseLine(raw, FILE, 1)).toMatchObject({ kind: 'toolresult', sessionId: 'sess-tr', chars: 11 });
+  });
+
+  it('does NOT treat a user line without tool_result as a marker', () => {
+    const raw = JSON.stringify({
+      type: 'user',
+      timestamp: '2026-06-01T10:00:00Z',
+      message: { content: [{ type: 'text', text: 'just a prompt' }] },
+    });
+    expect(parseLine(raw, FILE, 1)).toBeNull();
+  });
 });

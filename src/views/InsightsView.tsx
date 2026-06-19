@@ -4,7 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -20,6 +20,7 @@ import {
 import './insights.css';
 import { Panel } from '../components/ui/Panel';
 import { Hint } from '../components/ui/Hint';
+import { DayDrilldown } from '../components/insights/DayDrilldown';
 import { CountUp } from '../components/ui/CountUp';
 import { StatCard } from '../components/cards/StatCard';
 import { useUsageStore } from '../store/useUsageStore';
@@ -220,7 +221,22 @@ function deriveInsights(snapshot: Snapshot) {
     }),
   );
 
+  // "best time to start": the lightest ACTIVE hour-of-day (summed across
+  // weekdays for stability) — when your session/weekly windows have seen the
+  // least competing usage, so a fresh heavy task has the most headroom.
+  const hourTotals = new Array<number>(24).fill(0);
+  snapshot.hourly.forEach((row) => row.forEach((v, h) => (hourTotals[h] += v)));
+  let bestStartHour: number | null = null;
+  let lightest = Infinity;
+  hourTotals.forEach((v, h) => {
+    if (v > 0 && v < lightest) {
+      lightest = v;
+      bestStartHour = h;
+    }
+  });
+
   return {
+    bestStartHour: bestStartHour as number | null,
     cost7,
     prevCost7,
     wowPct,
@@ -308,6 +324,7 @@ export function InsightsView() {
   const settings = useUsageStore((s) => s.settings);
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
   const ins = useMemo(() => (snapshot ? deriveInsights(snapshot) : null), [snapshot]);
+  const [drillDay, setDrillDay] = useState<string | null>(null);
   const plan = useMemo(
     () =>
       ins
@@ -329,6 +346,17 @@ export function InsightsView() {
   );
   if (!snapshot || !ins) return null;
 
+  // range-aware labels: 'all' keeps each panel's natural window wording, a
+  // bounded range substitutes its own label so captions never lie
+  const range = snapshot.range;
+  const isAll = range.preset === 'all';
+  const winLabel = (def: string) => (isAll ? def : range.label);
+  // the month-end forecast only makes sense for a range that reaches today;
+  // for past/closed ranges we show the range total instead
+  const now = new Date();
+  const tk = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const endsToday = !range.endKey || range.endKey >= tk;
+
   const { cache, records } = snapshot;
   const cacheLeverage =
     cache.wouldHaveCostUSD > 0 ? (cache.savedUSD / cache.wouldHaveCostUSD) * 100 : 0;
@@ -346,30 +374,41 @@ export function InsightsView() {
         />
       </div>
       <div className="g3">
-        <StatCard
-          label="month-end projection"
-          value={
-            ins.projectedMonth != null ? (
-              <CountUp value={ins.projectedMonth} format={fmtUSD} />
-            ) : (
-              '—'
-            )
-          }
-          sub={
-            ins.curMonth ? (
-              <span
-                title={`weekday-adjusted ±1σ · spent ${fmtUSD(ins.curMonth.cost)} so far`}
-              >
-                {ins.projLow != null && ins.projHigh != null
-                  ? `band ${fmtUSD(ins.projLow)}–${fmtUSD(ins.projHigh)} · ${ins.remainingDays}d left`
-                  : `spent ${fmtUSD(ins.curMonth.cost)} · ${ins.remainingDays}d left`}
-              </span>
-            ) : (
-              'no spend this month'
-            )
-          }
-          aside={ins.curMonth ? monthLabel(ins.curMonth.month) : null}
-        />
+        {endsToday ? (
+          <StatCard
+            label="month-end projection"
+            value={
+              ins.projectedMonth != null ? (
+                <CountUp value={ins.projectedMonth} format={fmtUSD} />
+              ) : (
+                '—'
+              )
+            }
+            sub={
+              ins.curMonth ? (
+                <span
+                  title={`weekday-adjusted ±1σ · spent ${fmtUSD(ins.curMonth.cost)} so far`}
+                >
+                  {ins.projLow != null && ins.projHigh != null
+                    ? `band ${fmtUSD(ins.projLow)}–${fmtUSD(ins.projHigh)} · ${ins.remainingDays}d left`
+                    : `spent ${fmtUSD(ins.curMonth.cost)} · ${ins.remainingDays}d left`}
+                </span>
+              ) : (
+                'no spend this month'
+              )
+            }
+            aside={ins.curMonth ? monthLabel(ins.curMonth.month) : null}
+          />
+        ) : (
+          // a forward forecast is meaningless for a closed/past range — show
+          // what the range actually cost instead
+          <StatCard
+            label={`spend · ${range.label}`}
+            value={<CountUp value={snapshot.totals.cost} format={fmtUSD} />}
+            sub={`${fmtInt(snapshot.totals.sessions)} sessions · ${fmtInt(snapshot.totals.entries)} entries`}
+            aside="range total"
+          />
+        )}
       </div>
       <div className="g3">
         <StatCard
@@ -388,22 +427,28 @@ export function InsightsView() {
               '—'
             )
           }
-          sub={`${fmtTok(snapshot.totals.out)} output tok all-time`}
+          sub={`${fmtTok(snapshot.totals.out)} output tok · ${winLabel('all-time')}`}
         />
       </div>
 
       {/* spend trend + weekly rhythm */}
       <div className="g8">
         <Panel
-          title={<>spend trend · 30 days <Hint label="how to read this">Daily cost over the last 30 days. The line is a 7-day moving average. Spikes are identified using a robust statistical threshold to flag days that are significantly above your typical usage pattern.</Hint></>}
+          title={<>spend trend · {winLabel('30 days')} <Hint label="how to read this">Daily cost over the selected range. The line is a 7-day moving average. Spikes are identified using a robust statistical threshold to flag days that are significantly above your typical usage pattern.</Hint></>}
           right={
             <span className="panel-note">
-              bars daily · line 7-day average{ins.spikeDays > 0 ? ' · amber = spike day' : ''}
+              click a day for its breakdown · line 7-day average
+              {ins.spikeDays > 0 ? ' · amber = spike day' : ''}
             </span>
           }
         >
           <ResponsiveContainer width="100%" height={232}>
-            <ComposedChart data={ins.trend} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
+            <ComposedChart
+              data={ins.trend}
+              margin={{ top: 6, right: 4, bottom: 0, left: 0 }}
+              onClick={(s: { activeLabel?: string }) => s?.activeLabel && setDrillDay(s.activeLabel)}
+              style={{ cursor: 'pointer' }}
+            >
               <defs>
                 <linearGradient id="ins-trend" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" style={{ stopColor: 'var(--chart-2)', stopOpacity: 0.85 }} />
@@ -685,7 +730,7 @@ export function InsightsView() {
 
       {/* economics table + records */}
       <div className="g7">
-        <Panel title={<>model economics <Hint label="how to read this">Breakdown of the top 8 models by all-time cost, showing what percentage of your spend goes to each, along with efficiency metrics like cost per message.</Hint></>} right={<span className="panel-note">all-time · top 8</span>}>
+        <Panel title={<>model economics <Hint label="how to read this">Breakdown of the top 8 models by all-time cost, showing what percentage of your spend goes to each, along with efficiency metrics like cost per message.</Hint></>} right={<span className="panel-note">{winLabel('all-time')} · top 8</span>}>
           <div className="tbl-wrap">
             <table className="tbl">
               <thead>
@@ -776,15 +821,23 @@ export function InsightsView() {
               <b>{fmtUSD(snapshot.totals.cost / Math.max(1, snapshot.totals.entries))}</b>
             </li>
             <li>
-              <span>busiest hour · 30d</span>
+              <span>busiest hour · {winLabel('30d')}</span>
               <b>
                 {ins.busiest
                   ? `${WEEKDAYS[ins.busiest.wd]} ${String(ins.busiest.hour).padStart(2, '0')}:00 · ${fmtTok(ins.busiest.v)} tok`
                   : '—'}
               </b>
             </li>
-            <li title="days above median + 3.5 robust σ of the 35-day window">
-              <span>spike days · 35d</span>
+            <li title="your lightest active hour over the last 30 days — when your 5-hour and weekly limit windows have seen the least competing usage, so a heavy task started here has the most headroom (may fall outside working hours)">
+              <span>best time to start</span>
+              <b style={{ color: ins.bestStartHour != null ? 'var(--sage)' : undefined }}>
+                {ins.bestStartHour != null
+                  ? `around ${String(ins.bestStartHour).padStart(2, '0')}:00`
+                  : '—'}
+              </b>
+            </li>
+            <li title="days above median + 3.5 robust σ of the range">
+              <span>spike days · {winLabel('35d')}</span>
               <b style={ins.spikeDays > 0 ? { color: 'var(--warn)' } : undefined}>
                 {ins.spikeDays > 0 ? ins.spikeDays : 'none'}
               </b>
@@ -817,6 +870,22 @@ export function InsightsView() {
               <span>compactions</span>
               <b>{snapshot.compactions ? fmtInt(snapshot.compactions) : 'none'}</b>
             </li>
+            <li title="estimated input + cache-read cost paid to re-ingest context on the first turn after each compaction (a floor — counts only that first turn)">
+              <span>compaction re-reads</span>
+              <b>
+                {snapshot.compactionReread.turns
+                  ? `${fmtUSD(snapshot.compactionReread.costUSD)} · ${fmtInt(snapshot.compactionReread.turns)} turn${snapshot.compactionReread.turns === 1 ? '' : 's'}`
+                  : 'none'}
+              </b>
+            </li>
+            <li title="volume of tool_result output returned to the model and re-fed as input on later turns — estimated tokens (chars ÷ 4); transcripts carry no exact per-result count">
+              <span>tool output · est</span>
+              <b>
+                {snapshot.toolResults.count
+                  ? `~${fmtTok(snapshot.toolResults.estTokens)} tok · ${fmtInt(snapshot.toolResults.count)} results`
+                  : 'none'}
+              </b>
+            </li>
           </ul>
         </Panel>
       </div>
@@ -834,7 +903,7 @@ export function InsightsView() {
                     ? (snapshot.toolUse.turns / snapshot.totals.entries) * 100
                     : 0,
                 )}{' '}
-                of turns use tools · all-time
+                of turns use tools · {winLabel('all-time')}
               </span>
             }
           >
@@ -862,6 +931,8 @@ export function InsightsView() {
           </Panel>
         </div>
       )}
+
+      <DayDrilldown date={drillDay} onClose={() => setDrillDay(null)} />
     </div>
   );
 }

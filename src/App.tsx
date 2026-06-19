@@ -11,6 +11,7 @@ import { TitleBar } from './components/layout/TitleBar';
 import { StatusBar } from './components/layout/StatusBar';
 import { Sidebar, VIEWS } from './components/layout/Sidebar';
 import { ScanOverlay } from './components/overlays/ScanOverlay';
+import { CommandPalette } from './components/CommandPalette';
 import { EmptyState } from './components/overlays/EmptyState';
 import { OverviewView } from './views/OverviewView';
 import { ActivityView } from './views/ActivityView';
@@ -20,6 +21,7 @@ import { BlocksView } from './views/BlocksView';
 import { ModelsView } from './views/ModelsView';
 import { ProjectsView } from './views/ProjectsView';
 import { AccountsView } from './views/AccountsView';
+import { AdvisorView } from './views/AdvisorView';
 import { SettingsView } from './views/SettingsView';
 
 // three.js is heavy — code-split it so the 3d view loads on first visit only
@@ -37,6 +39,7 @@ const VIEW_COMPONENTS: Record<ViewId, ComponentType> = {
   models: ModelsView,
   projects: ProjectsView,
   accounts: AccountsView,
+  advisor: AdvisorView,
   settings: SettingsView,
 };
 
@@ -121,6 +124,7 @@ export default function App() {
       </div>
       <StatusBar />
       <div className="grain" aria-hidden="true" />
+      <CommandPalette />
     </div>
   );
 }

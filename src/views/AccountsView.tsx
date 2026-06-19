@@ -9,15 +9,16 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { Panel } from '../components/ui/Panel';
 import { Hint } from '../components/ui/Hint';
 import { SetupWizard } from '../components/accounts/SetupWizard';
+import { LoginPrompt } from '../components/auth/LoginPrompt';
 import { useUsageStore } from '../store/useUsageStore';
 import { useNow } from '../hooks/useNow';
 import { useScopedDirs } from '../hooks/useScopedDirs';
 import { updateSettings } from '../bootstrap';
-import { fmtPct, fmtUSD, relTime, sourceLabel, tildify } from '../lib/format';
+import { fmtPct, fmtTok, fmtUSD, relTime, sourceLabel, tildify } from '../lib/format';
 import { limitColor } from '../lib/limits';
 import { planPriceUSD } from '../lib/plans';
 import { accountRoot, crossAccountAdvice, crossResumeCommand } from '../lib/crossAccount';
-import type { AccountInfo, LimitsResult, LimitWindow, RecentSession } from '../../shared/types';
+import type { AccountInfo, AccountSpend, LimitsResult, LimitWindow, RecentSession } from '../../shared/types';
 
 /** Per-account accent tokens (kept off --amber, which marks the active scope). */
 const ACCENTS = ['var(--blue)', 'var(--sage)', 'var(--rose)', 'var(--chart-4)', 'var(--chart-2)'];
@@ -107,6 +108,7 @@ interface AccountCardProps {
   dir: string;
   acct: AccountInfo | undefined;
   limit: LimitsResult | undefined;
+  spend: AccountSpend | undefined;
   inScope: boolean;
   canScope: boolean;
   accent: string;
@@ -126,7 +128,7 @@ const avatarStyle = (label: string, accent: string) => {
 };
 
 /** One account: identity, login state, live limit windows, plan price. */
-function AccountCard({ dir, acct, limit, inScope, canScope, accent, now }: AccountCardProps) {
+function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }: AccountCardProps) {
   const label = sourceLabel(dir);
   const price = planPriceUSD(acct?.plan ?? null, acct?.tier ?? null);
   const loggedIn = acct?.hasCredentials ?? false;
@@ -193,11 +195,50 @@ function AccountCard({ dir, acct, limit, inScope, canScope, accent, now }: Accou
         </div>
       ) : (
         <div className="acc-nolimit">
-          {!loggedIn
-            ? 'no stored login — open Claude Code on this account once'
-            : limit && !limit.ok
-              ? limit.error
-              : 'no live limits yet'}
+          <span className="acc-nolimit-msg">
+            {!loggedIn
+              ? 'no stored login on this account'
+              : limit && !limit.ok
+                ? limit.error
+                : 'no live limits yet'}
+          </span>
+          {(!loggedIn || (limit && !limit.ok)) && (
+            <LoginPrompt dir={dir} label={loggedIn ? 'log in' : 'sign in'} />
+          )}
+        </div>
+      )}
+
+      {spend && spend.entries > 0 && (
+        <div className="acc-spend" title="resolved from your local transcripts for this account">
+          <div className="acc-spend-head">
+            <span className="acc-spend-total">{fmtUSD(spend.cost)}</span>
+            <span className="acc-spend-label">lifetime spend</span>
+          </div>
+          <div className="acc-spend-grid">
+            <span className="acc-spend-cell">
+              <b>{fmtUSD(spend.month)}</b>
+              30d
+            </span>
+            <span className="acc-spend-cell">
+              <b>{fmtUSD(spend.week)}</b>
+              7d
+            </span>
+            <span className="acc-spend-cell">
+              <b>{fmtUSD(spend.today)}</b>
+              today
+            </span>
+            <span className="acc-spend-cell">
+              <b>{fmtTok(spend.tokens)}</b>
+              tokens
+            </span>
+            <span className="acc-spend-cell">
+              <b>{spend.sessions}</b>
+              sessions
+            </span>
+          </div>
+          {spend.firstTs && (
+            <div className="acc-spend-since">since {relTime(spend.firstTs, now)}</div>
+          )}
         </div>
       )}
 
@@ -263,7 +304,7 @@ function HeadroomBanner() {
   }, [fromDir]);
 
   if (!top) return null;
-  const cmd = crossResumeCommand(top.fromDir, top.toDir, session?.id);
+  const multi = top.targets.length > 1;
 
   return (
     <Panel
@@ -287,27 +328,37 @@ function HeadroomBanner() {
         <div className="hr-arrow" aria-hidden>
           →
         </div>
-        <div className="hr-side">
-          <Ring pct={top.toPct} />
-          <div className="hr-side-name">{sourceLabel(top.toDir)}</div>
-          <div className="hr-side-tag hr-room">has room</div>
-        </div>
-        <div className="hr-verdict">
-          continue on <b>{sourceLabel(top.toDir)}</b>
-          <span>its {top.kind} window has the most headroom</span>
-        </div>
+        <ul className="hr-targets">
+          {top.targets.map((t, i) => {
+            const cmd = crossResumeCommand(top.fromDir, t.dir, session?.id);
+            return (
+              <li className="hr-target" key={t.dir}>
+                {multi && <span className="hr-rank">{i + 1}</span>}
+                <Ring pct={t.pct} />
+                <div className="hr-target-body">
+                  <div className="hr-target-head">
+                    <span className="hr-side-name">{sourceLabel(t.dir)}</span>
+                    <span className="hr-side-tag hr-room">
+                      {i === 0 && multi ? 'most room' : 'has room'}
+                    </span>
+                  </div>
+                  <div className="hr-cmd">
+                    <span className="hr-prompt" aria-hidden>
+                      $
+                    </span>
+                    <code className="hr-cmd-text">{cmd}</code>
+                    <CopyButton text={cmd} label="copy" />
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
-      <div className="hr-cmd">
-        <span className="hr-prompt" aria-hidden>
-          $
-        </span>
-        <code className="hr-cmd-text">{cmd}</code>
-        <CopyButton text={cmd} label="copy" />
-      </div>
       <div className="hr-meta">
         {session
-          ? `newest ${sourceLabel(top.fromDir)} session${session.cwd ? ` · ${session.project}` : ''}`
+          ? `${multi ? 'each command ' : ''}prefilled with the newest ${sourceLabel(top.fromDir)} session${session.cwd ? ` · ${session.project}` : ''}`
           : 'run with the session id you want to continue'}
       </div>
 
@@ -327,6 +378,7 @@ function HeadroomBanner() {
 export function AccountsView() {
   const accounts = useUsageStore((s) => s.accounts);
   const limits = useUsageStore((s) => s.limits);
+  const spend = useUsageStore((s) => s.snapshot?.accountSpend);
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
   const scoped = useScopedDirs();
   const now = useNow(30000);
@@ -363,6 +415,7 @@ export function AccountsView() {
             dir={dir}
             acct={accounts[dir]}
             limit={limits[dir]}
+            spend={spend?.[dir]}
             inScope={scopedSet.has(dir)}
             canScope={canScope}
             accent={accentFor(i)}

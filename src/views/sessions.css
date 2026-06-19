@@ -100,6 +100,14 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
+/* fixed row height keeps the virtualizer's spacer math exact (SES_ROW_H = 49) */
+.ses-tbl tbody tr {
+  height: 49px;
+}
+.ses-tbl tbody tr td {
+  overflow: hidden;
+}
+
 .ses-tbl tbody tr:hover td {
   background: color-mix(in srgb, var(--amber) 5%, transparent);
 }

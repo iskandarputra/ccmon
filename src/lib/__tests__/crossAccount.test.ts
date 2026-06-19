@@ -42,6 +42,26 @@ describe('crossAccountAdvice — session window', () => {
     expect(Math.round(a.toPct)).toBe(12);
   });
 
+  it('ranks every account with room, most headroom first', () => {
+    const V1 = '/home/isz/.claude-work-v1/projects';
+    const three: AccountsMap = { ...accounts, [V1]: acct(true) };
+    // personal caps at 100; both work accounts have room (3% and 0%)
+    const limits: LimitsMap = { [PERSONAL]: ok(100), [WORK]: ok(3), [V1]: ok(0) };
+    const [a] = crossAccountAdvice(three, limits);
+    expect(a.fromDir).toBe(PERSONAL);
+    expect(a.targets.map((t) => t.dir)).toEqual([V1, WORK]); // 0% before 3%
+    expect(a.toDir).toBe(V1); // best == first target
+  });
+
+  it('omits accounts without real room from the ranked targets', () => {
+    const V1 = '/home/isz/.claude-work-v1/projects';
+    const three: AccountsMap = { ...accounts, [V1]: acct(true) };
+    // V1 is itself near its cap (>= ROOM) — only WORK qualifies
+    const limits: LimitsMap = { [PERSONAL]: ok(96), [WORK]: ok(12), [V1]: ok(85) };
+    const [a] = crossAccountAdvice(three, limits);
+    expect(a.targets.map((t) => t.dir)).toEqual([WORK]);
+  });
+
   it('stays silent when the gap is too small', () => {
     // 85% vs 70% is only a 15pt gap (< 25) — not worth a switch
     const limits: LimitsMap = { [PERSONAL]: ok(85), [WORK]: ok(70) };

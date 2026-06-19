@@ -282,6 +282,9 @@ button {
 
 .titlebar {
   position: relative;
+  /* above .body/.content so the range-picker dropdown paints in front
+     (backdrop-filter already makes this a stacking context) */
+  z-index: 200;
   height: 44px;
   display: flex;
   align-items: center;

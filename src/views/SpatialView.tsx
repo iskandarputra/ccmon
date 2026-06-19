@@ -1095,27 +1095,29 @@ export function SpatialView() {
 
   const headline = useMemo(() => {
     if (!snapshot) return '';
+    // bounded global range substitutes its label for the natural window wording
+    const win = (def: string) => (snapshot.range.preset === 'all' ? def : snapshot.range.label);
     switch (mode) {
       case 'rhythm':
-        return `${fmtTok(snapshot.hourly.flat().reduce((s, v) => s + v, 0))} tok over 30 days`;
+        return `${fmtTok(snapshot.hourly.flat().reduce((s, v) => s + v, 0))} tok over ${win('30 days')}`;
       case 'spend':
-        return `${fmtUSD(snapshot.hourlyCost.flat().reduce((s, v) => s + v, 0))} over 30 days`;
+        return `${fmtUSD(snapshot.hourlyCost.flat().reduce((s, v) => s + v, 0))} over ${win('30 days')}`;
       case 'models':
-        return `top ${Math.min(6, snapshot.models.length)} models · 35 days`;
+        return `top ${Math.min(6, snapshot.models.length)} models · ${win('35 days')}`;
       case 'projects':
-        return `top ${Math.min(8, snapshot.projects.length)} projects · 14 days`;
+        return `top ${Math.min(8, snapshot.projects.length)} projects · ${win('14 days')}`;
       case 'blocks': {
         const usage = snapshot.blocks.filter((b) => !b.isGap).length;
-        return `${usage} blocks · ${snapshot.blocks.length - usage} gaps · 30 days`;
+        return `${usage} blocks · ${snapshot.blocks.length - usage} gaps · ${win('30 days')}`;
       }
       case 'sessions':
         return `${Math.min(36, snapshot.sessions.length)} recent sessions`;
       case 'tools':
-        return `top ${snapshot.toolUse.daily.length} tools · 35 days`;
+        return `top ${snapshot.toolUse.daily.length} tools · ${win('35 days')}`;
       case 'whatif':
-        return `actual vs ${snapshot.whatIf.length} re-priced models · 35 days`;
+        return `actual vs ${snapshot.whatIf.length} re-priced models · ${win('35 days')}`;
       default:
-        return `${fmtUSD(snapshot.days.reduce((s, d) => s + d.cost, 0))} over 35 days`;
+        return `${fmtUSD(snapshot.days.reduce((s, d) => s + d.cost, 0))} over ${win('35 days')}`;
     }
   }, [snapshot, mode]);
 

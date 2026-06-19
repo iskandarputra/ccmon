@@ -13,11 +13,12 @@ const MAX_ROWS = 6;
 
 export function ModelSplit() {
   const models = useUsageStore((s) => s.snapshot?.models) || [];
+  const rangeLabel = useUsageStore((s) => s.snapshot?.range.label) ?? 'all time';
   const rows = models.slice(0, MAX_ROWS);
   const max = rows[0]?.cost || 1;
 
   return (
-    <Panel title="by model · all time" right={<span className="panel-note">est cost</span>}>
+    <Panel title={`by model · ${rangeLabel}`} right={<span className="panel-note">est cost</span>}>
       <div className="ms-rows">
         {rows.map((m, i) => (
           <div key={m.model}>

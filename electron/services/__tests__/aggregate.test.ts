@@ -5,9 +5,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { buildSnapshot } from '../aggregate';
+import { accountSpend, buildSnapshot, dayBreakdown } from '../aggregate';
 import { createPricingEngine } from '../pricing';
 import { localDateKey } from '../parser';
+import { resolveRange } from '../../../shared/range';
 import { HOUR, MIN, makeEntry } from './helpers';
 import type { CompactMarker, UsageEntry } from '../../../shared/types';
 
@@ -25,6 +26,40 @@ function snap(entries: UsageEntry[], extra: Record<string, unknown> = {}) {
     { now: NOW, settings: { costMode: 'auto', startOfWeek: 'monday' }, ...extra },
   );
 }
+
+describe('buildSnapshot — time range scoping', () => {
+  const old = makeEntry({ ts: NOW - 10 * 24 * HOUR, in: 10, out: 5, costUSD: 7, sessionId: 'old' });
+  const yesterday = makeEntry({ ts: NOW - 24 * HOUR, in: 10, out: 5, costUSD: 2, sessionId: 'y' });
+  const today1 = makeEntry({ ts: NOW - 2 * HOUR, in: 100, out: 50, costUSD: 3, sessionId: 'a' });
+  const today2 = makeEntry({ ts: NOW - 1 * HOUR, in: 200, out: 100, costUSD: 5, sessionId: 'b' });
+  const all = [old, yesterday, today1, today2];
+
+  it('defaults to all-time with the 35-day window when no range is given', () => {
+    const s = snap(all);
+    expect(s.range.preset).toBe('all');
+    expect(s.totals.cost).toBe(17); // 7 + 2 + 3 + 5
+    expect(s.days).toHaveLength(35);
+  });
+
+  it('today scopes totals and the daily series to the current day', () => {
+    const s = snap(all, { range: resolveRange({ preset: 'today' }, NOW) });
+    expect(s.range.label).toBe('today');
+    expect(s.totals.cost).toBe(8); // today1 + today2 only
+    expect(s.totals.sessions).toBe(2);
+    expect(s.days).toHaveLength(1);
+    expect(s.days[0].date).toBe(localDateKey(NOW));
+    expect(s.days[0].cost).toBe(8);
+  });
+
+  it('a custom span includes only entries within the bounds', () => {
+    const start = localDateKey(NOW - 24 * HOUR); // yesterday
+    const end = localDateKey(NOW);
+    const s = snap(all, { range: resolveRange({ preset: 'custom', customStart: start, customEnd: end }, NOW) });
+    expect(s.totals.cost).toBe(10); // yesterday + today, old (10d ago) excluded
+    expect(s.days).toHaveLength(2);
+    expect(s.entryCount).toBe(3);
+  });
+});
 
 describe('buildSnapshot — core rollups', () => {
   const yesterday = makeEntry({ ts: NOW - 24 * HOUR, in: 10, out: 5, costUSD: 2 });
@@ -154,5 +189,131 @@ describe('buildSnapshot — counterfactuals and context', () => {
     const ctx = s.sessions[0].context!;
     expect(ctx.tokens).toBe(2250);
     expect(ctx.limit).toBe(200_000); // override rows carry no limit → default
+  });
+});
+
+describe('compaction re-read cost', () => {
+  // rate row: in=10/MTok, read=1/MTok → re-read cost = (in*10 + read*1)/1e6
+  it('attributes the first post-compaction turn input+read cost, once per gap', () => {
+    const sid = 'cs';
+    const entries = [
+      makeEntry({ ts: NOW - 5 * HOUR, model: 'fake-model', in: 0, read: 0, sessionId: sid }),
+      // first turn after the compaction — the re-read we cost
+      makeEntry({ ts: NOW - 3 * HOUR, model: 'fake-model', in: 1_000_000, out: 500_000, read: 2_000_000, sessionId: sid }),
+      makeEntry({ ts: NOW - 1 * HOUR, model: 'fake-model', in: 10, read: 0, sessionId: sid }),
+    ];
+    const comps: CompactMarker[] = [{ kind: 'compact', ts: NOW - 4 * HOUR, sessionId: sid, source: null }];
+    const s = snap(entries, { pricing: engine, compactions: comps });
+    expect(s.compactionReread.turns).toBe(1);
+    // in 1M @ $10/MTok + read 2M @ $1/MTok = 10 + 2 = 12 (output excluded)
+    expect(s.compactionReread.costUSD).toBeCloseTo(12, 5);
+  });
+
+  it('collapses several compactions before the same turn into one re-read', () => {
+    const sid = 'cs2';
+    const entries = [
+      makeEntry({ ts: NOW - 2 * HOUR, model: 'fake-model', in: 1_000_000, out: 0, read: 0, sessionId: sid }),
+    ];
+    const comps: CompactMarker[] = [
+      { kind: 'compact', ts: NOW - 3 * HOUR, sessionId: sid, source: null },
+      { kind: 'compact', ts: NOW - 2.5 * HOUR, sessionId: sid, source: null },
+    ];
+    const s = snap(entries, { pricing: engine, compactions: comps });
+    expect(s.compactionReread.turns).toBe(1); // one re-reading turn, not two
+    expect(s.compactionReread.costUSD).toBeCloseTo(10, 5); // in 1M @ $10
+  });
+});
+
+describe('accountSpend — per-source rollup', () => {
+  const ROOT_A = '/home/u/.claude';
+  const ROOT_B = '/home/u/.claude-work';
+
+  it('buckets lifetime cost/tokens/sessions by source root', () => {
+    const map = accountSpend(
+      [
+        makeEntry({ ts: NOW - 40 * 24 * HOUR, in: 10, out: 5, costUSD: 2, source: ROOT_A, sessionId: 'a1' }),
+        makeEntry({ ts: NOW - 2 * HOUR, in: 100, out: 50, costUSD: 3, source: ROOT_A, sessionId: 'a2' }),
+        makeEntry({ ts: NOW - 1 * HOUR, in: 200, out: 100, costUSD: 5, source: ROOT_B, sessionId: 'b1' }),
+      ],
+      { now: NOW },
+    );
+    expect(map[ROOT_A].cost).toBe(5);
+    expect(map[ROOT_A].tokens).toBe(165);
+    expect(map[ROOT_A].sessions).toBe(2);
+    expect(map[ROOT_A].entries).toBe(2);
+    expect(map[ROOT_B].cost).toBe(5);
+    expect(map[ROOT_B].sessions).toBe(1);
+  });
+
+  it('windows today/week/month by recency, independent of lifetime', () => {
+    const map = accountSpend(
+      [
+        makeEntry({ ts: NOW - 40 * 24 * HOUR, costUSD: 100, source: ROOT_A }), // lifetime only
+        makeEntry({ ts: NOW - 10 * 24 * HOUR, costUSD: 10, source: ROOT_A }), //  month
+        makeEntry({ ts: NOW - 2 * 24 * HOUR, costUSD: 7, source: ROOT_A }), //    week + month
+        makeEntry({ ts: NOW - 1 * HOUR, costUSD: 3, source: ROOT_A }), //         today + week + month
+      ],
+      { now: NOW },
+    );
+    expect(map[ROOT_A].cost).toBe(120);
+    expect(map[ROOT_A].month).toBe(20); // 10 + 7 + 3
+    expect(map[ROOT_A].week).toBe(10); //  7 + 3
+    expect(map[ROOT_A].today).toBe(3);
+  });
+
+  it('drops entries with no stamped source (unattributable)', () => {
+    const map = accountSpend([makeEntry({ costUSD: 9, source: null })], { now: NOW });
+    expect(Object.keys(map)).toHaveLength(0);
+  });
+});
+
+describe('dayBreakdown — why was this day expensive', () => {
+  const TODAY = localDateKey(NOW);
+  const Y = localDateKey(NOW - 24 * HOUR);
+
+  it('ranks the day contributors and compares to the median active day', () => {
+    const entries = [
+      // a cheap prior day → sets the median baseline low
+      makeEntry({ ts: NOW - 24 * HOUR, costUSD: 2, project: '/p/alpha', dateKey: Y }),
+      // the expensive target day
+      makeEntry({ ts: NOW - 3 * HOUR, costUSD: 6, project: '/p/alpha', model: 'opus', sessionId: 's1' }),
+      makeEntry({ ts: NOW - 2 * HOUR, costUSD: 3, project: '/p/beta', model: 'sonnet', sessionId: 's2', tools: ['Bash'] }),
+      makeEntry({ ts: NOW - 1 * HOUR, costUSD: 1, project: '/p/alpha', model: 'opus', sessionId: 's1' }),
+    ];
+    const b = dayBreakdown(entries, TODAY)!;
+    expect(b.cost).toBe(10);
+    expect(b.sessions).toBe(2);
+    // median over all active days INCLUDING this one: median([2,10]) = 6
+    expect(b.medianCost).toBe(6);
+    expect(b.vsMedianPct).toBeCloseTo(66.67, 1); // (10-6)/6 → +66.67%
+    // alpha (6+1=7) leads beta (3)
+    expect(b.topProjects[0].key).toBe('/p/alpha');
+    expect(b.topProjects[0].cost).toBe(7);
+    expect(b.topProjects[0].pct).toBeCloseTo(70, 0);
+    expect(b.topModels[0].key).toBe('opus');
+    expect(b.topSessions[0].key).toBe('s1');
+    expect(b.toolTurns).toBe(1);
+    expect(b.toolInvocations).toBe(1);
+  });
+
+  it('flags projects that debuted on the day', () => {
+    const entries = [
+      makeEntry({ ts: NOW - 24 * HOUR, costUSD: 1, project: '/p/old', dateKey: Y }),
+      makeEntry({ ts: NOW - 2 * HOUR, costUSD: 5, project: '/p/old' }),
+      makeEntry({ ts: NOW - 1 * HOUR, costUSD: 4, project: '/p/fresh' }),
+    ];
+    const b = dayBreakdown(entries, TODAY)!;
+    expect(b.newProjects).toEqual(['/p/fresh']);
+  });
+
+  it('counts compactions on the day and returns null for an empty day', () => {
+    const entries = [makeEntry({ ts: NOW - 2 * HOUR, costUSD: 5 })];
+    const comps: CompactMarker[] = [
+      { kind: 'compact', ts: NOW - 90 * MIN, sessionId: 's1', source: null },
+      { kind: 'compact', ts: NOW - 26 * HOUR, sessionId: 's1', source: null }, // yesterday
+    ];
+    const b = dayBreakdown(entries, TODAY, { compactions: comps })!;
+    expect(b.compactions).toBe(1);
+    expect(dayBreakdown(entries, '2000-01-01')).toBeNull();
   });
 });
