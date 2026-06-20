@@ -68,16 +68,17 @@ Spike days. Streaks. Historical pricing, so old months keep their old rates.
 Terrain, ridges, surfaces, a cumulative spend trail that snakes through the
 calendar. It's mostly there for fun, and that's fine.
 
-Also: ten views (keys `1` to `9`, plus settings), twenty-nine themes, and
-your costs in any of 160+ currencies, including the top ten crypto. Rates
-refresh hourly.
+Also: twelve views — keys `1` to `9` jump to the first nine, and a `⌘`/`Ctrl`+`K`
+command palette jumps anywhere, including a links page of official Claude
+and Anthropic channels and status pages. Twenty-nine themes, and your costs
+in any of 160+ currencies, including the top ten crypto. Rates refresh hourly.
 
 ## Can I trust the numbers?
 
 Yes, and you can check. An automated parity test (`npm run parity`)
 cross-checks the token math against [ccusage](https://github.com/ccusage/ccusage)
 (MIT), the established CLI for Claude Code usage reports; current drift is
-under 0.005 percent. 103 unit tests cover the parsing, pricing, block, and
+under 0.005 percent. 151 unit tests cover the parsing, pricing, block, and
 forecast math, and CI runs them on every push.
 
 Costs are API list prices. On a Pro or Max subscription, read them as
@@ -116,7 +117,7 @@ Tagged pushes cut a GitHub release with Linux, Windows and macOS artifacts
 attached (`.github/workflows/build.yml`):
 
 ```bash
-git tag v0.2.0 && git push origin v0.2.0
+git tag v1.4.0 && git push origin v1.4.0
 ```
 
 ## Configuration
