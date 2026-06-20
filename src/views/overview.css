@@ -1,0 +1,104 @@
+/* Overview dashboard (.ovr- prefix) — section rhythm, hero accent, empty state */
+
+/* ── labeled section dividers ─────────────────────────────────────────────── *
+ * Names the implicit row groups of the grid; gives the dashboard breathing
+ * rhythm without nesting panels. Sits flush as a full-width grid child. */
+.ovr-section {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 6px 0 -6px;
+  min-height: 18px;
+}
+.ovr-section:first-child {
+  margin-top: 0;
+}
+.ovr-sec-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--amber);
+}
+.ovr-section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ovr-section-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--line) 90%, transparent),
+    transparent
+  );
+}
+
+/* ── hero slot: the headline "today" tile carries a faint amber accent ─────── *
+ * StatCard already renders hero numerals; here we lift the single most
+ * important tile so the eye lands on it first. */
+.ovr-hero-slot .stat-card {
+  border-color: color-mix(in srgb, var(--amber) 28%, var(--line));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--amber) 7%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--text) 3.5%, var(--bg1)) 0%,
+      var(--bg1) 60%
+    );
+}
+.ovr-hero-slot .stat-card:hover {
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--line));
+}
+.ovr-hero-slot .stat-label {
+  color: color-mix(in srgb, var(--amber) 70%, var(--text-dim));
+}
+
+/* ── empty state ──────────────────────────────────────────────────────────── */
+.ovr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  padding: 64px 24px;
+}
+.ovr-empty-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-faint);
+  padding: 12px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg2) 55%, transparent);
+  border: 1px solid var(--line);
+  box-sizing: content-box;
+  margin-bottom: 4px;
+}
+.ovr-empty-lead {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+.ovr-empty-sub {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  margin: 0;
+  max-width: 360px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ovr-hero-slot .stat-card:hover {
+    transform: none;
+  }
+}

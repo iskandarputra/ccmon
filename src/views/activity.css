@@ -4,85 +4,154 @@
 .act-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 16px;
-  margin-top: 10px;
-  padding: 0 2px;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.act-legend-cap {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  margin-right: 2px;
 }
 
 .act-legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  letter-spacing: 0.04em;
   color: var(--text-dim);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
+}
+
+.act-legend-item:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
 }
 
 .act-swatch {
-  width: 8px;
-  height: 8px;
-  border-radius: 2.5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
   flex: none;
 }
 
-/* quiet empty-state line */
+/* modern empty state — dim icon, lead line, faint sub line */
 .act-empty {
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--text-faint);
-  letter-spacing: 0.06em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
-  padding: 38px 0;
+  gap: 8px;
+  padding: 40px 0;
+}
+
+.act-empty-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-faint);
+  opacity: 0.7;
+  margin-bottom: 2px;
+}
+
+.act-empty-lead {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.act-empty-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin: 0;
 }
 
 /* records strip — one tile per record, wraps cleanly at any width */
 .act-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
 
 .act-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
   padding: 14px 16px 13px;
-  background: var(--bg2);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg2) 55%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 14px;
   min-width: 0;
-  transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+  transition:
+    transform var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
 }
 .act-stat:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--text-dim) 35%, transparent);
-  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.4);
+}
+
+.act-stat-icon {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 20%, transparent);
+}
+.act-stat-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .act-stat-label {
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   color: var(--text-faint);
+  align-self: end;
 }
 
 .act-stat-value {
   font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
   font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  line-height: 1.2;
-  background: linear-gradient(
-    130deg,
-    var(--text) 35%,
-    color-mix(in srgb, var(--text) 58%, var(--amber))
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--amber) 8%, transparent));
+  line-height: 1.15;
+  color: var(--text);
+  align-self: start;
 }
 
 .act-dim {
@@ -92,7 +161,15 @@
 }
 
 .act-stat-sub {
+  grid-column: 1 / -1;
   font-family: var(--mono);
   font-size: 10.5px;
   color: var(--text-dim);
+  margin-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .act-stat:hover {
+    transform: none;
+  }
 }

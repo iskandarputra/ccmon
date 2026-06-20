@@ -105,6 +105,9 @@
   top: 12px;
   right: 12px;
   min-width: 180px;
+  /* reserve height so swapping between the hover hint and data rows
+     doesn't make the chip jump */
+  min-height: 58px;
   padding: 9px 12px;
   background: color-mix(in srgb, var(--bg2) 88%, transparent);
   border: 1px solid var(--line);
@@ -156,4 +159,13 @@
 
 .spa-hint {
   color: var(--text-faint);
+}
+
+/* on narrow widths the axis legend + controls stack instead of cramming */
+@media (max-width: 820px) {
+  .spa-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
 }

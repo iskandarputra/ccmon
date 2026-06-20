@@ -30,6 +30,7 @@ export type ViewId =
   | 'projects'
   | 'accounts'
   | 'advisor'
+  | 'links'
   | 'settings';
 
 export type StoreStatus = 'connecting' | 'scanning' | 'ready' | 'error';

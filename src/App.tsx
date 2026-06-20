@@ -22,6 +22,7 @@ import { ModelsView } from './views/ModelsView';
 import { ProjectsView } from './views/ProjectsView';
 import { AccountsView } from './views/AccountsView';
 import { AdvisorView } from './views/AdvisorView';
+import { LinksView } from './views/LinksView';
 import { SettingsView } from './views/SettingsView';
 
 // three.js is heavy — code-split it so the 3d view loads on first visit only
@@ -40,6 +41,7 @@ const VIEW_COMPONENTS: Record<ViewId, ComponentType> = {
   projects: ProjectsView,
   accounts: AccountsView,
   advisor: AdvisorView,
+  links: LinksView,
   settings: SettingsView,
 };
 

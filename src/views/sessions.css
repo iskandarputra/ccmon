@@ -10,28 +10,53 @@
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px 14px;
+  gap: 8px 16px;
   min-width: 0;
 }
 
+/* search field — icon + input wrapped in a single pill */
+
 .ses-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  width: clamp(170px, 24vw, 250px);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
+}
+.ses-search:focus-within {
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 80%, transparent);
+}
+.ses-search-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--text-faint);
+  transition: color var(--dur-1) var(--ease-out);
+}
+.ses-search:focus-within .ses-search-icon {
+  color: var(--amber);
+}
+.ses-search-input {
+  flex: 1;
+  min-width: 0;
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.03em;
   color: var(--text);
-  background: var(--bg2);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 4px 10px;
-  width: clamp(150px, 22vw, 230px);
+  background: transparent;
+  border: none;
+  padding: 0;
   outline: none;
-  transition: border-color 0.12s ease;
 }
-.ses-search::placeholder {
+.ses-search-input::placeholder {
   color: var(--text-faint);
-}
-.ses-search:focus {
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
 }
 
 .ses-meta {
@@ -43,8 +68,10 @@
 }
 
 .ses-total {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--amber);
   white-space: nowrap;
 }
@@ -66,6 +93,25 @@
   user-select: none;
 }
 
+/* sticky, framed header band */
+.ses-tbl thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 9px;
+}
+
+/* numeric columns right-align both header and cells */
+.ses-tbl th.ses-num,
+.ses-tbl td.ses-num {
+  text-align: right;
+}
+.ses-tbl th.ses-num .ses-th {
+  flex-direction: row-reverse;
+}
+
 /* sortable header buttons */
 
 .ses-th {
@@ -77,27 +123,31 @@
   color: var(--text-faint);
   padding: 0;
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 4px;
   cursor: pointer;
-  transition: color 0.12s ease;
+  transition: color var(--dur-1) var(--ease-out);
 }
 .ses-th:hover {
   color: var(--text-dim);
 }
 .ses-th.is-sorted {
-  color: var(--text-dim);
+  color: var(--text);
 }
 
 .ses-arrow {
-  font-size: 9px;
+  flex: none;
+  width: 11px;
+  height: 11px;
   color: var(--amber);
 }
 
 /* rows */
 
 .ses-tbl tbody tr td {
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
 }
 
 /* fixed row height keeps the virtualizer's spacer math exact (SES_ROW_H = 49) */
@@ -106,10 +156,11 @@
 }
 .ses-tbl tbody tr td {
   overflow: hidden;
+  font-variant-numeric: tabular-nums;
 }
 
 .ses-tbl tbody tr:hover td {
-  background: color-mix(in srgb, var(--amber) 5%, transparent);
+  background: color-mix(in srgb, var(--amber) 7%, transparent);
 }
 
 .ses-proj {
@@ -125,7 +176,13 @@
   font-size: 9.5px;
   letter-spacing: 0.08em;
   color: var(--text-faint);
-  margin-top: 1px;
+  margin-top: 2px;
+}
+
+/* cost emphasis */
+.ses-tbl td.t-cost {
+  color: var(--text);
+  font-weight: 500;
 }
 
 /* model chips */
@@ -133,19 +190,22 @@
 .ses-chips {
   display: flex;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 5px;
 }
 .ses-chip {
+  font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.04em;
-  padding: 1.5px 7px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--blue) 13%, transparent);
-  color: var(--blue);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--blue) 30%, transparent);
+  background: color-mix(in srgb, var(--blue) 18%, transparent);
+  color: color-mix(in srgb, var(--blue) 80%, var(--text));
   white-space: nowrap;
 }
 .ses-chip-more {
-  background: var(--bg2);
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
   color: var(--text-faint);
 }
 
@@ -155,25 +215,28 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 9px;
 }
 .ses-ctx-label {
+  font-family: var(--mono);
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-dim);
   white-space: nowrap;
 }
 .ses-gauge {
   width: 64px;
   height: 5px;
-  border-radius: 3px;
-  background: var(--bg2);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg2) 80%, transparent);
   overflow: hidden;
   flex: none;
 }
 .ses-gauge i {
   display: block;
   height: 100%;
-  border-radius: 3px;
+  border-radius: 999px;
+  transition: width var(--dur-2) var(--ease-out);
 }
 
 .ses-none {
@@ -183,12 +246,39 @@
 /* empty states */
 
 .ses-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  padding: 40px 16px;
+}
+.ses-empty-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-faint);
+  margin-bottom: 2px;
+}
+.ses-empty-lead {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0;
+}
+.ses-empty-sub {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--text-faint);
-  padding: 26px 8px;
+  margin: 0;
 }
 .ses-empty-center {
-  text-align: center;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ses-gauge i {
+    transition: none;
+  }
 }

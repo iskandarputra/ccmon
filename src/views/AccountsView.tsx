@@ -5,7 +5,7 @@
  */
 
 import './accounts.css';
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { Panel } from '../components/ui/Panel';
 import { Hint } from '../components/ui/Hint';
 import { SetupWizard } from '../components/accounts/SetupWizard';
@@ -29,6 +29,63 @@ const monogram = (label: string) =>
   (label.split(/[-_]/).pop() || label).charAt(0).toUpperCase() || '•';
 
 const cssVars = (vars: Record<string, string>) => vars as CSSProperties;
+
+/** small inline SVG wrapper so all glyphs share stroke styling (see Advisor). */
+function Glyph({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+/** stroke icons for the spend tiles, keyed by tile. */
+const ICONS = {
+  calendar: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="16" rx="2" />
+      <path d="M3.5 9h17M8 2.5v4M16 2.5v4" />
+    </>
+  ),
+  week: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  today: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19" />
+    </>
+  ),
+  tokens: (
+    <>
+      <ellipse cx="12" cy="6.5" rx="7.5" ry="3" />
+      <path d="M4.5 6.5v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-11" />
+      <path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3" />
+    </>
+  ),
+  sessions: (
+    <>
+      <path d="M4 6.5h16M4 12h16M4 17.5h10" />
+    </>
+  ),
+  chat: (
+    <>
+      <path d="M20 14.5a2 2 0 0 1-2 2H8l-4 3.5v-13a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" />
+    </>
+  ),
+} as const;
 
 /** Copy text to the clipboard, swallowing the (rare) failure. */
 async function copy(text: string): Promise<boolean> {
@@ -195,6 +252,11 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
         </div>
       ) : (
         <div className="acc-nolimit">
+          <Glyph className="acc-nolimit-icon">
+            <path d="M5 11V8a7 7 0 0 1 14 0v3" />
+            <rect x="4" y="11" width="16" height="9" rx="2" />
+            <path d="M12 15v2" />
+          </Glyph>
           <span className="acc-nolimit-msg">
             {!loggedIn
               ? 'no stored login on this account'
@@ -212,39 +274,59 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
         <div className="acc-spend" title="resolved from your local transcripts for this account">
           <div className="acc-spend-head">
             <span className="acc-spend-total">{fmtUSD(spend.cost)}</span>
-            <span className="acc-spend-label">lifetime spend</span>
+            <span className="acc-spend-label">
+              lifetime spend
+              {spend.firstTs && (
+                <i className="acc-spend-since"> · since {relTime(spend.firstTs, now)}</i>
+              )}
+            </span>
           </div>
           <div className="acc-spend-grid">
             <span className="acc-spend-cell">
+              <span className="acc-spend-cap">
+                <Glyph className="acc-spend-icon">{ICONS.calendar}</Glyph>
+                30d
+              </span>
               <b>{fmtUSD(spend.month)}</b>
-              30d
             </span>
             <span className="acc-spend-cell">
+              <span className="acc-spend-cap">
+                <Glyph className="acc-spend-icon">{ICONS.week}</Glyph>
+                7d
+              </span>
               <b>{fmtUSD(spend.week)}</b>
-              7d
             </span>
             <span className="acc-spend-cell">
+              <span className="acc-spend-cap">
+                <Glyph className="acc-spend-icon">{ICONS.today}</Glyph>
+                today
+              </span>
               <b>{fmtUSD(spend.today)}</b>
-              today
             </span>
             <span className="acc-spend-cell">
+              <span className="acc-spend-cap">
+                <Glyph className="acc-spend-icon">{ICONS.tokens}</Glyph>
+                tokens
+              </span>
               <b>{fmtTok(spend.tokens)}</b>
-              tokens
             </span>
             <span className="acc-spend-cell">
+              <span className="acc-spend-cap">
+                <Glyph className="acc-spend-icon">{ICONS.sessions}</Glyph>
+                sessions
+              </span>
               <b>{spend.sessions}</b>
-              sessions
             </span>
           </div>
-          {spend.firstTs && (
-            <div className="acc-spend-since">since {relTime(spend.firstTs, now)}</div>
-          )}
         </div>
       )}
 
       {recent.length > 0 && (
         <div className="acc-recent">
-          <div className="acc-recent-title">recent activity</div>
+          <div className="acc-recent-title">
+            <Glyph className="acc-recent-glyph">{ICONS.chat}</Glyph>
+            recent activity
+          </div>
           <ul className="acc-recent-list">
             {recent.map((s) => (
               <li key={s.id} title={`${s.project} · ${s.cwd ? tildify(s.cwd) : ''}`}>

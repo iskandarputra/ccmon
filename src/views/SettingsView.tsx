@@ -4,7 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Panel } from '../components/ui/Panel';
 import { useUsageStore } from '../store/useUsageStore';
 import { updateSettings } from '../bootstrap';
@@ -33,6 +33,32 @@ const COST_MODES: Array<{ value: CostMode; label: string; note: string }> = [
 ];
 
 type LimitMode = 'max' | 'custom' | 'off';
+
+/** small inline SVG wrapper so all glyphs share stroke styling */
+function Glyph({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+/** circular-arrows refresh glyph, shared by the refresh-now buttons */
+const ICON_REFRESH = (
+  <>
+    <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+    <path d="M20 5v6h-6" />
+  </>
+);
 
 interface RadioProps<T extends string> {
   name: string;
@@ -248,17 +274,21 @@ export function SettingsView() {
 
   return (
     <div className="set-wrap">
-      <Panel 
-        title="theme" 
+      <Panel
+        title="theme"
         right={
-          <div className="dc-head">
+          <div className="set-head">
             <span className="panel-note">{settings.theme}</span>
             <button
               type="button"
-              className="plim-refresh"
+              className="set-reveal"
               onClick={() => setShowAllThemes((v) => !v)}
+              aria-expanded={showAllThemes}
             >
-              {showAllThemes ? 'collapse' : `reveal all (${THEMES.length})`}
+              <span>{showAllThemes ? 'collapse' : `all themes · ${THEMES.length}`}</span>
+              <Glyph className={`set-reveal-icon${showAllThemes ? ' is-open' : ''}`}>
+                <path d="M6 9l6 6 6-6" />
+              </Glyph>
             </button>
           </div>
         }
@@ -401,17 +431,26 @@ export function SettingsView() {
             </div>
             <button
               type="button"
-              className="set-btn"
+              className="set-btn set-btn-icon"
               onClick={refreshPricing}
               disabled={refreshing}
             >
+              <Glyph className={`set-btn-glyph${refreshing ? ' is-spin' : ''}`}>
+                {ICON_REFRESH}
+              </Glyph>
               {refreshing ? 'refreshing…' : 'refresh now'}
             </button>
           </div>
           {meta?.lastError && (
-            <div className="set-pricing-err" title={meta.lastError}>
-              last refresh failed — {meta.lastError} · using{' '}
-              {meta.fetchedAt ? `data from ${relTime(meta.fetchedAt, now)}` : 'bundled snapshot'}
+            <div className="set-err" title={meta.lastError}>
+              <Glyph className="set-err-icon">
+                <path d="M12 8.5v4.5M12 16h.01" />
+                <path d="M10.3 3.9 2.6 17.3A1.9 1.9 0 0 0 4.3 20h15.4a1.9 1.9 0 0 0 1.7-2.7L13.7 3.9a1.9 1.9 0 0 0-3.4 0Z" />
+              </Glyph>
+              <span>
+                last refresh failed — {meta.lastError} · using{' '}
+                {meta.fetchedAt ? `data from ${relTime(meta.fetchedAt, now)}` : 'bundled snapshot'}
+              </span>
             </div>
           )}
           <div className="set-divider" />
@@ -462,17 +501,26 @@ export function SettingsView() {
             </div>
             <button
               type="button"
-              className="set-btn"
+              className="set-btn set-btn-icon"
               onClick={refreshCurrency}
               disabled={refreshingCur}
             >
+              <Glyph className={`set-btn-glyph${refreshingCur ? ' is-spin' : ''}`}>
+                {ICON_REFRESH}
+              </Glyph>
               {refreshingCur ? 'refreshing…' : 'refresh now'}
             </button>
           </div>
           {currency?.lastError && (
-            <div className="set-pricing-err" title={currency.lastError}>
-              last refresh failed — {currency.lastError}
-              {currency.fetchedAt ? ` · using rates from ${relTime(currency.fetchedAt, now)}` : ''}
+            <div className="set-err" title={currency.lastError}>
+              <Glyph className="set-err-icon">
+                <path d="M12 8.5v4.5M12 16h.01" />
+                <path d="M10.3 3.9 2.6 17.3A1.9 1.9 0 0 0 4.3 20h15.4a1.9 1.9 0 0 0 1.7-2.7L13.7 3.9a1.9 1.9 0 0 0-3.4 0Z" />
+              </Glyph>
+              <span>
+                last refresh failed — {currency.lastError}
+                {currency.fetchedAt ? ` · using rates from ${relTime(currency.fetchedAt, now)}` : ''}
+              </span>
             </div>
           )}
           <p className="set-note">
@@ -541,16 +589,20 @@ export function SettingsView() {
           <div className="set-actions">
             <button
               type="button"
-              className="set-btn"
+              className="set-btn set-btn-icon"
               onClick={() => window.ccmon?.openDataDir()}
             >
+              <Glyph className="set-btn-glyph">
+                <path d="M3 7.5a2 2 0 0 1 2-2h4l2 2.2h6a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+              </Glyph>
               open
             </button>
             <button
               type="button"
-              className="set-btn"
+              className="set-btn set-btn-icon"
               onClick={() => window.ccmon?.rescan()}
             >
+              <Glyph className="set-btn-glyph">{ICON_REFRESH}</Glyph>
               rescan
             </button>
           </div>
