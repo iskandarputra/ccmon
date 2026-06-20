@@ -54,6 +54,7 @@ async function main(): Promise<void> {
     settings: { ...DEFAULTS },
     resetTs: watcher.resetTs,
     compactions: watcher.compactions,
+    toolResults: watcher.toolResultsFor(null),
   });
   console.log(`aggregated in ${Date.now() - t1}ms\n`);
 

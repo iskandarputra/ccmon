@@ -74,6 +74,15 @@ export interface ToolResultMarker {
   source?: string | null;
 }
 
+/**
+ * tool_result volume aggregated by local day → {count, chars}. The snapshot
+ * only ever needs a count + total chars after a day-range filter, so the
+ * watcher folds each marker into a day bucket on arrival instead of retaining
+ * one object per result (tens of thousands at scale). Node-side only — never
+ * crosses IPC; the snapshot carries the final {count, chars, estTokens} rollup.
+ */
+export type ToolResultByDay = Map<string, { count: number; chars: number }>;
+
 export type ParsedLine =
   | ({ kind: 'entry' } & UsageEntry)
   | ResetMarker

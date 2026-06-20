@@ -9,6 +9,26 @@ import type { ParsedLine } from '../../shared/types';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
+/**
+ * String pool for the handful of values that recur across tens of thousands of
+ * entries — model ids, project paths, day keys, session ids. JSON.parse hands
+ * back a fresh string object per line, so without pooling every entry keeps its
+ * own copy of (say) one of only a few model ids. Collapsing them to a single
+ * shared instance is the largest cheap win on `entries[]` heap at scale.
+ *
+ * The pool is bounded by real cardinality (models: a handful; projects:
+ * hundreds; day keys: ~365/yr; sessions: thousands over years) — well under a
+ * megabyte even after years of use, against tens of MB saved. (`source` is
+ * already shared via the watcher's `sourceOf`, so it isn't pooled here.)
+ */
+const pool = new Map<string, string>();
+function intern(s: string): string {
+  const hit = pool.get(s);
+  if (hit !== undefined) return hit;
+  pool.set(s, s);
+  return s;
+}
+
 /** Local-timezone YYYY-MM-DD bucket key. */
 export function localDateKey(ts: number): string {
   const d = new Date(ts);
@@ -119,7 +139,7 @@ export function parseLine(raw: string, file: string, lineNo: number): ParsedLine
     return {
       kind: 'compact',
       ts: cts,
-      sessionId: j.sessionId || path.basename(file, '.jsonl'),
+      sessionId: intern(j.sessionId || path.basename(file, '.jsonl')),
     };
   }
 
@@ -137,7 +157,7 @@ export function parseLine(raw: string, file: string, lineNo: number): ParsedLine
         return {
           kind: 'toolresult',
           ts: tts,
-          sessionId: j.sessionId || path.basename(file, '.jsonl'),
+          sessionId: intern(j.sessionId || path.basename(file, '.jsonl')),
           chars,
         };
       }
@@ -182,11 +202,11 @@ export function parseLine(raw: string, file: string, lineNo: number): ParsedLine
           : `f:${file}#${lineNo}`,
     msgId,
     ts,
-    dateKey: localDateKey(ts),
-    model,
+    dateKey: intern(localDateKey(ts)),
+    model: intern(model),
     fast,
-    project: j.cwd || decodeProjectDir(path.basename(path.dirname(file))),
-    sessionId: j.sessionId || path.basename(file, '.jsonl'),
+    project: intern(j.cwd || decodeProjectDir(path.basename(path.dirname(file)))),
+    sessionId: intern(j.sessionId || path.basename(file, '.jsonl')),
     sidechain: !!j.isSidechain,
     in: u.input_tokens || 0,
     out: u.output_tokens || 0,
