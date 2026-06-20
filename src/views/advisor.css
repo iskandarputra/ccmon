@@ -1,10 +1,40 @@
 /* AI usage advisor chat (.adv- prefix) */
 
-/* header: account picker + model note */
+/* ── header meta: new-chat, account picker, model note ────────────────────── */
 .adv-meta {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+}
+.adv-newchat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg2) 50%, transparent);
+  cursor: pointer;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
+}
+.adv-newchat:hover:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+}
+.adv-newchat:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.adv-newchat-icon {
+  width: 13px;
+  height: 13px;
 }
 .adv-account {
   display: inline-flex;
@@ -37,143 +67,324 @@
   cursor: default;
 }
 
-.adv-empty {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text-faint);
-  padding: 40px 0;
-  text-align: center;
+/* ── shell: fill the content area exactly; only the thread scrolls ────────── *
+ * The whole chain flexes to the height the layout gives us (titlebar +
+ * statusbar + padding are handled by the grid layout, not magic vh math), so
+ * the composer is always pinned just inside the panel — never colliding with
+ * the statusbar and never floating mid-panel. */
+.view-anim:has(.adv-grid) {
+  height: 100%;
 }
-
+.grid.adv-grid {
+  display: flex;
+  height: 100%;
+}
+.adv-col {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.adv-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.adv-panel .panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 8px;
+}
+.adv-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 .adv-scroll {
-  max-height: 56vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 4px 2px 8px;
+  padding: 4px 4px 10px;
 }
 
-.adv-intro {
-  padding: 12px 2px;
+.adv-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-faint);
+  padding: 56px 0;
 }
-.adv-intro-lead {
+.adv-wait-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  animation: adv-pulse 1.4s ease-in-out infinite;
+}
+
+/* ── empty / intro hero ───────────────────────────────────────────────────── */
+.adv-intro {
+  margin: auto;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 24px 0;
+}
+.adv-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+.adv-hero-icon {
+  width: 30px;
+  height: 30px;
+  color: var(--amber);
+  padding: 11px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  box-sizing: content-box;
+}
+.adv-hero-title {
+  font-family: var(--sans);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 4px 0 0;
+}
+.adv-hero-sub {
   font-family: var(--sans);
   font-size: 13.5px;
+  line-height: 1.55;
   color: var(--text-dim);
-  margin: 0 0 14px;
+  margin: 0;
+  max-width: 420px;
 }
 .adv-suggest {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
 }
 .adv-chip {
-  font-family: var(--mono);
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.4;
   color: var(--text-dim);
-  padding: 6px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--bg2) 50%, transparent);
-  transition: all var(--dur-1) ease;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  cursor: pointer;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 .adv-chip:hover {
   color: var(--text);
   border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
   background: color-mix(in srgb, var(--amber) 8%, transparent);
+  transform: translateY(-1px);
+}
+.adv-chip-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--amber);
 }
 
-.adv-turn {
+/* ── thread + bubbles ─────────────────────────────────────────────────────── */
+.adv-thread {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-width: 86%;
+  gap: 18px;
+  width: 100%;
 }
-.adv-user {
-  align-self: flex-end;
-  align-items: flex-end;
+.adv-turn {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 84%;
 }
 .adv-assistant {
   align-self: flex-start;
 }
-.adv-role {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+.adv-user {
+  align-self: flex-end;
+}
+.adv-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, var(--bg2));
+  border: 1px solid color-mix(in srgb, var(--amber) 28%, transparent);
+  margin-top: 1px;
+}
+.adv-avatar-icon {
+  width: 15px;
+  height: 15px;
 }
 .adv-bubble {
   font-family: var(--sans);
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: 11px 15px;
+  border-radius: 14px;
   border: 1px solid var(--line-soft);
-}
-.adv-user .adv-bubble {
-  background: color-mix(in srgb, var(--amber) 12%, var(--bg2));
-  border-color: color-mix(in srgb, var(--amber) 30%, transparent);
-  color: var(--text);
 }
 .adv-assistant .adv-bubble {
   background: color-mix(in srgb, var(--bg2) 60%, transparent);
-  color: var(--text-dim);
+  color: var(--text);
+  border-top-left-radius: 5px;
+}
+.adv-user .adv-bubble {
+  background: color-mix(in srgb, var(--amber) 14%, var(--bg2));
+  border-color: color-mix(in srgb, var(--amber) 30%, transparent);
+  color: var(--text);
+  border-top-right-radius: 5px;
 }
 .adv-turn.is-error .adv-bubble {
   color: var(--rose);
   border-color: color-mix(in srgb, var(--rose) 35%, transparent);
   background: color-mix(in srgb, var(--rose) 8%, transparent);
 }
+
+/* typing indicator — three bouncing dots */
 .adv-thinking {
-  color: var(--text-faint);
-  animation: adv-pulse 1.4s ease-in-out infinite;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 14px 16px;
+}
+.adv-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  animation: adv-bounce 1.2s ease-in-out infinite;
+}
+.adv-dot:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.adv-dot:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes adv-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
 }
 @keyframes adv-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
-.adv-input {
+/* ── composer ─────────────────────────────────────────────────────────────── */
+.adv-composer {
   display: flex;
+  align-items: flex-end;
   gap: 10px;
-  margin-top: 16px;
+  margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid var(--line-soft);
 }
-.adv-input input {
+.adv-field {
   flex: 1;
   font-family: var(--sans);
   font-size: 13px;
+  line-height: 1.5;
   color: var(--text);
-  padding: 9px 14px;
+  padding: 11px 15px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 16px;
   background: var(--bg0);
+  resize: none;
+  max-height: 160px;
+  transition: border-color var(--dur-1) var(--ease-out);
 }
-.adv-input input:focus {
+.adv-field::placeholder {
+  color: var(--text-faint);
+}
+.adv-field:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
 }
-.adv-input button {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.05em;
-  color: var(--amber);
-  padding: 0 18px;
-  border: 1px solid color-mix(in srgb, var(--amber) 50%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--amber) 8%, transparent);
-  transition: all var(--dur-1) ease;
+.adv-field:disabled {
+  opacity: 0.6;
 }
-.adv-input button:hover:not(:disabled) {
+.adv-send {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
   color: var(--bg0);
   background: var(--amber);
+  border: 1px solid var(--amber);
+  cursor: pointer;
+  transition:
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out),
+    opacity var(--dur-1) var(--ease-out);
 }
-.adv-input button:disabled {
-  opacity: 0.5;
+.adv-send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--amber) 85%, white);
+  transform: translateY(-1px);
+}
+.adv-send:disabled {
+  opacity: 0.4;
   cursor: default;
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  border-color: var(--line);
+}
+.adv-send-icon {
+  width: 18px;
+  height: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adv-dot,
+  .adv-wait-dot {
+    animation: none;
+  }
+  .adv-chip:hover,
+  .adv-send:hover:not(:disabled) {
+    transform: none;
+  }
 }

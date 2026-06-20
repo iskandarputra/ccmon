@@ -5,7 +5,7 @@
  */
 
 import './blocks.css';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Panel } from '../components/ui/Panel';
 import { Hint } from '../components/ui/Hint';
 import { StatCard } from '../components/cards/StatCard';
@@ -53,6 +53,24 @@ const TOKEN_SPLIT = [
   ['write', 'cache write'],
 ] as const;
 
+/** small inline SVG wrapper so all glyphs share stroke styling */
+function Glyph({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
 /** epoch ms → local 'YYYY-MM-DD' so we can reuse dayLabel(). */
 const dateKeyOf = (ts: number) => {
   const d = new Date(ts);
@@ -72,7 +90,9 @@ function BurnBadge({ burn }: BurnBadgeProps) {
       className="blk-burn"
       style={{ '--blk-burn': BURN_COLOR[burn.level] || 'var(--ok)' } as CSSProperties}
     >
-      <i className="blk-burn-dot" />
+      <Glyph className="blk-burn-icon">
+        <path d="M12 3c1 3-1.5 4-1.5 6.5A2.5 2.5 0 0 0 13 12c.8-1 1-2 .5-3 2 1.5 3 3.5 3 5.5a4.5 4.5 0 1 1-9 0c0-2 1-3.5 2.5-5 0 1 .5 1.7 1.3 2" />
+      </Glyph>
       {burn.level} · {fmtTok(burn.tokensPerMinIndicator)}/min · {fmtUSD(burn.costPerHour)}/h
     </span>
   );
@@ -162,11 +182,23 @@ function ActiveHero({ block, now, hideLocalLimit, liveSession }: ActiveHeroProps
     <Panel className="blk-hero" title={<>active block · 5h window <Hint label="how blocks work">Anthropic enforces rate limits in rolling 5-hour windows. This shows your current window's utilization, estimated cost, and tokens consumed.</Hint></>} right={<BurnBadge burn={block.burn} />}>
       <div className="blk-hero-top">
         <div className="blk-hero-cell">
-          <div className="blk-sub-label">est cost</div>
+          <div className="blk-sub-label">
+            <Glyph className="blk-cell-icon">
+              <circle cx="12" cy="12" r="8.5" />
+              <path d="M12 7.5v9M14.5 9.5c0-1.1-1.1-1.8-2.5-1.8s-2.5.7-2.5 1.7 1 1.5 2.5 1.8 2.5.8 2.5 1.9-1.1 1.7-2.5 1.7-2.5-.7-2.5-1.8" />
+            </Glyph>
+            est cost
+          </div>
           <div className="blk-big">{fmtUSD(block.cost)}</div>
         </div>
         <div className="blk-hero-cell">
-          <div className="blk-sub-label">{win.live ? 'resets in · live' : 'resets in · est'}</div>
+          <div className="blk-sub-label">
+            <Glyph className="blk-cell-icon">
+              <circle cx="12" cy="12" r="8.5" />
+              <path d="M12 8v4l2.5 1.5" />
+            </Glyph>
+            {win.live ? 'resets in · live' : 'resets in · est'}
+          </div>
           <div className="blk-big blk-big-count">{countdown(remaining)}</div>
         </div>
         <div className="blk-hero-meta">
@@ -200,6 +232,10 @@ function ActiveHero({ block, now, hideLocalLimit, liveSession }: ActiveHeroProps
 
       {projection && (
         <div className="blk-projection">
+          <Glyph className="blk-projection-icon">
+            <path d="M3 17l5-5 4 3 8-8" />
+            <path d="M16 7h4v4" />
+          </Glyph>
           projected {fmtTok(projection.totalTokens)} tok · {fmtUSD(projection.totalCost)} by
           session end
         </div>
@@ -228,9 +264,18 @@ function IdleHero({ lastEnded, limitResetTs, now }: IdleHeroProps) {
   const limited = limitResetTs != null && limitResetTs > now;
   return (
     <Panel className="blk-hero" title="active block · 5h window">
-      <p className="blk-idle">
-        no active block{lastEnded ? ` · last ended ${relTime(lastEnded, now)}` : ''}
-      </p>
+      <div className="blk-empty">
+        <Glyph className="blk-empty-icon">
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 8v4l2.5 1.5" />
+        </Glyph>
+        <p className="blk-empty-lead">no active block</p>
+        <p className="blk-empty-sub">
+          {lastEnded
+            ? `last window ended ${relTime(lastEnded, now)}`
+            : 'start a session to open a 5-hour window'}
+        </p>
+      </div>
       {limited && (
         <div className="blk-reset">
           usage limit reached — resets in {countdown(limitResetTs - now)} (
@@ -449,7 +494,14 @@ export function BlocksView() {
           }
         >
           {history.length === 0 ? (
-            <p className="view-placeholder">no blocks recorded yet</p>
+            <div className="blk-empty">
+              <Glyph className="blk-empty-icon">
+                <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+                <path d="M3.5 9h17M8 4.5v15" />
+              </Glyph>
+              <p className="blk-empty-lead">no blocks recorded yet</p>
+              <p className="blk-empty-sub">past 5-hour windows will appear here</p>
+            </div>
           ) : (
             <ul className="blk-history">
               {history.map((b) => (

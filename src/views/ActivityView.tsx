@@ -4,7 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -53,6 +53,73 @@ interface StackTipProps {
   active?: boolean;
   payload?: Array<{ payload: StackRow }>;
   series: StackSeries[];
+}
+
+/** small inline SVG wrapper so all glyphs share stroke styling */
+function Glyph({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+/* per-record glyphs, one stroke icon per stat tile */
+const ICONS = {
+  avg: (
+    <>
+      <path d="M3.5 16.5 9 11l3.5 3.5L20.5 6" />
+      <path d="M3.5 20.5h17" />
+    </>
+  ),
+  active: (
+    <>
+      <rect x="4" y="5" width="16" height="16" rx="2.5" />
+      <path d="M4 9.5h16M8 3.5v3M16 3.5v3" />
+      <path d="M8.5 14.5l2 2 4-4.5" />
+    </>
+  ),
+  streak: (
+    <path d="M12 3c1.5 3 4.5 4.2 4.5 8a4.5 4.5 0 0 1-9 0c0-1.6.7-2.6 1.4-3.4.4 1 1.1 1.6 1.9 1.8C10.6 7.3 11 5 12 3z" />
+  ),
+  longest: (
+    <>
+      <path d="M7 4h10v3a5 5 0 0 1-10 0z" />
+      <path d="M7 5H4.5a2.5 2.5 0 0 0 3 2.4M17 5h2.5a2.5 2.5 0 0 1-3 2.4" />
+      <path d="M12 12v4M9 20h6M10 16h4" />
+    </>
+  ),
+  record: (
+    <>
+      <circle cx="12" cy="9" r="5.5" />
+      <path d="M12 6.5l.9 1.8 2 .3-1.4 1.4.3 2-1.8-1-1.8 1 .3-2L8.6 8.6l2-.3z" />
+      <path d="M9 14.5 7.5 21l4.5-2.5 4.5 2.5L15 14.5" />
+    </>
+  ),
+} as const;
+
+/* modern empty state — dim icon, lead line, faint sub line */
+function Empty({ lead, sub }: { lead: string; sub: string }) {
+  return (
+    <div className="act-empty">
+      <Glyph className="act-empty-icon">
+        <path d="M3.5 18 9 12l3.5 3.5L20.5 7" />
+        <path d="M3.5 21h17" />
+        <path d="M16 7h4.5v4.5" />
+      </Glyph>
+      <p className="act-empty-lead">{lead}</p>
+      <p className="act-empty-sub">{sub}</p>
+    </div>
+  );
 }
 
 /* tooltip for the stacked daily chart — one row per model active that day */
@@ -196,11 +263,13 @@ export function ActivityView() {
         <div className="g12">
           <div className="act-strip">
             <div className="act-stat">
+              <span className="act-stat-icon"><Glyph>{ICONS.avg}</Glyph></span>
               <span className="act-stat-label">avg daily cost</span>
               <span className="act-stat-value">{fmtUSD(records.avgDailyCost)}</span>
               <span className="act-stat-sub">per active day</span>
             </div>
             <div className="act-stat">
+              <span className="act-stat-icon"><Glyph>{ICONS.active}</Glyph></span>
               <span className="act-stat-label">active days</span>
               <span className="act-stat-value">
                 {fmtInt(records.activeDays)}
@@ -209,16 +278,19 @@ export function ActivityView() {
               <span className="act-stat-sub">of tracked span</span>
             </div>
             <div className="act-stat">
+              <span className="act-stat-icon"><Glyph>{ICONS.streak}</Glyph></span>
               <span className="act-stat-label">current streak</span>
               <span className="act-stat-value">{records.streak?.current ?? 0}d</span>
               <span className="act-stat-sub">consecutive active days</span>
             </div>
             <div className="act-stat">
+              <span className="act-stat-icon"><Glyph>{ICONS.longest}</Glyph></span>
               <span className="act-stat-label">longest streak</span>
               <span className="act-stat-value">{records.streak?.longest ?? 0}d</span>
               <span className="act-stat-sub">all time</span>
             </div>
             <div className="act-stat">
+              <span className="act-stat-icon"><Glyph>{ICONS.record}</Glyph></span>
               <span className="act-stat-label">record day</span>
               <span className="act-stat-value">
                 {records.maxDay ? fmtUSD(records.maxDay.cost) : '—'}
@@ -271,6 +343,7 @@ export function ActivityView() {
                 </BarChart>
               </ResponsiveContainer>
               <div className="act-legend">
+                <span className="act-legend-cap">models</span>
                 {series.map((s) => (
                   <span className="act-legend-item" key={s.key}>
                     <i className="act-swatch" style={{ background: s.color }} />
@@ -280,7 +353,7 @@ export function ActivityView() {
               </div>
             </>
           ) : (
-            <p className="act-empty">no usage in the selected range</p>
+            <Empty lead="No usage in the selected range" sub="adjust the range or start a session" />
           )}
         </Panel>
       </div>
@@ -323,7 +396,7 @@ export function ActivityView() {
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <p className="act-empty">no data yet</p>
+            <Empty lead="No data yet" sub="spend will accumulate here over time" />
           )}
         </Panel>
       </div>
@@ -370,7 +443,7 @@ export function ActivityView() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="act-empty">no weekly data yet</p>
+            <Empty lead="No weekly data yet" sub="rolls up once a week completes" />
           )}
         </Panel>
       </div>
@@ -417,7 +490,7 @@ export function ActivityView() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="act-empty">no monthly data yet</p>
+            <Empty lead="No monthly data yet" sub="rolls up once a month completes" />
           )}
         </Panel>
       </div>

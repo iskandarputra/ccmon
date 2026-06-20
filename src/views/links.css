@@ -1,0 +1,90 @@
+/**
+ * @file links.css
+ * @brief Links view — official Claude / Anthropic channel cards.
+ * @author Iskandar Putra <www.iskandarputra.com>
+ */
+
+.lnk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.lnk-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+
+.lnk-card:hover {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  transform: translateY(-1px);
+}
+
+.lnk-glyph {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--text-dim);
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+.lnk-card:hover .lnk-glyph {
+  color: var(--amber);
+}
+
+.lnk-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.lnk-title {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--text);
+}
+
+.lnk-host {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lnk-arrow {
+  flex: none;
+  font-size: 13px;
+  color: var(--text-faint);
+  transition:
+    color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+
+.lnk-card:hover .lnk-arrow {
+  color: var(--amber);
+  transform: translate(2px, -2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lnk-card:hover,
+  .lnk-card:hover .lnk-arrow {
+    transform: none;
+  }
+}

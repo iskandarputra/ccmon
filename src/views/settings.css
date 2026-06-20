@@ -20,8 +20,46 @@
 .set-col {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   min-width: 0;
+}
+
+/* panel header right slot: theme name note + reveal-all toggle */
+.set-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.set-reveal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg2) 50%, transparent);
+  cursor: pointer;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
+}
+.set-reveal:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+}
+.set-reveal-icon {
+  width: 13px;
+  height: 13px;
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.set-reveal-icon.is-open {
+  transform: rotate(180deg);
 }
 
 @media (max-width: 1040px) {
@@ -34,7 +72,7 @@
 
 .set-themes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 10px;
 }
 
@@ -45,18 +83,22 @@
   padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--bg2);
+  background: color-mix(in srgb, var(--bg2) 45%, transparent);
   overflow: hidden;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 .set-theme-card:hover {
-  border-color: color-mix(in srgb, var(--amber) 40%, transparent);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  transform: translateY(-1px);
 }
 .set-theme-card.is-active {
   border-color: color-mix(in srgb, var(--amber) 75%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent), 0 4px 12px color-mix(in srgb, var(--amber) 15%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent);
 }
 .set-theme-card:focus-visible {
   outline: 1px solid var(--amber);
@@ -125,21 +167,24 @@
   align-items: flex-start;
   gap: 12px;
   cursor: pointer;
-  padding: 10px 14px;
-  background: var(--bg2);
+  padding: 11px 14px;
+  background: color-mix(in srgb, var(--bg2) 45%, transparent);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
-  transition: all var(--dur-2) ease;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 .set-radio:hover {
-  border-color: color-mix(in srgb, var(--text-dim) 50%, var(--line-soft));
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 .set-radio.is-on {
   border-color: color-mix(in srgb, var(--amber) 40%, transparent);
-  background: color-mix(in srgb, var(--amber) 6%, var(--bg2));
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--amber) 15%, transparent);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
 }
 .set-radio input {
   position: absolute;
@@ -155,7 +200,7 @@
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--bg0);
-  transition: border-color 0.12s ease;
+  transition: border-color var(--dur-1) var(--ease-out);
 }
 .set-radio-dot::after {
   content: '';
@@ -165,7 +210,7 @@
   margin: 3px auto 0;
   border-radius: 50%;
   background: transparent;
-  transition: background 0.12s ease;
+  transition: background var(--dur-1) var(--ease-out);
 }
 .set-radio:hover .set-radio-dot {
   border-color: var(--text-faint);
@@ -217,16 +262,19 @@
   align-items: flex-start;
   gap: 12px;
   cursor: pointer;
-  padding: 10px 14px;
-  background: var(--bg2);
+  padding: 11px 14px;
+  background: color-mix(in srgb, var(--bg2) 45%, transparent);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
-  transition: all var(--dur-2) ease;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 .set-toggle:hover {
-  border-color: color-mix(in srgb, var(--text-dim) 50%, var(--line-soft));
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 .set-toggle input {
   position: absolute;
@@ -243,7 +291,9 @@
   border-radius: 9px;
   border: 1px solid var(--line);
   background: var(--bg2);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
 }
 .set-toggle-track::after {
   content: '';
@@ -254,7 +304,9 @@
   height: 9px;
   border-radius: 50%;
   background: var(--text-faint);
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition:
+    transform var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
 }
 .set-toggle:hover .set-toggle-track {
   border-color: var(--text-faint);
@@ -284,11 +336,11 @@
 .set-kv > div {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 12px;
-  background: var(--bg0);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
+  gap: 5px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 14px;
   flex: 1;
   min-width: 100px;
 }
@@ -298,23 +350,38 @@
   color: var(--text-faint);
 }
 .set-kv b {
-  font-size: 11.5px;
+  font-family: var(--sans);
+  font-size: 13px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 .set-kv .set-btn {
   margin-left: auto;
+  align-self: center;
 }
 
-/* verbose pricing-refresh failure note under the kv row */
-.set-pricing-err {
+/* verbose refresh-failure note under a kv row — legible, wraps fully */
+.set-err {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   font-family: var(--mono);
-  font-size: 10px;
-  color: color-mix(in srgb, var(--warn) 75%, var(--text-dim));
-  margin-top: 8px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--warn) 80%, var(--text));
+  margin-top: 12px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--warn) 28%, var(--line-soft));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+.set-err-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  color: var(--warn);
 }
 
 /* ── controls ────────────────────────────────────────────────────────────── */
@@ -324,19 +391,45 @@
   font-size: 10.5px;
   letter-spacing: 0.05em;
   color: var(--text-dim);
-  padding: 4px 12px;
+  padding: 6px 12px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  transition: all 0.12s ease;
+  cursor: pointer;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
 }
 .set-btn:hover:not(:disabled) {
   color: var(--text);
-  background: var(--bg2);
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
 }
 .set-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* button with a leading stroke glyph */
+.set-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.set-btn-glyph {
+  width: 13px;
+  height: 13px;
+  color: var(--amber);
+}
+.set-btn-glyph.is-spin {
+  animation: set-spin 0.9s linear infinite;
+}
+@keyframes set-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .set-export {
@@ -354,11 +447,13 @@
   color: var(--text);
   background: var(--bg0);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
   width: 132px;
   outline: none;
-  transition: border-color 0.12s ease, opacity 0.12s ease;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    opacity var(--dur-1) var(--ease-out);
 }
 .set-input::placeholder {
   color: var(--text-faint);
@@ -381,7 +476,7 @@
 .set-divider {
   height: 1px;
   background: var(--line-soft);
-  margin: 13px 0;
+  margin: 14px 0;
 }
 
 .set-field-label {
@@ -446,4 +541,20 @@
 }
 .set-about + .set-note {
   margin-top: 6px;
+}
+
+/* ── reduced motion ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .set-theme-card:hover,
+  .set-radio:hover,
+  .set-toggle:hover {
+    transform: none;
+  }
+  .set-btn-glyph.is-spin {
+    animation: none;
+  }
+  .set-reveal-icon {
+    transition: none;
+  }
 }

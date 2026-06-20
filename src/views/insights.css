@@ -1,10 +1,10 @@
 /* insights view — derived analytics (.ins- prefix) */
 
-/* cache economics: two comparison bars + fact list */
+/* ── cache economics: two comparison bars + fact tiles ────────────────────── */
 .ins-cache {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   justify-content: center;
   flex: 1;
   font-family: var(--mono);
@@ -19,7 +19,9 @@
   padding: 8px 10px;
   margin: 0 -10px;
   border-radius: var(--radius-sm);
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition:
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 .ins-cache-row:hover {
   background: color-mix(in srgb, var(--bg2) 60%, transparent);
@@ -33,6 +35,8 @@
 
 .ins-cache-row b {
   color: var(--text);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
   font-weight: 500;
   min-width: 76px;
   text-align: right;
@@ -50,39 +54,107 @@
   border-radius: 5px;
 }
 
+/* ── fact tiles: bordered rounded cards (label over big value) ────────────── */
 .ins-facts {
   list-style: none;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 7px 22px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
   margin-top: 4px;
-  padding-top: 12px;
+  padding-top: 14px;
   border-top: 1px solid var(--line-soft);
 }
 
 .ins-facts li {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+.ins-facts li:hover {
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  transform: translateY(-1px);
 }
 
 .ins-facts span {
   color: var(--text-faint);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ins-facts b {
   color: var(--text);
-  font-weight: 500;
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.1;
 }
 
-/* fact list opening a panel (no chart above it) — drop the divider */
+/* fact tiles opening a panel (no chart above them) — drop the divider */
 .ins-facts-top {
   border-top: none;
   margin-top: 0;
-  padding-top: 0;
+  padding-top: 2px;
 }
 
-/* tool usage — two-column bar list */
+/* ── hero numeral: the single headline figure of a section ────────────────── */
+.ins-hero {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 4px 2px 12px;
+}
+.ins-hero-icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--amber);
+  padding: 10px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  box-sizing: content-box;
+}
+.ins-hero-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.ins-hero-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.ins-hero-value {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+}
+.ins-hero-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ── tool usage — two-column bar list ─────────────────────────────────────── */
 .ins-tools {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -97,6 +169,16 @@
   grid-template-columns: minmax(120px, 170px) 1fr 52px 80px;
   align-items: center;
   gap: 12px;
+  padding: 5px 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-sm);
+  transition:
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+.ins-tool:hover {
+  background: color-mix(in srgb, var(--bg2) 55%, transparent);
+  transform: translateX(3px);
 }
 
 .ins-tool-name {
@@ -121,29 +203,48 @@
 
 .ins-tool b {
   color: var(--text);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
   font-weight: 500;
   text-align: right;
 }
 
 .ins-tool-cost {
   color: var(--text-faint);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
 
-/* plan-value placeholder when no subscription is detected */
+/* ── empty state — centered icon + lead + sub line ────────────────────────── */
 .ins-empty {
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 2px;
+  text-align: center;
+  gap: 8px;
   flex: 1;
+  padding: 40px 16px;
+}
+.ins-empty-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-faint);
+}
+.ins-empty-lead {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+.ins-empty-sub {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-faint);
 }
 
-/* model economics: inline share bar inside the table */
+/* ── model economics: inline share bar inside the table ───────────────────── */
 .ins-share {
   display: inline-flex;
   align-items: center;
@@ -159,13 +260,13 @@
   min-width: 2px;
 }
 
-/* records list */
+/* ── records list — bordered rows with leading icon ───────────────────────── */
 .ins-records {
   list-style: none;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 10px;
+  gap: 6px;
   flex: 1;
   font-family: var(--mono);
   font-size: 11.5px;
@@ -173,23 +274,28 @@
 
 .ins-records li {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 10px;
-  margin: 0 -10px;
-  border-bottom: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
-  transition: background 0.15s ease, transform 0.15s ease;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 11px;
+  margin: 0 -4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition:
+    background var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 .ins-records li:hover {
   background: color-mix(in srgb, var(--bg2) 60%, transparent);
-  border-bottom-color: transparent;
-  transform: translateX(4px);
+  border-color: color-mix(in srgb, var(--amber) 35%, var(--line));
+  transform: translateX(3px);
 }
 
-.ins-records li:last-child {
-  border-bottom: none;
+.ins-records-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--text-dim);
 }
 
 .ins-records span {
@@ -199,9 +305,21 @@
 
 .ins-records b {
   color: var(--text);
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
   font-weight: 500;
   text-align: right;
+  margin-left: auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ins-cache-row:hover,
+  .ins-facts li:hover,
+  .ins-tool:hover,
+  .ins-records li:hover {
+    transform: none;
+  }
 }

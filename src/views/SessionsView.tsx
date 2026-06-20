@@ -4,7 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useVirtualRows } from '../hooks/useVirtualRows';
 import { Panel } from '../components/ui/Panel';
 import { Hint } from '../components/ui/Hint';
@@ -37,6 +37,17 @@ type SortDir = 'asc' | 'desc';
 
 const SES_ROW_H = 49; // fixed row height (px) the virtualizer assumes — see sessions.css
 
+// right-aligned numeric columns share a class so headers + cells line up on the
+// decimal/units edge; everything else stays left-aligned text.
+const NUMERIC: ReadonlySet<ColumnKey> = new Set([
+  'durationMs',
+  'entries',
+  'tokens',
+  'cost',
+  'models',
+  'context',
+]);
+
 const COLUMNS: Array<{ key: ColumnKey; label: string }> = [
   { key: 'project', label: 'project' },
   { key: 'lastTs', label: 'last active' },
@@ -47,6 +58,24 @@ const COLUMNS: Array<{ key: ColumnKey; label: string }> = [
   { key: 'models', label: 'models' },
   { key: 'context', label: 'context' },
 ];
+
+/** small inline SVG wrapper so all glyphs share stroke styling */
+function Glyph({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
 
 function sortValue(s: SessionRow, key: ColumnKey): string | number {
   switch (key) {
@@ -165,7 +194,17 @@ export function SessionsView() {
       <div className="grid">
         <div className="g12">
           <Panel title={<>sessions <Hint label="what is this?">A complete, searchable list of all your local Claude Code sessions.</Hint></>}>
-            <p className="ses-empty">no sessions recorded yet</p>
+            <div className="ses-empty">
+              <Glyph className="ses-empty-icon">
+                <path d="M4 7c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2z" />
+                <path d="M4 7v10c0 1.1 3.6 2 8 2s8-.9 8-2V7" />
+                <path d="M4 12c0 1.1 3.6 2 8 2s8-.9 8-2" />
+              </Glyph>
+              <p className="ses-empty-lead">no sessions recorded yet</p>
+              <p className="ses-empty-sub">
+                start a Claude Code session and it will appear here
+              </p>
+            </div>
           </Panel>
         </div>
       </div>
@@ -179,15 +218,21 @@ export function SessionsView() {
           title={<>sessions <Hint label="what is this?">A complete, searchable list of all your local Claude Code sessions.</Hint></>}
           right={
             <div className="ses-head">
-              <input
-                className="ses-search"
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="filter by project or session id"
-                spellCheck={false}
-                aria-label="filter sessions"
-              />
+              <label className="ses-search">
+                <Glyph className="ses-search-icon">
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="21" y1="21" x2="16.5" y2="16.5" />
+                </Glyph>
+                <input
+                  className="ses-search-input"
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="filter by project or session id"
+                  spellCheck={false}
+                  aria-label="filter sessions"
+                />
+              </label>
               <span className="ses-meta">
                 {filtered.length} of {sessions.length} sessions
               </span>
@@ -200,16 +245,20 @@ export function SessionsView() {
               <thead>
                 <tr>
                   {COLUMNS.map((c) => (
-                    <th key={c.key}>
+                    <th key={c.key} className={NUMERIC.has(c.key) ? 'ses-num' : undefined}>
                       <button
                         className={`ses-th ${sort.key === c.key ? 'is-sorted' : ''}`}
                         onClick={() => onSort(c.key)}
                       >
                         {c.label}
                         {sort.key === c.key && (
-                          <span className="ses-arrow">
-                            {sort.dir === 'asc' ? '↑' : '↓'}
-                          </span>
+                          <Glyph className="ses-arrow">
+                            {sort.dir === 'asc' ? (
+                              <path d="M6 14l6-6 6 6" />
+                            ) : (
+                              <path d="M6 10l6 6 6-6" />
+                            )}
+                          </Glyph>
                         )}
                       </button>
                     </th>
@@ -229,14 +278,14 @@ export function SessionsView() {
                       <div className="ses-proj-id">{(s.id || '').slice(0, 8)}</div>
                     </td>
                     <td>{relTime(s.lastTs, now)}</td>
-                    <td>{fmtDuration(s.durationMs)}</td>
-                    <td>{fmtInt(s.entries)}</td>
-                    <td>{fmtTok((s.in || 0) + (s.out || 0))}</td>
-                    <td className="t-cost">{fmtUSD(s.cost)}</td>
-                    <td>
+                    <td className="ses-num">{fmtDuration(s.durationMs)}</td>
+                    <td className="ses-num">{fmtInt(s.entries)}</td>
+                    <td className="ses-num">{fmtTok((s.in || 0) + (s.out || 0))}</td>
+                    <td className="ses-num t-cost">{fmtUSD(s.cost)}</td>
+                    <td className="ses-num">
                       <ModelChips models={s.models} />
                     </td>
-                    <td>
+                    <td className="ses-num">
                       <ContextGauge ctx={s.context} />
                     </td>
                   </tr>
@@ -250,7 +299,14 @@ export function SessionsView() {
                   <tr>
                     <td colSpan={COLUMNS.length}>
                       <div className="ses-empty ses-empty-center">
-                        no sessions match “{query.trim()}”
+                        <Glyph className="ses-empty-icon">
+                          <circle cx="11" cy="11" r="7" />
+                          <line x1="21" y1="21" x2="16.5" y2="16.5" />
+                        </Glyph>
+                        <p className="ses-empty-lead">no matching sessions</p>
+                        <p className="ses-empty-sub">
+                          nothing matches “{query.trim()}”
+                        </p>
                       </div>
                     </td>
                   </tr>

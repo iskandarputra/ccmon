@@ -4,7 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -44,6 +44,45 @@ import type { AccountInfo, AccountsMap, MonthlyRow, Snapshot, WeeklyRow } from '
 
 const AXIS_TICK = { fill: 'var(--text-faint)', fontSize: 10, fontFamily: 'JetBrains Mono' };
 const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+/** shared inline SVG wrapper so every glyph carries the same stroke styling */
+function Glyph({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+/** one small line icon per record row, keyed by label (neutral --text-dim) */
+const RECORD_ICONS: ReactNode[] = [
+  <path key="best" d="M5 4h14v4a5 5 0 0 1-5 5h-4a5 5 0 0 1-5-5zM9 17h6M12 13v4M8 20h8" />, // best day (trophy)
+  <path key="dur" d="M12 7v5l3 2M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z" />, // longest session (clock)
+  <path key="block" d="M4 13h4v7H4zM10 8h4v12h-4zM16 4h4v16h-4z" />, // biggest block (bars)
+  <path key="streak" d="M13 3l-2 8h4l-2 10M5 8l3 3M19 8l-3 3" />, // streak (flame/spark)
+  <path key="active" d="M5 5h14v14H5zM5 9h14M9 13h2M13 13h2M9 16h2" />, // active days (calendar)
+  <path key="avg" d="M4 17l5-5 4 3 7-7M4 20h16" />, // avg / day (trend)
+  <path key="ctx" d="M4 6h16M4 12h16M4 18h10" />, // avg context (lines)
+  <path key="costturn" d="M12 4v16M9 8h4.5a2 2 0 0 1 0 4H10a2 2 0 0 0 0 4H15" />, // avg cost / turn ($)
+  <path key="busy" d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 8v4l2.5 1.5" />, // busiest hour (clock)
+  <path key="start" d="M5 12l4 4L19 6" />, // best time to start (check)
+  <path key="spike" d="M4 16l4-7 4 5 3-9 5 11" />, // spike days (jagged)
+  <path key="costly" d="M12 4l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 9.7l5.4-.8z" />, // costliest (star)
+  <path key="sub" d="M9 6l6 6-6 6M4 6v12" />, // subagent share (branch)
+  <path key="trunc" d="M5 12h14M16 7l5 5-5 5M3 7v10" />, // truncated (cut/arrow)
+  <path key="compact" d="M7 9l5-5 5 5M7 15l5 5 5-5" />, // compactions (compress)
+  <path key="reread" d="M5 12a7 7 0 1 1 2 5M5 17v-5h5" />, // compaction re-reads (refresh)
+  <path key="tool" d="M14.5 5.5a3.5 3.5 0 0 1-4.6 4.6L5 15v4h4l4.9-4.9a3.5 3.5 0 0 0 4.6-4.6l-2.3 2.3-2-2z" />, // tool output (wrench)
+];
 
 interface TrendPoint {
   date: string;
@@ -641,7 +680,12 @@ export function InsightsView() {
             </div>
           ) : (
             <div className="ins-empty">
-              <span>no subscription detected</span>
+              <Glyph className="ins-empty-icon">
+                <rect x="3" y="6" width="18" height="13" rx="2.5" />
+                <path d="M3 10h18M7 15h4" />
+              </Glyph>
+              <span className="ins-empty-lead">no subscription detected</span>
+              <span className="ins-empty-sub">sign in from the accounts view to compare plan value</span>
             </div>
           )}
         </Panel>
@@ -649,6 +693,20 @@ export function InsightsView() {
       <div className="g6">
         <Panel title={<>cache economics <Hint label="what is this?">Compares your actual API spend to what it would have cost without prompt caching.</Hint></>} right={<span className="panel-note">all-time</span>}>
           <div className="ins-cache">
+            <div className="ins-hero">
+              <Glyph className="ins-hero-icon">
+                <ellipse cx="12" cy="6.5" rx="7.5" ry="3" />
+                <path d="M4.5 6.5v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-11" />
+                <path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3" />
+              </Glyph>
+              <div className="ins-hero-body">
+                <span className="ins-hero-label">saved by caching</span>
+                <span className="ins-hero-value">{fmtUSD(cache.savedUSD)}</span>
+                <span className="ins-hero-sub">
+                  {fmtPct(cacheLeverage)} of would-be cost · hit {fmtPct(cache.hitRate * 100, 1)}
+                </span>
+              </div>
+            </div>
             <div className="ins-cache-row">
               <span className="ins-cache-label">actual spend</span>
               <div className="ins-cache-track">
@@ -768,6 +826,7 @@ export function InsightsView() {
         <Panel title={<>records <Hint label="what is this?">Your all-time highs and averages across all tracked sessions.</Hint></>} right={<span className="panel-note">all-time</span>}>
           <ul className="ins-records">
             <li>
+              <Glyph className="ins-records-icon">{RECORD_ICONS[0]}</Glyph>
               <span>best day</span>
               <b>
                 {records.maxDay
@@ -776,6 +835,7 @@ export function InsightsView() {
               </b>
             </li>
             <li>
+              <Glyph className="ins-records-icon">{RECORD_ICONS[1]}</Glyph>
               <span>longest session</span>
               <b>
                 {records.longestSession
@@ -784,14 +844,17 @@ export function InsightsView() {
               </b>
             </li>
             <li>
+              <Glyph className="ins-records-icon">{RECORD_ICONS[2]}</Glyph>
               <span>biggest 5h block</span>
               <b>{fmtTok(records.maxBlockTokens)} tok</b>
             </li>
             <li>
+              <Glyph className="ins-records-icon">{RECORD_ICONS[3]}</Glyph>
               <span>streak</span>
               <b>{records.streak.current}d now · {records.streak.longest}d best</b>
             </li>
             <li>
+              <Glyph className="ins-records-icon">{RECORD_ICONS[4]}</Glyph>
               <span>active days</span>
               <b>
                 {records.activeDays} of {records.totalDays}
@@ -801,10 +864,12 @@ export function InsightsView() {
               </b>
             </li>
             <li>
+              <Glyph className="ins-records-icon">{RECORD_ICONS[5]}</Glyph>
               <span>avg / active day</span>
               <b>{fmtUSD(records.avgDailyCost)}</b>
             </li>
             <li title="average context window size (input + cache read tokens) sent to the model per CLI turn">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[6]}</Glyph>
               <span>avg context / turn</span>
               <b>
                 {fmtTok(
@@ -817,10 +882,12 @@ export function InsightsView() {
               </b>
             </li>
             <li title="average estimated cost per CLI turn (input, output, and caching cost)">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[7]}</Glyph>
               <span>avg cost / turn</span>
               <b>{fmtUSD(snapshot.totals.cost / Math.max(1, snapshot.totals.entries))}</b>
             </li>
             <li>
+              <Glyph className="ins-records-icon">{RECORD_ICONS[8]}</Glyph>
               <span>busiest hour · {winLabel('30d')}</span>
               <b>
                 {ins.busiest
@@ -829,6 +896,7 @@ export function InsightsView() {
               </b>
             </li>
             <li title="your lightest active hour over the last 30 days — when your 5-hour and weekly limit windows have seen the least competing usage, so a heavy task started here has the most headroom (may fall outside working hours)">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[9]}</Glyph>
               <span>best time to start</span>
               <b style={{ color: ins.bestStartHour != null ? 'var(--sage)' : undefined }}>
                 {ins.bestStartHour != null
@@ -837,12 +905,14 @@ export function InsightsView() {
               </b>
             </li>
             <li title="days above median + 3.5 robust σ of the range">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[10]}</Glyph>
               <span>spike days · {winLabel('35d')}</span>
               <b style={ins.spikeDays > 0 ? { color: 'var(--warn)' } : undefined}>
                 {ins.spikeDays > 0 ? ins.spikeDays : 'none'}
               </b>
             </li>
             <li title="among the most recent 150 sessions">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[11]}</Glyph>
               <span>costliest session</span>
               <b>
                 {costliest
@@ -851,6 +921,7 @@ export function InsightsView() {
               </b>
             </li>
             <li title="entries still flagged sidechain after dedupe — a floor on true subagent spend">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[12]}</Glyph>
               <span>subagent share</span>
               <b>
                 {snapshot.sidechain.cost > 0 && snapshot.totals.cost > 0
@@ -859,6 +930,7 @@ export function InsightsView() {
               </b>
             </li>
             <li title="responses cut off by the output-token ceiling (stop_reason max_tokens)">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[13]}</Glyph>
               <span>truncated · max_tokens</span>
               <b style={(snapshot.stopReasons.max_tokens || 0) > 0 ? { color: 'var(--warn)' } : undefined}>
                 {snapshot.stopReasons.max_tokens
@@ -867,10 +939,12 @@ export function InsightsView() {
               </b>
             </li>
             <li title="context compactions across all scoped sessions">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[14]}</Glyph>
               <span>compactions</span>
               <b>{snapshot.compactions ? fmtInt(snapshot.compactions) : 'none'}</b>
             </li>
             <li title="estimated input + cache-read cost paid to re-ingest context on the first turn after each compaction (a floor — counts only that first turn)">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[15]}</Glyph>
               <span>compaction re-reads</span>
               <b>
                 {snapshot.compactionReread.turns
@@ -879,6 +953,7 @@ export function InsightsView() {
               </b>
             </li>
             <li title="volume of tool_result output returned to the model and re-fed as input on later turns — estimated tokens (chars ÷ 4); transcripts carry no exact per-result count">
+              <Glyph className="ins-records-icon">{RECORD_ICONS[16]}</Glyph>
               <span>tool output · est</span>
               <b>
                 {snapshot.toolResults.count

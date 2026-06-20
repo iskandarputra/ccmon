@@ -5,6 +5,7 @@
  */
 
 import './models.css';
+import type { ReactNode } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -38,6 +39,24 @@ import type { CacheStats, DayRow, ModelRow, WhatIfRow } from '../../shared/types
 const AXIS_TICK = { fill: 'var(--text-faint)', fontSize: 10, fontFamily: 'JetBrains Mono' };
 const TOP_N = 5;
 const OTHER_COLOR = withAlpha('var(--text-faint)', 0.65);
+
+/** small inline SVG wrapper so all glyphs share stroke styling */
+function Glyph({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
 
 /** '…-fast' variants → { fast, base id with suffix stripped } */
 function splitFast(id = '') {
@@ -243,9 +262,17 @@ function CacheEconomics({ cache, totalCost }: CacheEconomicsProps) {
   return (
     <div className="mdl-cache">
       <div className="mdl-cache-hero">
-        <div className="mdl-cache-saved">{fmtUSD(cache.savedUSD)} saved</div>
-        <div className="mdl-cache-sub">
-          vs uncached — would have cost {fmtUSD(cache.wouldHaveCostUSD)}
+        <Glyph className="mdl-cache-hero-icon">
+          <ellipse cx="12" cy="6.5" rx="7.5" ry="3" />
+          <path d="M4.5 6.5v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-11" />
+          <path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3" />
+        </Glyph>
+        <div className="mdl-cache-hero-text">
+          <span className="mdl-cache-hero-cap">saved by caching</span>
+          <span className="mdl-cache-saved">{fmtUSD(cache.savedUSD)}</span>
+          <span className="mdl-cache-sub">
+            vs uncached — would have cost {fmtUSD(cache.wouldHaveCostUSD)}
+          </span>
         </div>
       </div>
       <div className="mdl-cache-bar">
@@ -261,17 +288,39 @@ function CacheEconomics({ cache, totalCost }: CacheEconomicsProps) {
         </div>
       </div>
       <div className="mdl-cache-stats">
-        <div className="mdl-cstat">
-          <span>hit rate</span>
-          <b>{fmtPct(cache.hitRate * 100, 2)}</b>
+        <div className="mdl-tile">
+          <Glyph className="mdl-tile-icon">
+            <path d="M12 3a9 9 0 1 1-9 9" />
+            <path d="M3 8.5 3 3 8.5 3" />
+            <path d="m3 3 5 5" />
+          </Glyph>
+          <div className="mdl-tile-text">
+            <span className="mdl-tile-cap">hit rate</span>
+            <span className="mdl-tile-val">{fmtPct(cache.hitRate * 100, 2)}</span>
+          </div>
         </div>
-        <div className="mdl-cstat">
-          <span>cache read</span>
-          <b>{fmtTok(cache.readTokens)}</b>
+        <div className="mdl-tile">
+          <Glyph className="mdl-tile-icon">
+            <path d="M21 12c0 1.7-4 3-9 3s-9-1.3-9-3" />
+            <path d="M21 12V7c0-1.7-4-3-9-3S3 5.3 3 7v10c0 1.7 4 3 9 3" />
+            <path d="m16 18 2 2 4-4" />
+          </Glyph>
+          <div className="mdl-tile-text">
+            <span className="mdl-tile-cap">cache read</span>
+            <span className="mdl-tile-val">{fmtTok(cache.readTokens)}</span>
+          </div>
         </div>
-        <div className="mdl-cstat">
-          <span>cache write</span>
-          <b>{fmtTok(cache.writeTokens)}</b>
+        <div className="mdl-tile">
+          <Glyph className="mdl-tile-icon">
+            <ellipse cx="12" cy="6" rx="8" ry="3" />
+            <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+            <path d="M4 12v6c0 1.7 3.6 3 8 3 1.5 0 2.9-.15 4-.42" />
+            <path d="M18 14v6M21 17h-6" />
+          </Glyph>
+          <div className="mdl-tile-text">
+            <span className="mdl-tile-cap">cache write</span>
+            <span className="mdl-tile-val">{fmtTok(cache.writeTokens)}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -307,7 +356,10 @@ function WhatIfPanel({ rows, actual }: WhatIfPanelProps) {
       {rows.map((r) => {
         const cheaper = r.delta < 0;
         return (
-          <div className="mdl-wi-row" key={r.model}>
+          <div
+            className={`mdl-wi-row ${cheaper ? 'is-cheaper' : 'is-pricier'}`}
+            key={r.model}
+          >
             <span className="mdl-wi-name" title={r.model}>{modelLabel(r.model)}</span>
             <div className="mdl-wi-track">
               <i
@@ -448,6 +500,11 @@ export function ModelsView() {
 
       <div className="g12">
         <div className="mdl-meta">
+          <Glyph className="mdl-meta-icon">
+            <path d="M3 9.5 12 4l9 5.5" />
+            <path d="M5 11v7M19 11v7M9 11v7M15 11v7" />
+            <path d="M3 21h18" />
+          </Glyph>
           <span>
             pricing <b>{pricingMeta?.source || '—'}</b>
           </span>
