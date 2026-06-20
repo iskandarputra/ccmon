@@ -40,7 +40,7 @@ import type {
   ExportKind,
   ExportResult,
   LimitsMap,
-  ToolResultMarker,
+  ToolResultByDay,
   LimitsResult,
   LimitWindow,
   LoginCodeResult,
@@ -56,6 +56,12 @@ import type { AppState, AppStatus, ScanProgress } from '../shared/ipc';
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 const RECOMPUTE_DEBOUNCE_MS = 250;
+// Cap how often the full snapshot recompute runs during a burst of appends. A
+// recompute is a ~130ms full reduce at 50k entries (more at scale); the naive
+// 250ms debounce lets continuous streaming pin ~35% of a core. The live feed
+// updates on its own immediate path (usage:events), so coalescing the heavy
+// snapshot to ~once/2s is invisible in practice and cuts that CPU ~5×.
+const RECOMPUTE_MIN_INTERVAL_MS = 2000;
 const PERIODIC_REFRESH_MS = 60000; // day rollover / block expiry without events
 const LIMITS_REFRESH_MS = 60_000; // live plan-limits poll
 const LIMITS_RETRY_MS = 60_000; // FIXED retry after a limits failure — no exponential growth
@@ -74,11 +80,15 @@ interface MainState {
   pricingMeta: PricingMeta | null;
   entries: UsageEntry[];
   sorted: boolean;
+  /** bumped whenever `entries` is replaced or re-sorted — invalidates scopedData's cache */
+  dataEpoch: number;
   snapshot: Snapshot | null;
   status: AppStatus;
   progress: ScanProgress;
   sourceDirs: string[];
   recomputeTimer: NodeJS.Timeout | null;
+  /** epoch ms of the last real (non-elided) recompute — rate-limits bursts */
+  lastRecomputeAt: number;
   /** signature of the inputs behind the current snapshot — elides no-op recomputes */
   lastRecomputeSig: string | null;
   accounts: AccountsMap;
@@ -106,11 +116,13 @@ const state: MainState = {
   pricingMeta: null,
   entries: [],
   sorted: true,
+  dataEpoch: 0,
   snapshot: null,
   status: 'scanning',
   progress: { scanned: 0, total: 0, entries: 0 },
   sourceDirs: [],
   recomputeTimer: null,
+  lastRecomputeAt: 0,
   lastRecomputeSig: null,
   accounts: {},
   limits: {},
@@ -159,20 +171,42 @@ function sourceScope(): Set<string> | null {
   return null;
 }
 
-/** Entries + markers under the current data scope (shared by the recompute and
- *  the on-demand day drill-down so both see the same slice). */
-function scopedData(): {
+interface ScopedData {
   entries: UsageEntry[];
   compactions: CompactMarker[];
-  toolResults: ToolResultMarker[];
-} {
+  toolResults: ToolResultByDay;
+}
+
+/** Last scopedData() result, reused while its inputs are unchanged. */
+let scopedCache: { sig: string; value: ScopedData } | null = null;
+
+/**
+ * Entries + markers under the current data scope (shared by the recompute and
+ * the on-demand day drill-down so both see the same slice).
+ *
+ * Memoized: the periodic tick re-enters recompute every minute, and with a
+ * sub-scope active (multi-account, primary-only default) the naive path
+ * re-filtered the whole entry list plus every tool-result marker each time —
+ * tens of thousands of throwaway allocations per minute. The cache key folds
+ * everything that can change the slice: the data epoch (entries replaced or
+ * re-sorted), the scope set, and the marker counts (append-only, no reorder).
+ * In-place dedupe merges never touch `source`, so scope membership is stable
+ * across them and the entry count alone tracks appends.
+ */
+function scopedData(): ScopedData {
   const scope = sourceScope();
+  const watcher = state.watcher;
+  const allC = watcher ? watcher.compactions : [];
+  const trCount = watcher ? watcher.toolResultCount : 0;
+  const scopeSig = scope ? [...scope].sort().join(',') : '*';
+  const sig = `${state.dataEpoch}|${scopeSig}|${state.entries.length}|${allC.length}|${trCount}`;
+  if (scopedCache && scopedCache.sig === sig) return scopedCache.value;
   const entries = scope ? state.entries.filter((e) => scope.has(e.source ?? '')) : state.entries;
-  const allC = state.watcher ? state.watcher.compactions : [];
   const compactions = scope ? allC.filter((c) => scope.has(c.source ?? '')) : allC;
-  const allT = state.watcher ? state.watcher.toolResults : [];
-  const toolResults = scope ? allT.filter((t) => scope.has(t.source ?? '')) : allT;
-  return { entries, compactions, toolResults };
+  const toolResults = watcher ? watcher.toolResultsFor(scope) : new Map();
+  const value: ScopedData = { entries, compactions, toolResults };
+  scopedCache = { sig, value };
+  return value;
 }
 
 /**
@@ -207,6 +241,7 @@ function recompute(force = false): void {
   if (!state.sorted) {
     state.entries.sort((a, b) => a.ts - b.ts);
     state.sorted = true;
+    state.dataEpoch++; // order changed without a length change — invalidate the scope cache
   }
   const now = Date.now();
   const sig = recomputeSig(now);
@@ -214,6 +249,7 @@ function recompute(force = false): void {
   // path (new/merged entries, settings, pricing, scope) always passes force
   if (!force && state.snapshot && sig === state.lastRecomputeSig) return;
   state.lastRecomputeSig = sig;
+  state.lastRecomputeAt = now; // only real (non-elided) reduces count toward the rate limit
   const { entries, compactions, toolResults } = scopedData();
   state.snapshot = buildSnapshot(entries, {
     now,
@@ -239,11 +275,14 @@ function pushPricingMeta(): void {
 }
 
 function scheduleRecompute(): void {
-  if (!state.recomputeTimer) {
-    // the debounced path is always a real input change (entries/settings/
-    // pricing/scope) — force past the no-op elision guard
-    state.recomputeTimer = setTimeout(() => recompute(true), RECOMPUTE_DEBOUNCE_MS);
-  }
+  if (state.recomputeTimer) return;
+  // the debounced path is always a real input change (entries/settings/
+  // pricing/scope) — force past the no-op elision guard. Trailing-debounce by
+  // 250ms for responsiveness after a quiet spell, but never fire more than once
+  // per RECOMPUTE_MIN_INTERVAL_MS so a burst of appends can't pin a core.
+  const sinceLast = Date.now() - state.lastRecomputeAt;
+  const delay = Math.max(RECOMPUTE_DEBOUNCE_MS, RECOMPUTE_MIN_INTERVAL_MS - sinceLast);
+  state.recomputeTimer = setTimeout(() => recompute(true), delay);
 }
 
 /**
@@ -408,6 +447,7 @@ function startWatcher(): void {
   watcher.on('ready', ({ entries, files, ms }) => {
     state.entries = entries;
     state.sorted = true;
+    state.dataEpoch++; // fresh entry array — a same-length rescan must not reuse the old slice
     state.status = 'ready';
     console.log(`[ccmon] indexed ${entries.length} entries from ${files} transcripts in ${ms}ms`);
     recompute();
@@ -435,6 +475,7 @@ function startWatcher(): void {
   watcher.on('reset', ({ reason }) => {
     console.log(`[ccmon] rescan: ${reason}`);
     state.entries = [];
+    state.dataEpoch++; // drop the old slice along with the entries it referenced
     state.snapshot = null;
     state.status = 'scanning';
     state.progress = { scanned: 0, total: 0, entries: 0 };
@@ -470,7 +511,11 @@ function createWindow(): void {
       sandbox: true,
       nodeIntegration: false,
       spellcheck: false,
-      backgroundThrottling: false,
+      // Let Chromium throttle the renderer (animations, timers) while the window
+      // is hidden/minimized — there's nothing to see. Data collection is
+      // unaffected: the main process owns the pollers and pushes a fresh
+      // snapshot every 60s, so the view is current the moment it's shown again.
+      backgroundThrottling: true,
     },
   });
 

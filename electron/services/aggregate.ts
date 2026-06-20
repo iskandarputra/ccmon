@@ -27,7 +27,7 @@ import type {
   RateRow,
   StartOfWeek,
   SumRow,
-  ToolResultMarker,
+  ToolResultByDay,
   UsageEntry,
   WeeklyRow,
   WhatIfRow,
@@ -199,8 +199,8 @@ export interface BuildSnapshotOptions {
   resetTs?: number | null;
   /** compaction markers from the watcher, ALREADY scope-filtered by main */
   compactions?: CompactMarker[] | null;
-  /** tool_result size markers from the watcher, ALREADY scope-filtered by main */
-  toolResults?: ToolResultMarker[] | null;
+  /** tool_result volume by local day from the watcher, ALREADY scope-merged by main */
+  toolResults?: ToolResultByDay | null;
   /**
    * ALL entries (scope-independent) for the per-account spend rollup. Defaults
    * to the scoped `entries`; main passes the full set so the accounts
@@ -434,7 +434,11 @@ export function buildSnapshot(
   if (bounded) {
     entries = entries.filter((e) => dayKeyInRange(e.dateKey, resolvedRange));
     if (compactions) compactions = compactions.filter((c) => dayKeyInRange(localDateKey(c.ts), resolvedRange));
-    if (toolResults) toolResults = toolResults.filter((t) => dayKeyInRange(localDateKey(t.ts), resolvedRange));
+    if (toolResults) {
+      const f: ToolResultByDay = new Map();
+      for (const [day, b] of toolResults) if (dayKeyInRange(day, resolvedRange)) f.set(day, b);
+      toolResults = f;
+    }
   }
 
   const dayKeys = dayKeysForRange(resolvedRange, now);
@@ -907,9 +911,15 @@ export function buildSnapshot(
 
   // tool_result volume re-fed as context (estimate; chars/4, not billed)
   let toolResultChars = 0;
-  for (const t of toolResults || []) toolResultChars += t.chars;
+  let toolResultCount = 0;
+  if (toolResults) {
+    for (const b of toolResults.values()) {
+      toolResultChars += b.chars;
+      toolResultCount += b.count;
+    }
+  }
   const toolResultsRollup = {
-    count: (toolResults || []).length,
+    count: toolResultCount,
     chars: toolResultChars,
     estTokens: Math.round(toolResultChars / 4),
   };

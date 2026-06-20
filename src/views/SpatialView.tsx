@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, Grid, ContactShadows, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import './spatial.css';
@@ -934,6 +934,24 @@ interface SceneProps {
   autoRotate: boolean;
 }
 
+/**
+ * Drives on-demand renders at a capped rate. With `frameloop="demand"` the idle
+ * shimmer (a useFrame loop) only ticks when a frame is requested, so this paces
+ * it at ~30fps instead of the compositor's 60 — roughly halving the GPU/CPU of a
+ * visible-but-otherwise-static field. Inactive (no interval) when nothing
+ * animates, leaving the scene fully static. Orbit/hover use `frameloop="always"`
+ * and don't rely on this.
+ */
+function FrameThrottle({ active, fps = 30 }: { active: boolean; fps?: number }) {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setInterval(() => invalidate(), Math.round(1000 / fps));
+    return () => window.clearInterval(id);
+  }, [active, fps, invalidate]);
+  return null;
+}
+
 function Scene({ palette, mode, plot, autoRotate, cells, hover, setHover, motion }: SceneProps) {
   return (
     <>
@@ -1128,7 +1146,18 @@ export function SpatialView() {
       <div className="g12">
         <Panel title="usage in 3d" right={<span className="panel-note">{headline}</span>}>
           <div className="spa-stage">
-            <Canvas dpr={[1, 1.75]} camera={{ position: [7.5, 6.5, 9], fov: 38 }}>
+            {/* Continuous 60fps only while it visibly matters: auto-rotate
+                (orbiting) or a hover scale lerp need every frame. Otherwise drop
+                to on-demand — r3f still renders on data/theme/view changes
+                (prop-driven scene-graph updates) and OrbitControls damping. The
+                idle shimmer is then paced to ~30fps by FrameThrottle (half the
+                cost), and a settled reduced-motion field renders zero frames. */}
+            <Canvas
+              dpr={[1, 1.75]}
+              frameloop={orbiting || hover ? 'always' : 'demand'}
+              camera={{ position: [7.5, 6.5, 9], fov: 38 }}
+            >
+              <FrameThrottle active={motionOk && !orbiting && !hover} fps={30} />
               <Scene
                 palette={palette}
                 mode={mode}
