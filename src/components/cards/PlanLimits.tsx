@@ -135,7 +135,9 @@ function HistorySpark({ samples }: { samples: LimitSample[] }) {
 /**
  * Live plan limits for every scoped account — the real numbers from
  * Anthropic's usage endpoint, with plan + tier (max 5x / 20x) chips and
- * verbose failure/stale states. Shared by the overview and blocks views.
+ * verbose failure/stale states. Lives only in the Overview view — the
+ * Blocks view used to duplicate this card but only ever needs
+ * `haveLiveLimits` (whether to hide its own local estimate), not the card.
  */
 export function PlanLimits() {
   const limits = useUsageStore((s) => s.limits);

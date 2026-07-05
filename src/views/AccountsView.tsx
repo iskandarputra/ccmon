@@ -221,13 +221,13 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
   }, [dir]);
 
   const root = accountRoot(dir);
+  const isDefault = isDefaultAccountRoot(root);
+  const currentSuffix = root.split(/[\\/]/).pop()?.replace(/^\.claude-?/, '') ?? '';
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
   const prefs = useUsageStore((s) => s.settings?.accountWrapperPrefs) ?? {};
   const wrapperName = prefs[root]?.name || suggestWrapperName(root);
   const wrapperDisabled = prefs[root]?.disabled ?? false;
 
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(wrapperName);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [wrapperBusy, setWrapperBusy] = useState(false);
   const [wrapperErr, setWrapperErr] = useState<string | null>(null);
@@ -244,6 +244,21 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
       setWrapperBusy(false);
     }
   }
+
+  async function confirmRemove() {
+    setWrapperErr(null);
+    await pushWrapperPrefs({ ...prefs, [root]: { ...prefs[root], disabled: true } });
+    setConfirmOpen(false);
+  }
+
+  function reAdd() {
+    setWrapperErr(null);
+    void pushWrapperPrefs({ ...prefs, [root]: { ...prefs[root], disabled: false } });
+  }
+
+  // ---- default ~/.claude root: label-only rename (no folder to move) ----
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(wrapperName);
 
   function saveRename() {
     const trimmed = nameDraft.trim();
@@ -267,73 +282,61 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
     void pushWrapperPrefs({ ...prefs, [root]: { ...prefs[root], name: trimmed } });
   }
 
-  async function confirmRemove() {
-    setWrapperErr(null);
-    await pushWrapperPrefs({ ...prefs, [root]: { ...prefs[root], disabled: true } });
-    setConfirmOpen(false);
+  // ---- every other account: one combined rename — folder AND shell command
+  // always move together (~/.claude-<old> + claude-<old> -> ~/.claude-<new> +
+  // claude-<new>) so the two can never drift out of sync ----
+  const [showRenameForm, setShowRenameForm] = useState(false);
+  const [renameSuffix, setRenameSuffix] = useState(currentSuffix);
+  const [renameConfirmOpen, setRenameConfirmOpen] = useState(false);
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [renameErr, setRenameErr] = useState<string | null>(null);
+  const [renameDone, setRenameDone] = useState<string | null>(null);
+
+  function openRenameForm() {
+    setRenameSuffix(currentSuffix);
+    setRenameErr(null);
+    setRenameDone(null);
+    setShowRenameForm(true);
   }
 
-  function reAdd() {
-    setWrapperErr(null);
-    void pushWrapperPrefs({ ...prefs, [root]: { ...prefs[root], disabled: false } });
-  }
-
-  // ---- rename the account's folder on disk (~/.claude-<old> -> ~/.claude-<new>) ----
-  const isDefault = isDefaultAccountRoot(root);
-  const currentSuffix = root.split(/[\\/]/).pop()?.replace(/^\.claude-?/, '') ?? '';
-
-  const [showFolderForm, setShowFolderForm] = useState(false);
-  const [folderSuffix, setFolderSuffix] = useState(currentSuffix);
-  const [folderConfirmOpen, setFolderConfirmOpen] = useState(false);
-  const [folderBusy, setFolderBusy] = useState(false);
-  const [folderErr, setFolderErr] = useState<string | null>(null);
-  const [folderDone, setFolderDone] = useState<string | null>(null);
-
-  function openFolderForm() {
-    setFolderSuffix(currentSuffix);
-    setFolderErr(null);
-    setFolderDone(null);
-    setShowFolderForm(true);
-  }
-
-  function requestFolderRename() {
-    const clean = folderSuffix.trim();
+  function requestRename() {
+    const clean = renameSuffix.trim();
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(clean)) {
-      setFolderErr('use letters, digits, dash or underscore');
+      setRenameErr('use letters, digits, dash or underscore');
       return;
     }
-    if (clean === currentSuffix) {
-      setShowFolderForm(false);
-      return;
-    }
-    setFolderErr(null);
-    setFolderConfirmOpen(true);
+    setRenameErr(null);
+    setRenameConfirmOpen(true);
   }
 
-  async function confirmFolderRename() {
-    setFolderBusy(true);
-    setFolderErr(null);
+  async function confirmRename() {
+    setRenameBusy(true);
+    setRenameErr(null);
     try {
-      const res = await window.ccmon?.renameAccount(root, folderSuffix.trim());
+      const suffix = renameSuffix.trim();
+      const res = await window.ccmon?.renameAccount(root, suffix);
       if (!res?.ok) {
-        setFolderErr(res?.error || 'rename failed');
+        setRenameErr(res?.error || 'rename failed');
         return; // keep the dialog open so the error is visible
       }
       const newRoot = res.root;
       await refreshAccounts();
+      // force the wrapper name to match the new folder suffix exactly —
+      // name and shell command must never diverge
       const nextPrefs = { ...prefs };
-      const carried = nextPrefs[root];
       delete nextPrefs[root];
-      if (carried) nextPrefs[newRoot] = carried;
+      nextPrefs[newRoot] = { name: `claude-${suffix}` };
       updateSettings({ accountWrapperPrefs: nextPrefs });
       await window.ccmon?.updateWrapperAccounts(
         effectiveWrapperAccounts(useUsageStore.getState().sourceDirs, nextPrefs),
       );
-      setFolderConfirmOpen(false);
-      setShowFolderForm(false);
-      setFolderDone(`renamed to ~/.claude-${folderSuffix.trim()} — relaunch ccmon to resume live tracking`);
+      setRenameConfirmOpen(false);
+      setShowRenameForm(false);
+      setRenameDone(
+        `renamed to claude-${suffix} · ~/.claude-${suffix} — relaunch ccmon to resume live tracking, and open a new terminal (or re-source your shell) to pick up the new command`,
+      );
     } finally {
-      setFolderBusy(false);
+      setRenameBusy(false);
     }
   }
 
@@ -388,7 +391,7 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
               re-add
             </button>
           </>
-        ) : editingName ? (
+        ) : isDefault && editingName ? (
           <input
             className="acc-wrapper-input"
             autoFocus
@@ -405,6 +408,27 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
             }}
             onBlur={saveRename}
           />
+        ) : !isDefault && showRenameForm ? (
+          <>
+            <span className="wiz-add-pre">claude-</span>
+            <input
+              className="acc-wrapper-input"
+              autoFocus
+              value={renameSuffix}
+              spellCheck={false}
+              onChange={(e) => setRenameSuffix(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') requestRename();
+                if (e.key === 'Escape') setShowRenameForm(false);
+              }}
+            />
+            <button type="button" className="acc-copy" onClick={requestRename}>
+              rename
+            </button>
+            <button type="button" className="acc-copy" onClick={() => setShowRenameForm(false)}>
+              cancel
+            </button>
+          </>
         ) : (
           <>
             <code className="acc-wrapper-name">{wrapperName}</code>
@@ -412,8 +436,12 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
               type="button"
               className="acc-copy"
               onClick={() => {
-                setNameDraft(wrapperName);
-                setEditingName(true);
+                if (isDefault) {
+                  setNameDraft(wrapperName);
+                  setEditingName(true);
+                } else {
+                  openRenameForm();
+                }
               }}
             >
               rename
@@ -429,6 +457,10 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
           </>
         )}
         {wrapperErr && <span className="acc-wrapper-err">{wrapperErr}</span>}
+        {!isDefault && renameErr && !renameConfirmOpen && (
+          <span className="acc-wrapper-err">{renameErr}</span>
+        )}
+        {!isDefault && renameDone && <span className="acc-wrapper-note">{renameDone}</span>}
       </div>
 
       <ConfirmDialog
@@ -449,64 +481,34 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
       />
 
       {!isDefault && (
-        <div className="acc-wrapper">
-          <span className="acc-wrapper-label">folder:</span>
-          {showFolderForm ? (
+        <ConfirmDialog
+          open={renameConfirmOpen}
+          title="Rename this account?"
+          body={
             <>
-              <span className="wiz-add-pre">~/.claude-</span>
-              <input
-                className="acc-wrapper-input"
-                autoFocus
-                value={folderSuffix}
-                spellCheck={false}
-                onChange={(e) => setFolderSuffix(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') requestFolderRename();
-                  if (e.key === 'Escape') setShowFolderForm(false);
-                }}
-              />
-              <button type="button" className="acc-copy" onClick={requestFolderRename}>
-                rename
-              </button>
-              <button type="button" className="acc-copy" onClick={() => setShowFolderForm(false)}>
-                cancel
-              </button>
+              Renames both together, so they never drift apart: the folder{' '}
+              <code>{tildify(root)}</code> → <code>~/.claude-{renameSuffix.trim()}</code>, and the
+              shell command <code>{wrapperName}</code> → <code>claude-{renameSuffix.trim()}</code>.
+              Transcripts and login move with the folder. Any terminal wrapper or tool pointed at
+              the old <code>CLAUDE_CONFIG_DIR</code> path will need updating, and ccmon needs a
+              relaunch to resume live tracking of the new location.
+              {renameErr && (
+                <div className="acc-wrapper-err" style={{ marginTop: 8 }}>
+                  {renameErr}
+                </div>
+              )}
             </>
-          ) : (
-            <button type="button" className="acc-copy" onClick={openFolderForm}>
-              rename folder…
-            </button>
-          )}
-          {folderErr && !folderConfirmOpen && <span className="acc-wrapper-err">{folderErr}</span>}
-          {folderDone && <span className="acc-wrapper-note">{folderDone}</span>}
-        </div>
+          }
+          confirmLabel="rename"
+          danger
+          busy={renameBusy}
+          onConfirm={confirmRename}
+          onCancel={() => {
+            setRenameConfirmOpen(false);
+            setRenameErr(null);
+          }}
+        />
       )}
-
-      <ConfirmDialog
-        open={folderConfirmOpen}
-        title="Rename this account's folder?"
-        body={
-          <>
-            Moves <code>{tildify(root)}</code> to <code>~/.claude-{folderSuffix.trim()}</code> on
-            disk — transcripts and login move with it. Any terminal wrapper or tool pointed at the
-            old <code>CLAUDE_CONFIG_DIR</code> path will need updating, and ccmon needs a relaunch
-            to resume live tracking of the new location.
-            {folderErr && (
-              <div className="acc-wrapper-err" style={{ marginTop: 8 }}>
-                {folderErr}
-              </div>
-            )}
-          </>
-        }
-        confirmLabel="rename folder"
-        danger
-        busy={folderBusy}
-        onConfirm={confirmFolderRename}
-        onCancel={() => {
-          setFolderConfirmOpen(false);
-          setFolderErr(null);
-        }}
-      />
 
       {loggedIn && limit?.ok ? (
         <div className="acc-meters">
