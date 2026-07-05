@@ -390,10 +390,10 @@ function HeadroomBanner() {
 
   return (
     <Panel
-      className="acc-headroom"
+      className={`acc-headroom${top.urgent ? '' : ' is-calm'}`}
       title={
         <span className="hr-title">
-          cross-account headroom
+          cross-account resume
           <span className="hr-live">
             <i className="acc-live-dot" />
             live
@@ -405,7 +405,9 @@ function HeadroomBanner() {
         <div className="hr-side">
           <Ring pct={top.fromPct} />
           <div className="hr-side-name">{sourceLabel(top.fromDir)}</div>
-          <div className="hr-side-tag hr-cap">{top.kind} · capping</div>
+          <div className={`hr-side-tag ${top.urgent ? 'hr-cap' : 'hr-cur'}`}>
+            {top.urgent ? `${top.kind} · capping` : `${top.kind} · highest`}
+          </div>
         </div>
         <div className="hr-arrow" aria-hidden>
           →
@@ -413,6 +415,7 @@ function HeadroomBanner() {
         <ul className="hr-targets">
           {top.targets.map((t, i) => {
             const cmd = crossResumeCommand(top.fromDir, t.dir, session?.id);
+            const roomTag = t.hasRoom ? (i === 0 && multi ? 'most room' : 'has room') : 'available';
             return (
               <li className="hr-target" key={t.dir}>
                 {multi && <span className="hr-rank">{i + 1}</span>}
@@ -420,8 +423,8 @@ function HeadroomBanner() {
                 <div className="hr-target-body">
                   <div className="hr-target-head">
                     <span className="hr-side-name">{sourceLabel(t.dir)}</span>
-                    <span className="hr-side-tag hr-room">
-                      {i === 0 && multi ? 'most room' : 'has room'}
+                    <span className={`hr-side-tag ${t.hasRoom ? 'hr-room' : 'hr-cur'}`}>
+                      {roomTag}
                     </span>
                   </div>
                   <div className="hr-cmd">
@@ -449,9 +452,12 @@ function HeadroomBanner() {
         a cap while another sits idle. The command copies the chosen session
         into the other account's config dir and relaunches{' '}
         <code>claude --resume</code> there — your billing switches to that
-        account from then on. It needs the <code>claude-cross-resume</code>{' '}
-        helper on your PATH (install it from the setup panel below). ccmon never
-        moves or launches a session itself.
+        account from then on. It's always available, not just when a cap looms:
+        the highest-usage account is the source and every other logged-in
+        account is a target, so you can switch at any utilization (targets with
+        genuine headroom are flagged). It needs the{' '}
+        <code>claude-cross-resume</code> helper on your PATH (install it from the
+        setup panel below). ccmon never moves or launches a session itself.
       </Hint>
     </Panel>
   );

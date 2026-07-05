@@ -19,20 +19,33 @@ import type { AccountsMap, LimitsMap } from '../../shared/types';
 export type LimitKind = 'session' | 'week';
 
 export interface CrossTarget {
-  /** an account with room — its `<root>/projects` dir and utilization */
+  /** a candidate account — its `<root>/projects` dir and utilization */
   dir: string;
   pct: number;
+  /**
+   * true when this account is clearly below its own cap AND a worthwhile gap
+   * below the source — i.e. switching here genuinely buys headroom. false
+   * targets are still valid to resume onto (the user asked for flexibility),
+   * they just aren't a headroom win.
+   */
+  hasRoom: boolean;
 }
 
 export interface CrossAccountAdvice {
-  /** which window triggered the advice */
+  /** which window this ranking is over */
   kind: LimitKind;
-  /** the capping account's `<root>/projects` dir, and its utilization */
+  /** the highest-utilization account's `<root>/projects` dir, and its pct */
   fromDir: string;
   fromPct: number;
   /**
-   * every other logged-in account that genuinely has room, most headroom
-   * first. Always non-empty when an advice is returned.
+   * true when the source is close enough to its cap (and the best target has
+   * real room) that the move is genuinely worth nudging — drives the urgent
+   * "capping" styling. false means this is an always-available manual switch.
+   */
+  urgent: boolean;
+  /**
+   * every other logged-in account, most headroom first. Always non-empty when
+   * an advice is returned (there is at least one account to switch to).
    */
   targets: CrossTarget[];
   /** the single best target (= `targets[0]`), kept for one-pick callers */
@@ -40,11 +53,11 @@ export interface CrossAccountAdvice {
   toPct: number;
 }
 
-/** Thresholds — tuned to nudge only when the move is clearly worth it. */
+/** Thresholds — govern the *urgency* signal, not whether advice is shown. */
 export const ADVICE = {
-  /** the binding account must be at least this utilized to bother */
+  /** the source must be at least this utilized for the move to read as urgent */
   HIGH: 80,
-  /** the alternative must be at least this many points lower */
+  /** a target must be at least this many points lower to count as real room */
   GAP: 25,
   /** ...and itself below this, i.e. genuinely have room */
   ROOM: 70,
@@ -84,26 +97,41 @@ function adviceForKind(
 ): CrossAccountAdvice | null {
   const cands = candidates(accounts, limits, kind);
   if (cands.length < 2) return null;
-  // the account about to cap…
+  // the highest-utilization account is the source we'd copy the session off…
   const from = cands.reduce((a, b) => (b.pct > a.pct ? b : a));
-  if (from.pct < ADVICE.HIGH) return null;
-  // …and every other logged-in account that genuinely has room (clearly
-  // below its own cap and a worthwhile gap below the capping one), ranked
-  // most-headroom first. The user picks which one to resume on.
+  // …and every other logged-in account is a valid target, ranked most-headroom
+  // first. We no longer gate on the source being near a cap — the user can
+  // cross-resume at any utilization — but we still flag which targets have
+  // real room so the UI can nudge urgently only when it matters.
   const targets = cands
     .filter((c) => c.dir !== from.dir && c.hasLogin)
-    .filter((c) => c.pct < ADVICE.ROOM && from.pct - c.pct >= ADVICE.GAP)
     .sort((a, b) => a.pct - b.pct)
-    .map<CrossTarget>((c) => ({ dir: c.dir, pct: c.pct }));
+    .map<CrossTarget>((c) => ({
+      dir: c.dir,
+      pct: c.pct,
+      hasRoom: c.pct < ADVICE.ROOM && from.pct - c.pct >= ADVICE.GAP,
+    }));
   if (targets.length === 0) return null;
   const best = targets[0];
-  return { kind, fromDir: from.dir, fromPct: from.pct, targets, toDir: best.dir, toPct: best.pct };
+  const urgent = from.pct >= ADVICE.HIGH && best.hasRoom;
+  return {
+    kind,
+    fromDir: from.dir,
+    fromPct: from.pct,
+    urgent,
+    targets,
+    toDir: best.dir,
+    toPct: best.pct,
+  };
 }
 
 /**
- * Cross-account advice across both windows, most urgent first (the session
- * window caps faster than the weekly one, so it leads on a tie). Empty when no
- * account is close enough to a cap or no other account has room.
+ * Cross-account advice across both windows, highest-utilization first (the
+ * session window caps faster than the weekly one, so it leads on a tie).
+ * Always available when at least two accounts report limits and at least one
+ * *other* account is logged in — so the resume command is there whenever you
+ * want to switch, not only when a cap looms. Empty only when there's nowhere
+ * to switch to (one account, or no other logged-in account).
  */
 export function crossAccountAdvice(
   accounts: AccountsMap,
