@@ -11,19 +11,21 @@
   gap: 6px;
   height: 26px;
   padding: 0 9px;
-  border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--text) 3%, var(--bg1));
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   color: var(--text-dim);
   font-family: var(--mono);
   font-size: 11.5px;
   cursor: pointer;
-  transition: border-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+  transition: box-shadow var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
 }
 .rp-trigger:hover,
 .rp-trigger.is-open {
-  border-color: color-mix(in srgb, var(--amber) 50%, var(--line-soft));
   color: var(--text);
+}
+.rp-trigger.is-open {
+  box-shadow: var(--neu-inset);
 }
 .rp-cal {
   color: var(--amber);
@@ -45,10 +47,9 @@
   z-index: 60;
   min-width: 210px;
   padding: 6px;
-  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--bg1);
-  box-shadow: 0 12px 34px -10px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--neu-raised);
   animation: rp-in var(--dur-2) var(--ease-out);
 }
 @keyframes rp-in {
@@ -80,12 +81,14 @@
   transition: background var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
 }
 .rp-item:hover {
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   color: var(--text);
 }
 .rp-item.is-active {
   color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
 }
 .rp-item.is-active::after {
   content: '✓';
@@ -117,17 +120,17 @@
   flex: 1;
   min-width: 0;
   padding: 4px 6px;
-  border: 1px solid var(--line-soft);
   border-radius: 6px;
-  background: var(--bg0);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   color: var(--text);
   font-family: var(--mono);
   font-size: 11px;
-  color-scheme: dark;
+  color-scheme: light dark;
 }
 .rp-dates input:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--amber) 55%, var(--line-soft));
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent);
 }
 .rp-dash {
   color: var(--text-faint);
@@ -135,20 +138,20 @@
 }
 .rp-apply {
   padding: 6px;
-  border: 1px solid var(--line-soft);
   border-radius: 6px;
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   color: var(--text);
   font-family: var(--mono);
   font-size: 11.5px;
   cursor: pointer;
-  transition: border-color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
+  transition: box-shadow var(--dur-2) var(--ease-out);
 }
 .rp-apply:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--amber) 50%, var(--line-soft));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 50%, transparent);
 }
 .rp-apply.is-active {
-  border-color: var(--amber);
+  box-shadow: var(--neu-inset);
   color: var(--amber);
 }
 .rp-apply:disabled {

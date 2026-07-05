@@ -40,21 +40,13 @@
  * StatCard already renders hero numerals; here we lift the single most
  * important tile so the eye lands on it first. */
 .ovr-hero-slot .stat-card {
-  border-color: color-mix(in srgb, var(--amber) 28%, var(--line));
   background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--amber) 7%, transparent),
-      transparent 55%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--text) 3.5%, var(--bg1)) 0%,
-      var(--bg1) 60%
-    );
+    linear-gradient(180deg, color-mix(in srgb, var(--amber) 6%, transparent), transparent 55%),
+    var(--bg1);
+  box-shadow: var(--neu-raised), inset 0 0 0 1px color-mix(in srgb, var(--amber) 24%, transparent);
 }
 .ovr-hero-slot .stat-card:hover {
-  border-color: color-mix(in srgb, var(--amber) 50%, var(--line));
+  box-shadow: var(--neu-raised), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
 }
 .ovr-hero-slot .stat-label {
   color: color-mix(in srgb, var(--amber) 70%, var(--text-dim));
@@ -76,8 +68,8 @@
   color: var(--text-faint);
   padding: 12px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--bg2) 55%, transparent);
-  border: 1px solid var(--line);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   box-sizing: content-box;
   margin-bottom: 4px;
 }

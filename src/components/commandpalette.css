@@ -20,9 +20,10 @@
 .cmdk {
   width: min(560px, 92%);
   background: var(--bg1);
-  border: 1px solid var(--line);
   border-radius: 14px;
-  box-shadow: 0 24px 70px -18px rgba(0, 0, 0, 0.6);
+  box-shadow: calc(var(--neu-dist) * 1.4) calc(var(--neu-dist) * 1.4) calc(var(--neu-blur) * 1.6) var(--neu-dark),
+    calc(var(--neu-dist) * -1.4) calc(var(--neu-dist) * -1.4) calc(var(--neu-blur) * 1.6) var(--neu-light),
+    0 0 0 1px var(--neu-edge);
   overflow: hidden;
   animation: cmdk-rise var(--dur-2) var(--ease-out);
 }
@@ -69,7 +70,8 @@
   cursor: pointer;
 }
 .cmdk-item.is-active {
-  background: color-mix(in srgb, var(--amber) 14%, var(--bg2));
+  background: color-mix(in srgb, var(--amber) 10%, var(--bg1));
+  box-shadow: var(--neu-inset);
 }
 .cmdk-title {
   font-family: var(--sans);

@@ -29,19 +29,17 @@
   letter-spacing: 0.04em;
   color: var(--text-dim);
   padding: 4px 10px;
-  border: 1px solid var(--line);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   transition:
     color var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out);
+    box-shadow var(--dur-1) var(--ease-out);
 }
 
 .act-legend-item:hover {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
-  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 
 .act-swatch {
@@ -100,21 +98,17 @@
   column-gap: 12px;
   row-gap: 4px;
   padding: 14px 16px 13px;
-  background: color-mix(in srgb, var(--bg2) 55%, transparent);
-  border: 1px solid var(--line);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   border-radius: 14px;
   min-width: 0;
   transition:
     transform var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out),
     box-shadow var(--dur-1) var(--ease-out);
 }
 .act-stat:hover {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
-  background: color-mix(in srgb, var(--bg2) 70%, transparent);
-  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent);
 }
 
 .act-stat-icon {
@@ -125,8 +119,8 @@
   height: 34px;
   border-radius: 10px;
   color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--amber) 20%, transparent);
+  background: color-mix(in srgb, var(--amber) 12%, var(--bg1));
+  box-shadow: var(--neu-inset);
 }
 .act-stat-icon svg {
   width: 18px;

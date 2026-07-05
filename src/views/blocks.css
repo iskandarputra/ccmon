@@ -21,9 +21,9 @@
   gap: 6px;
   min-width: 168px;
   padding: 14px 16px;
-  border: 1px solid var(--line);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
 }
 
 .blk-sub-label {
@@ -89,16 +89,16 @@
   font-size: 10px;
   letter-spacing: 0.04em;
   color: var(--text-dim);
-  background: var(--bg2);
-  border: 1px solid var(--line);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   border-radius: 5px;
   padding: 1.5px 7px;
   white-space: nowrap;
-  transition: color 0.12s ease, border-color 0.12s ease;
+  transition: color 0.12s ease, box-shadow 0.12s ease;
 }
 .blk-chip:hover {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--text-faint) 50%, transparent);
+  box-shadow: var(--neu-inset);
 }
 
 .blk-chip-more {
@@ -115,8 +115,8 @@
   font-size: 10.5px;
   letter-spacing: 0.04em;
   color: var(--blk-burn, var(--ok));
-  background: color-mix(in srgb, var(--blk-burn, var(--ok)) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--blk-burn, var(--ok)) 30%, transparent);
+  background: color-mix(in srgb, var(--blk-burn, var(--ok)) 8%, var(--bg1));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--blk-burn, var(--ok)) 30%, transparent);
   border-radius: 999px;
   padding: 3px 11px 3px 9px;
   white-space: nowrap;
@@ -157,7 +157,8 @@
 .blk-progress-track {
   flex: 1;
   height: 6px;
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -188,9 +189,9 @@
   gap: 8px;
   font-family: var(--mono);
   font-size: 11px;
-  border: 1px solid var(--line);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   padding: 11px 13px;
   min-width: 0;
 }
@@ -266,7 +267,8 @@
 .blk-gauge {
   position: relative;
   height: 10px;
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: 5px;
   overflow: hidden;
 }
@@ -327,8 +329,8 @@
   font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--amber) 28%, transparent);
+  background: color-mix(in srgb, var(--amber) 8%, var(--bg1));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 28%, transparent);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
 }
@@ -350,7 +352,8 @@
   color: var(--text-faint);
   padding: 10px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--bg2) 55%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   box-sizing: content-box;
 }
 
@@ -392,17 +395,16 @@
   font-family: var(--mono);
   font-size: 11px;
   padding: 9px 12px;
-  border: 1px solid transparent;
   border-left: 2px solid transparent;
   border-radius: var(--radius-sm);
   transition:
     background var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 .blk-row:hover {
-  background: color-mix(in srgb, var(--bg2) 70%, transparent);
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   transform: translateX(3px);
 }
 
@@ -412,8 +414,8 @@
   background: color-mix(in srgb, var(--amber) 4%, transparent);
 }
 .blk-row-live:hover {
-  background: color-mix(in srgb, var(--amber) 8%, transparent);
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: color-mix(in srgb, var(--amber) 8%, var(--bg1));
+  box-shadow: var(--neu-raised-sm);
   border-left-color: var(--amber);
   transform: translateX(3px);
 }
@@ -422,7 +424,8 @@
   font-size: 9px;
   letter-spacing: 0.1em;
   color: var(--amber);
-  border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+  background: var(--bg1);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent);
   border-radius: 4px;
   padding: 0.5px 5px;
 }
@@ -446,7 +449,8 @@
 .blk-bar-track {
   display: block;
   height: 6px;
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -546,16 +550,15 @@
   gap: 12px;
   padding: 8px 10px;
   margin: 0 -10px;
-  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   transition:
     background var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 .blk-hist-row:hover {
-  background: color-mix(in srgb, var(--bg2) 70%, transparent);
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   transform: translateX(3px);
 }
 
@@ -566,7 +569,8 @@
 
 .blk-hist-track {
   height: 9px;
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: 5px;
   overflow: hidden;
 }
@@ -596,9 +600,9 @@
   justify-content: space-between;
   gap: 16px;
   padding: 10px 13px;
-  border: 1px solid var(--line);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
 }
 .blk-hist-facts span {
   color: var(--text-faint);

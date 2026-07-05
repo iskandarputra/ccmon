@@ -16,20 +16,18 @@
   gap: 12px;
   padding: 14px 16px;
   text-align: left;
-  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   color: var(--text);
   cursor: pointer;
   transition:
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 
 .lnk-card:hover {
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
-  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
   transform: translateY(-1px);
 }
 

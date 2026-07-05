@@ -24,7 +24,8 @@
     transform var(--dur-1) var(--ease-out);
 }
 .ins-cache-row:hover {
-  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   transform: translateX(4px);
 }
 
@@ -44,7 +45,8 @@
 
 .ins-cache-track {
   height: 9px;
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: 5px;
   overflow: hidden;
 }
@@ -71,17 +73,15 @@
   flex-direction: column;
   gap: 5px;
   padding: 11px 13px;
-  border: 1px solid var(--line);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   transition:
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 .ins-facts li:hover {
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
-  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
   transform: translateY(-1px);
 }
 
@@ -124,7 +124,8 @@
   color: var(--amber);
   padding: 10px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  background: color-mix(in srgb, var(--amber) 12%, var(--bg1));
+  box-shadow: var(--neu-raised);
   box-sizing: content-box;
 }
 .ins-hero-body {
@@ -177,7 +178,8 @@
     transform var(--dur-1) var(--ease-out);
 }
 .ins-tool:hover {
-  background: color-mix(in srgb, var(--bg2) 55%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   transform: translateX(3px);
 }
 
@@ -190,7 +192,8 @@
 
 .ins-tool-track {
   height: 8px;
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -278,16 +281,15 @@
   gap: 11px;
   padding: 9px 11px;
   margin: 0 -4px;
-  border: 1px solid transparent;
   border-radius: 12px;
   transition:
     background var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 .ins-records li:hover {
-  background: color-mix(in srgb, var(--bg2) 60%, transparent);
-  border-color: color-mix(in srgb, var(--amber) 35%, var(--line));
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   transform: translateX(3px);
 }
 
