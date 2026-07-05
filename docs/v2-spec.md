@@ -574,7 +574,13 @@ generation, detection, and linking — one family per run.
 - `applySetup(opts)` (re)writes that file, then appends a single guarded
   block (`# >>> ccmon managed >>>` … `. claude-accounts.sh` … `# <<< … <<<`)
   to each chosen rc that lacks it, and optionally installs the embedded
-  `claude-cross-resume` helper to `~/.local/bin` (mode 0755). Idempotent: a
+  `claude-cross-resume` helper to `~/.local/bin` (mode 0755). The helper's
+  overwrite policy makes the personal↔work round-trip lossless: it copies the
+  transcript when the destination is missing or the source has more lines (a
+  resumed session only appends, so more lines == newer), backing any
+  overwritten destination up to a timestamped `*.bak` first; `--force`/`--keep`
+  override the heuristic, `--dry-run`/`--no-launch` stop short of resuming.
+  Idempotent: a
   second apply links nothing new and never duplicates the block; by default
   rc files are only ever appended to, never rewritten. `planSetup(opts)` is
   the dry run — exact contents + per-rc append/no-op + helper status +
