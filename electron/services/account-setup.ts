@@ -75,42 +75,145 @@ function rcSourceBlock(family: Family): string {
  * relaunches `claude --resume` from the original cwd).
  */
 const HELPER_SCRIPT = `#!/usr/bin/env bash
-# Continue a Claude Code session on a different account.
-# Installed by ccmon. Copies the conversation transcript JSONL from one
-# CLAUDE_CONFIG_DIR's projects/ tree into another, reads the original working
-# directory out of the transcript, then re-launches \`claude --resume <id>\`
-# there with CLAUDE_CONFIG_DIR pointed at the destination account.
 #
-# Usage: claude-cross-resume <src-config-dir> <dst-config-dir> <session-id>
+# claude-cross-resume — continue a Claude Code session on a different account.
+# Installed by ccmon.
+#
+# Copies a conversation transcript (the <id>.jsonl) from one
+# CLAUDE_CONFIG_DIR's projects/ tree into another, reads the original
+# working directory out of the transcript, then re-launches
+# \`claude --resume <id>\` there with CLAUDE_CONFIG_DIR pointed at the
+# destination account.
+#
+# Auxiliary state (tasks/, file-history/, session-env/) is NOT copied; the
+# conversation resumes fine without it, but those caches start empty on the
+# destination side.
+#
+# Overwrite policy
+#   A resumed session only ever APPENDS lines to its JSONL, so line count is
+#   a reliable "which side holds the newer conversation" signal. This makes
+#   the personal <-> work round-trip seamless:
+#     - destination missing        -> copy
+#     - source has MORE lines       -> overwrite (destination backed up first)
+#     - source has <= lines         -> keep destination (same-or-newer)
+#   --force overwrites regardless; --keep never touches an existing
+#   destination. Any overwrite backs the destination up to a timestamped
+#   *.bak first, so nothing is lost.
+#
+# Usage: claude-cross-resume [--force|--keep|--dry-run|--no-launch] \\
+#            <src-config-dir> <dst-config-dir> <session-id>
+
 set -euo pipefail
 
-src="\${1:-}"
-dst="\${2:-}"
-id="\${3:-}"
+readonly PROG=$(basename "$0")
 
-if [[ -z $src || -z $dst || -z $id ]]; then
-    echo "usage: $(basename "$0") <src-config-dir> <dst-config-dir> <session-id>" >&2
-    exit 64
-fi
+usage() {
+    cat <<EOF
+$PROG — continue a Claude Code session on a different account.
+
+Usage:
+  $PROG [options] <src-config-dir> <dst-config-dir> <session-id>
+
+Options:
+  -f, --force        Overwrite an existing destination transcript even if it
+                     is same-or-newer (the old copy is still backed up).
+      --keep         Never overwrite an existing destination (strict).
+  -n, --dry-run      Report what would happen; copy nothing and do not launch.
+      --no-launch    Copy as normal but do not exec \\\`claude --resume\\\`.
+  -h, --help         Show this help and exit.
+
+Default (no -f/--keep): overwrite only when the source has more lines than
+the destination — a resumed session only appends, so more lines == newer.
+EOF
+}
+
+log()  { printf '%s\\n' "$*" >&2; }        # human-facing status
+die()  { printf '%s: %s\\n' "$PROG" "$1" >&2; exit "\${2:-1}"; }
+
+force=0
+keep=0
+dry_run=0
+launch=1
+positional=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f | --force)  force=1 ;;
+        --keep)        keep=1 ;;
+        -n | --dry-run) dry_run=1 ;;
+        --no-launch)   launch=0 ;;
+        -h | --help)   usage; exit 0 ;;
+        --)            shift; while [[ $# -gt 0 ]]; do positional+=("$1"); shift; done; break ;;
+        -*)            die "unknown option: $1" 64 ;;
+        *)             positional+=("$1") ;;
+    esac
+    shift
+done
+
+src="\${positional[0]:-}"
+dst="\${positional[1]:-}"
+id="\${positional[2]:-}"
+
+[[ -n $src && -n $dst && -n $id ]] || { usage >&2; exit 64; }
+[[ $force -eq 1 && $keep -eq 1 ]] && die "--force and --keep are mutually exclusive" 64
+[[ -d $src ]] || die "source config dir not found: $src" 66
+[[ -d $dst ]] || die "destination config dir not found: $dst" 66
 
 src_file=$(find "$src/projects" -maxdepth 2 -name "\${id}.jsonl" -type f 2>/dev/null | head -1)
-if [[ -z $src_file ]]; then
-    echo "session $id not found under $src/projects" >&2
-    exit 1
-fi
+[[ -n $src_file ]] || die "session $id not found under $src/projects"
 
 proj=$(basename "$(dirname "$src_file")")
 dst_dir="$dst/projects/$proj"
-mkdir -p "$dst_dir"
+dst_file="$dst_dir/\${id}.jsonl"
 
-if [[ -e "$dst_dir/\${id}.jsonl" ]]; then
-    echo "note: $dst_dir/\${id}.jsonl already exists — keeping existing destination copy" >&2
+lines() { wc -l < "$1" 2>/dev/null | tr -d ' '; }
+
+# A collision-safe backup name: <file>.<timestamp>.bak, then .bak-1, .bak-2…
+backup_path() {
+    local base="\${dst_file}.$(date +%Y%m%d-%H%M%S).bak" candidate n=1
+    candidate="$base"
+    while [[ -e $candidate ]]; do candidate="\${base}-\${n}"; ((n++)); done
+    printf '%s' "$candidate"
+}
+
+do_copy() {
+    if [[ $dry_run -eq 1 ]]; then
+        [[ -e $dst_file ]] && log "[dry-run] would back up existing destination"
+        log "[dry-run] would copy transcript → $dst_file ($(lines "$src_file") lines)"
+        return
+    fi
+    mkdir -p "$dst_dir"
+    if [[ -e $dst_file ]]; then
+        local bak; bak=$(backup_path)
+        cp -p "$dst_file" "$bak"
+        log "backed up existing destination → $bak"
+    fi
+    cp "$src_file" "$dst_file"
+    echo "copied transcript → $dst_file ($(lines "$src_file") lines)"
+}
+
+# --- decide whether to copy -------------------------------------------------
+if [[ ! -e $dst_file ]]; then
+    do_copy
+elif [[ $keep -eq 1 ]]; then
+    log "note: destination exists — keeping it (--keep)"
+elif [[ $force -eq 1 ]]; then
+    log "overwriting destination (--force)"
+    do_copy
 else
-    cp "$src_file" "$dst_dir/"
-    echo "copied transcript → $dst_dir/\${id}.jsonl"
+    src_lines=$(lines "$src_file"); dst_lines=$(lines "$dst_file")
+    if [[ \${src_lines:-0} -gt \${dst_lines:-0} ]]; then
+        log "source is newer (\${src_lines} > \${dst_lines} lines) — overwriting"
+        do_copy
+    else
+        log "note: destination is same-or-newer (\${dst_lines} >= \${src_lines} lines) — keeping it; use --force to override"
+    fi
 fi
 
-cwd=$(python3 - "$src_file" <<'PY' 2>/dev/null || true
+# --- locate the original working directory ----------------------------------
+cwd=""
+if command -v python3 >/dev/null 2>&1; then
+    cwd=$(python3 - "$src_file" <<'PY' 2>/dev/null || true
 import json, sys
 for line in open(sys.argv[1]):
     try:
@@ -121,6 +224,15 @@ for line in open(sys.argv[1]):
         print(d["cwd"]); break
 PY
 )
+fi
+
+# --- launch (or explain how to) ---------------------------------------------
+if [[ $dry_run -eq 1 || $launch -eq 0 ]]; then
+    reason=$([[ $dry_run -eq 1 ]] && echo "dry-run" || echo "--no-launch")
+    log "[$reason] not launching. To resume manually:"
+    log "  cd '\${cwd:-<project dir>}' && CLAUDE_CONFIG_DIR='$dst' claude --resume $id"
+    exit 0
+fi
 
 if [[ -n $cwd && -d $cwd ]]; then
     cd "$cwd"
@@ -131,7 +243,7 @@ fi
 cat >&2 <<EOF
 could not auto-locate the original working directory.
 cd to the project dir manually, then run:
-  CLAUDE_CONFIG_DIR=$dst claude --resume $id
+  CLAUDE_CONFIG_DIR='$dst' claude --resume $id
 EOF
 exit 1
 `;
