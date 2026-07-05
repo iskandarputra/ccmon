@@ -11,6 +11,11 @@
     radial-gradient(130% 90% at 50% -20%, color-mix(in oklab, var(--amber) 7%, transparent), transparent 62%),
     linear-gradient(180deg, color-mix(in srgb, var(--text) 2.5%, var(--bg1)) 0%, var(--bg1) 52%);
 }
+/* calm state: always-on manual switch, no looming cap — drop the amber alarm */
+.acc-headroom.is-calm {
+  border-color: var(--line);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 2.5%, var(--bg1)) 0%, var(--bg1) 52%);
+}
 
 .hr-title {
   display: inline-flex;
@@ -56,6 +61,9 @@
 }
 .hr-room {
   color: var(--ok);
+}
+.hr-cur {
+  color: var(--text-faint);
 }
 .hr-arrow {
   font-size: 22px;
