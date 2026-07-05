@@ -4,8 +4,11 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import { describe, expect, it } from 'vitest';
-import { limitWindow } from '../accounts';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { accountInfo, limitWindow } from '../accounts';
 
 describe('limitWindow — utilization scale', () => {
   it('reads utilization as a 0–100 percent directly', () => {
@@ -43,5 +46,34 @@ describe('limitWindow — utilization scale', () => {
     expect(limitWindow({})).toBeNull();
     expect(limitWindow({ resets_at: 'not-a-date' })).toBeNull();
     expect(limitWindow({ utilization: Number.NaN })).toBeNull();
+  });
+});
+
+describe('accountInfo — cleanupPeriodDays', () => {
+  let root: string;
+  let projectDir: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-account-'));
+    projectDir = path.join(root, 'projects');
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(path.join(root, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'x' } }));
+  });
+  afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  it('falls back to Claude Code\'s default (30) when settings.json is absent', () => {
+    expect(accountInfo(projectDir)?.cleanupPeriodDays).toBe(30);
+  });
+
+  it('reads a custom cleanupPeriodDays from <root>/settings.json', () => {
+    fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ cleanupPeriodDays: 90 }));
+    expect(accountInfo(projectDir)?.cleanupPeriodDays).toBe(90);
+  });
+
+  it('falls back to the default on an invalid value (0, negative, non-numeric)', () => {
+    for (const bad of [0, -5, 'never']) {
+      fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ cleanupPeriodDays: bad }));
+      expect(accountInfo(projectDir)?.cleanupPeriodDays).toBe(30);
+    }
   });
 });

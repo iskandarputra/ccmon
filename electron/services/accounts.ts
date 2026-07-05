@@ -58,6 +58,13 @@ interface CredentialsFile {
   claudeAiOauth?: OauthCredentials;
 }
 
+interface SettingsFile {
+  cleanupPeriodDays?: number;
+}
+
+/** Claude Code's own undocumented default — matches its settings.json schema. */
+const DEFAULT_CLEANUP_PERIOD_DAYS = 30;
+
 export interface UsageApiWindow {
   utilization?: number;
   resets_at?: string;
@@ -100,6 +107,21 @@ function credentials(projectDir: string): OauthCredentials | null {
 }
 
 /**
+ * Claude Code's transcript-retention window for this account root
+ * (`cleanupPeriodDays` in `<root>/settings.json`) — it deletes session
+ * transcripts older than this, at CLI startup, so ccmon's "all time" totals
+ * can only ever cover this many days back. Falls back to Claude Code's own
+ * default when unset or invalid (the CLI itself rejects values below 1).
+ */
+function cleanupPeriodDays(projectDir: string): number {
+  const settings = readJson<SettingsFile>(path.join(rootOf(projectDir), 'settings.json'));
+  const days = settings?.cleanupPeriodDays;
+  return typeof days === 'number' && Number.isFinite(days) && days >= 1
+    ? days
+    : DEFAULT_CLEANUP_PERIOD_DAYS;
+}
+
+/**
  * Plan multiplier from the stored rateLimitTier, e.g.
  * 'default_claude_max_5x' → '5x', 'default_claude_max_20x' → '20x'.
  * (The same value is also served by /api/oauth/profile as
@@ -126,6 +148,7 @@ export function accountInfo(projectDir: string): AccountInfo | null {
     email: oauth?.emailAddress || null,
     organization: oauth?.organizationName || null,
     hasCredentials: !!creds?.accessToken,
+    cleanupPeriodDays: cleanupPeriodDays(projectDir),
   };
 }
 

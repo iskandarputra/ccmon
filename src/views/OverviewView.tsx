@@ -54,9 +54,23 @@ function SectionLabel({ icon, children }: { icon: ReactNode; children: ReactNode
 export function OverviewView() {
   const snapshot = useUsageStore((s) => s.snapshot);
   const limits = useUsageStore((s) => s.limits);
+  const accounts = useUsageStore((s) => s.accounts);
   const scoped = useScopedDirs();
   // limits cover every account now — gate this overview card on the scoped one
   const haveLimits = scoped.some((d) => limits[d]);
+
+  // Claude Code deletes old session transcripts on its own schedule
+  // (cleanupPeriodDays, default 30) — the "all time" total can only ever
+  // cover what's still on disk, so the Hint below names the real window.
+  const retentionDays = Array.from(
+    new Set(scoped.map((d) => accounts[d]?.cleanupPeriodDays).filter((n): n is number => typeof n === 'number')),
+  );
+  const retentionNote =
+    retentionDays.length === 1
+      ? `${retentionDays[0]} days`
+      : retentionDays.length > 1
+        ? `${Math.min(...retentionDays)}–${Math.max(...retentionDays)} days, depending on the account`
+        : '30 days by default';
 
   if (!snapshot) {
     return (
@@ -138,7 +152,7 @@ export function OverviewView() {
           hint={
             <Hint label="what is this?">
               {isAll
-                ? 'Your all-time total estimated spend and token usage recorded by the local CLI since you began tracking.'
+                ? `Your all-time total estimated spend and token usage from whatever session transcripts are still on disk. Claude Code automatically deletes its own transcripts after ${retentionNote} (the \`cleanupPeriodDays\` setting in each account's settings.json) — this total can't include anything already cleaned up, so it drifts forward over time rather than truly covering "forever".`
                 : `Estimated spend and token usage over the selected range (${range.label}). Change it from the range control in the title bar.`}
             </Hint>
           }

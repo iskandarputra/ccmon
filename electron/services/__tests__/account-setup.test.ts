@@ -14,9 +14,11 @@ import {
   detectShells,
   managedNames,
   planSetup,
+  renameAccountDir,
   renderManagedScript,
   scanRcForWrappers,
   suggestLabel,
+  writeWrapperAccounts,
   type SetupEnv,
 } from '../account-setup';
 import type { SetupOptions } from '../../../shared/types';
@@ -170,6 +172,67 @@ describe('applySetup — writes and idempotency', () => {
   });
 });
 
+describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => {
+  it('writes the managed file without touching any rc', () => {
+    const r = writeWrapperAccounts(opts().accounts, env);
+    expect(r.ok).toBe(true);
+    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    expect(managed).toContain('claude-work() {');
+    expect(fs.existsSync(path.join(home, '.bashrc'))).toBe(false);
+  });
+
+  it('a rename overwrites the launcher under the new name only', () => {
+    writeWrapperAccounts(opts().accounts, env);
+    const renamed = opts().accounts.map((a) =>
+      a.name === 'claude-work' ? { ...a, name: 'claude-client-x' } : a,
+    );
+    writeWrapperAccounts(renamed, env);
+    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    expect(managed).toContain('claude-client-x() {');
+    expect(managed).not.toContain('claude-work() {');
+    expect(managed).toContain('claude-personal() {'); // untouched account survives
+  });
+
+  it('untracking drops the account from the file entirely', () => {
+    writeWrapperAccounts(opts().accounts, env);
+    const kept = opts().accounts.filter((a) => a.name !== 'claude-work');
+    writeWrapperAccounts(kept, env);
+    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    expect(managed).not.toContain('claude-work');
+    expect(managed).toContain('claude-personal() {');
+  });
+
+  it('untracking every account leaves an empty (but valid) managed file', () => {
+    writeWrapperAccounts(opts().accounts, env);
+    const r = writeWrapperAccounts([], env);
+    expect(r.ok).toBe(true);
+    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    expect(managed).not.toContain('claude-personal');
+    expect(managed).not.toContain('claude-work');
+  });
+
+  it('rejects an invalid or duplicate name without writing', () => {
+    fs.mkdirSync(path.join(home, '.config', 'ccmon'), { recursive: true });
+    const before = 'sentinel';
+    fs.writeFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), before);
+
+    const bad = writeWrapperAccounts([{ name: '1bad', root: path.join(home, '.claude') }], env);
+    expect(bad.ok).toBe(false);
+
+    const dup = writeWrapperAccounts(
+      [
+        { name: 'claude-x', root: path.join(home, '.claude') },
+        { name: 'claude-x', root: path.join(home, '.claude-work') },
+      ],
+      env,
+    );
+    expect(dup.ok).toBe(false);
+
+    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    expect(managed).toBe(before); // rejected writes never touch the file
+  });
+});
+
 describe('conflict detection — pre-existing hand-written wrappers', () => {
   // the real scenario: the user already has hand-written claude-* in ~/.zyrc
   const HANDWRITTEN =
@@ -303,6 +366,52 @@ describe('createAccountDir', () => {
 
   it('rejects an invalid suffix', () => {
     const res = createAccountDir('../escape', env);
+    expect(res.ok).toBe(false);
+    expect(res.error).toBeTruthy();
+  });
+});
+
+describe('renameAccountDir', () => {
+  it('moves ~/.claude-<old> to ~/.claude-<new> on disk', () => {
+    const oldRoot = path.join(home, '.claude-work-mine');
+    fs.mkdirSync(path.join(oldRoot, 'projects'), { recursive: true });
+    fs.writeFileSync(path.join(oldRoot, '.credentials.json'), '{}');
+
+    const res = renameAccountDir(oldRoot, 'work-yes', env);
+    expect(res.ok).toBe(true);
+    expect(res.root).toBe(path.join(home, '.claude-work-yes'));
+    expect(fs.existsSync(oldRoot)).toBe(false);
+    expect(fs.existsSync(path.join(res.root, '.credentials.json'))).toBe(true);
+  });
+
+  it('refuses to rename the default ~/.claude root', () => {
+    const defaultRoot = path.join(home, '.claude');
+    fs.mkdirSync(defaultRoot, { recursive: true });
+    const res = renameAccountDir(defaultRoot, 'personal-old', env);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/default/);
+    expect(fs.existsSync(defaultRoot)).toBe(true);
+  });
+
+  it('rejects a collision with an existing account dir', () => {
+    const oldRoot = path.join(home, '.claude-a');
+    fs.mkdirSync(oldRoot, { recursive: true });
+    fs.mkdirSync(path.join(home, '.claude-b'), { recursive: true });
+    const res = renameAccountDir(oldRoot, 'b', env);
+    expect(res.ok).toBe(false);
+    expect(fs.existsSync(oldRoot)).toBe(true); // untouched
+  });
+
+  it('rejects an invalid suffix without touching the source dir', () => {
+    const oldRoot = path.join(home, '.claude-work');
+    fs.mkdirSync(oldRoot, { recursive: true });
+    const res = renameAccountDir(oldRoot, '../escape', env);
+    expect(res.ok).toBe(false);
+    expect(fs.existsSync(oldRoot)).toBe(true);
+  });
+
+  it('errors when the source dir does not exist', () => {
+    const res = renameAccountDir(path.join(home, '.claude-ghost'), 'ghost2', env);
     expect(res.ok).toBe(false);
     expect(res.error).toBeTruthy();
   });

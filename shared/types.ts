@@ -186,6 +186,16 @@ export interface AppSettings {
   notifyNearCap: boolean;
   /** model id the AI usage advisor uses (reuses the Claude Code login) */
   aiModel: string;
+  /** per config-root shell-wrapper prefs (rename / untrack), keyed by root path */
+  accountWrapperPrefs: Record<string, AccountWrapperPrefs>;
+}
+
+/** A user override for one account's generated shell wrapper. */
+export interface AccountWrapperPrefs {
+  /** overrides the auto-suggested wrapper command name */
+  name?: string;
+  /** true = excluded from the generated wrapper file (untracked, not deleted) */
+  disabled?: boolean;
 }
 
 // ---- currency (§5) ----------------------------------------------------------
@@ -707,6 +717,8 @@ export interface AccountInfo {
   email: string | null;
   organization: string | null;
   hasCredentials: boolean;
+  /** Claude Code's transcript-retention window (`cleanupPeriodDays` in `<root>/settings.json`, default 30) */
+  cleanupPeriodDays: number;
 }
 
 export interface LimitWindow {

@@ -4,7 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import type { AccountsMap, LimitsMap } from '../../shared/types';
+import type { AccountSpec, AccountWrapperPrefs, AccountsMap, LimitsMap } from '../../shared/types';
 
 /**
  * ccmon polls every account's live limits, so it uniquely knows when the
@@ -163,4 +163,43 @@ export function crossResumeCommand(fromDir: string, toDir: string, sessionId?: s
   const from = sh(accountRoot(fromDir));
   const to = sh(accountRoot(toDir));
   return `claude-cross-resume ${from} ${to} ${sessionId ?? '<session-id>'}`;
+}
+
+// ---- shell-wrapper naming (mirrors electron/services/account-setup.ts, which
+// can't import from src/) -----------------------------------------------------
+
+/** A nice default wrapper name for a config root (~/.claude → claude-personal). */
+export function suggestWrapperName(root: string): string {
+  const base = root.split(/[\\/]/).filter(Boolean).pop() || root;
+  if (base === '.claude') return 'claude-personal';
+  const suffix = base.replace(/^\.+/, '').replace(/^claude[-_]?/, '');
+  return suffix ? `claude-${suffix}` : 'claude-account';
+}
+
+/**
+ * True for the literal `~/.claude` root — the default Claude Code CLI and
+ * any tool that doesn't go through a ccmon wrapper falls back to this exact
+ * path when `CLAUDE_CONFIG_DIR` isn't set, so it's the one root that must
+ * never be renamed or moved.
+ */
+export function isDefaultAccountRoot(root: string): boolean {
+  return root.split(/[\\/]/).filter(Boolean).pop() === '.claude';
+}
+
+/** Same shape the service enforces server-side (`account-setup.ts#NAME_RE`). */
+export const WRAPPER_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+/**
+ * The account list the managed wrapper file should contain, given every
+ * discovered source dir and the user's rename/untrack prefs: disabled roots
+ * are dropped, others get their custom name or the suggested default.
+ */
+export function effectiveWrapperAccounts(
+  sourceDirs: string[],
+  prefs: Record<string, AccountWrapperPrefs>,
+): AccountSpec[] {
+  return sourceDirs
+    .map(accountRoot)
+    .filter((root) => !prefs[root]?.disabled)
+    .map((root) => ({ name: prefs[root]?.name || suggestWrapperName(root), root }));
 }

@@ -554,17 +554,27 @@ export function detectShells(env: SetupEnv = defaultEnv()): ShellDetection {
 
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
-/** Validation problems that must block an apply. */
-function validate(opts: SetupOptions): string[] {
+/**
+ * Validation problems with the account list itself (name format, dupes,
+ * root). An empty list is valid here — it just means "no wrapper file
+ * entries" — the full wizard flow additionally requires at least one.
+ */
+function validateAccounts(accounts: AccountSpec[]): string[] {
   const problems: string[] = [];
-  if (!opts.accounts.length) problems.push('no accounts to set up');
   const seen = new Set<string>();
-  for (const a of opts.accounts) {
+  for (const a of accounts) {
     if (!NAME_RE.test(a.name)) problems.push(`invalid wrapper name "${a.name}"`);
     if (seen.has(a.name)) problems.push(`duplicate wrapper name "${a.name}"`);
     seen.add(a.name);
     if (!a.root || !path.isAbsolute(a.root)) problems.push(`"${a.name}" has no config dir`);
   }
+  return problems;
+}
+
+/** Validation problems that must block a full apply (accounts + rc selection). */
+function validate(opts: SetupOptions): string[] {
+  const problems = validateAccounts(opts.accounts);
+  if (!opts.accounts.length) problems.push('no accounts to set up');
   if (!opts.rcPaths.length) problems.push('pick at least one shell to link');
   return problems;
 }
@@ -698,6 +708,32 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
 }
 
 /**
+ * Rewrite just the managed wrapper file for a rename or untrack — never
+ * touches rc files or the cross-resume helper, since neither depends on
+ * which accounts are in the wrapper. Used by the Accounts view's quick
+ * rename / remove-from-shell controls, outside the full setup wizard flow.
+ */
+export function writeWrapperAccounts(
+  accounts: AccountSpec[],
+  env: SetupEnv = defaultEnv(),
+): { ok: boolean; errors: string[] } {
+  const problems = validateAccounts(accounts);
+  if (problems.length) return { ok: false, errors: problems };
+  const { home } = env;
+  const family = familyOf(env.platform);
+  const managedPath = managedScriptPath(home, family);
+  try {
+    fs.mkdirSync(path.dirname(managedPath), { recursive: true });
+    fs.writeFileSync(managedPath, renderManagedScript(accounts, home, family));
+    return { ok: true, errors: [] };
+  } catch (e) {
+    return { ok: false, errors: [`managed file: ${msg(e)}`] };
+  }
+}
+
+const SUFFIX_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+/**
  * Create a sibling config dir `~/.claude-<suffix>` (with its projects/ subdir)
  * so it shows up as a new account. The user still logs in there once via the
  * generated wrapper. Returns the new root or a validation/error reason.
@@ -707,7 +743,7 @@ export function createAccountDir(
   env: SetupEnv = defaultEnv(),
 ): { ok: boolean; root: string; error?: string } {
   const clean = suffix.trim().replace(/^[.\s]+/, '');
-  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(clean)) {
+  if (!SUFFIX_RE.test(clean)) {
     return { ok: false, root: '', error: 'use letters, digits, dash or underscore' };
   }
   const root = path.join(env.home, `.claude-${clean}`);
@@ -717,6 +753,41 @@ export function createAccountDir(
   try {
     fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
     return { ok: true, root };
+  } catch (e) {
+    return { ok: false, root, error: msg(e) };
+  }
+}
+
+/**
+ * Rename a sibling account's config dir on disk: `~/.claude-<old>` →
+ * `~/.claude-<suffix>`. The default `~/.claude` root is refused — Claude
+ * Code's CLI (and anything else that doesn't go through a ccmon wrapper)
+ * falls back to that literal path when `CLAUDE_CONFIG_DIR` isn't set, so
+ * moving it would break tools outside ccmon's control. Live file-watching
+ * of the new path needs an app relaunch, same as `createAccountDir`.
+ */
+export function renameAccountDir(
+  root: string,
+  suffix: string,
+  env: SetupEnv = defaultEnv(),
+): { ok: boolean; root: string; error?: string } {
+  const { home } = env;
+  if (root === path.join(home, '.claude')) {
+    return { ok: false, root, error: "can't rename the default ~/.claude account" };
+  }
+  const clean = suffix.trim().replace(/^[.\s]+/, '');
+  if (!SUFFIX_RE.test(clean)) {
+    return { ok: false, root, error: 'use letters, digits, dash or underscore' };
+  }
+  const newRoot = path.join(home, `.claude-${clean}`);
+  if (newRoot === root) return { ok: true, root };
+  if (!fs.existsSync(root)) return { ok: false, root, error: 'account folder not found' };
+  if (fs.existsSync(newRoot)) {
+    return { ok: false, root, error: `~/.claude-${clean} already exists` };
+  }
+  try {
+    fs.renameSync(root, newRoot);
+    return { ok: true, root: newRoot };
   } catch (e) {
     return { ok: false, root, error: msg(e) };
   }

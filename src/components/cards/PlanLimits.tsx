@@ -5,7 +5,7 @@
  */
 
 import './planlimits.css';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Panel } from '../ui/Panel';
 import { Hint } from '../ui/Hint';
 import { LoginPrompt } from '../auth/LoginPrompt';
@@ -14,6 +14,7 @@ import { useNow } from '../../hooks/useNow';
 import { useScopedDirs } from '../../hooks/useScopedDirs';
 import { countdown, fmtPct, relTime, sourceLabel } from '../../lib/format';
 import { limitColor } from '../../lib/limits';
+import { planBadgeColor } from '../../lib/plans';
 import type { LimitSample, LimitWindow, WindowForecast } from '../../../shared/types';
 
 /** A failure that re-authenticating would fix — show the in-app Log in control. */
@@ -45,6 +46,8 @@ function fmtErr(err: string | undefined): string {
 
 const resetLabel = (ts: number) =>
   new Date(ts).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+
+const cssVars = (vars: Record<string, string>) => vars as CSSProperties;
 
 interface WindowTileProps {
   label: string;
@@ -187,7 +190,10 @@ export function PlanLimits() {
               <div className="plim-head">
                 <span className="plim-name">{sourceLabel(dir)}</span>
                 {acct?.plan && (
-                  <span className="plim-plan">
+                  <span
+                    className="plim-plan"
+                    style={cssVars({ '--pc': planBadgeColor(acct.plan, acct.tier) ?? 'var(--amber)' })}
+                  >
                     {acct.plan}
                     {acct.tier ? ` · ${acct.tier}` : ''}
                   </span>

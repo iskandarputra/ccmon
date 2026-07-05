@@ -1,0 +1,96 @@
+/* confirm dialog (.cfd- prefix) */
+
+.cfd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: color-mix(in srgb, var(--bg0) 60%, transparent);
+  backdrop-filter: blur(3px);
+  animation: cfd-fade var(--dur-1) var(--ease-out);
+}
+@keyframes cfd-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.cfd {
+  width: min(420px, 92%);
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px -18px rgba(0, 0, 0, 0.6);
+  padding: 20px;
+  animation: cfd-rise var(--dur-2) var(--ease-out);
+}
+@keyframes cfd-rise {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.cfd-title {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.cfd-body {
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.cfd-body code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.cfd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.cfd-cancel,
+.cfd-confirm {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+.cfd-cancel {
+  background: transparent;
+  color: var(--text-dim);
+}
+.cfd-cancel:hover {
+  background: var(--bg2);
+}
+
+.cfd-confirm {
+  background: color-mix(in srgb, var(--amber) 20%, var(--bg2));
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+}
+.cfd-confirm:hover {
+  background: color-mix(in srgb, var(--amber) 30%, var(--bg2));
+}
+.cfd-confirm.is-danger {
+  background: color-mix(in srgb, var(--rose) 20%, var(--bg2));
+  border-color: color-mix(in srgb, var(--rose) 45%, var(--line));
+}
+.cfd-confirm.is-danger:hover {
+  background: color-mix(in srgb, var(--rose) 32%, var(--bg2));
+}
+.cfd-confirm:disabled,
+.cfd-cancel:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
