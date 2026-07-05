@@ -173,6 +173,20 @@ export class LimitsHistory {
     return { session, week };
   }
 
+  /**
+   * Migrate this account's history to a new dir key after a folder rename
+   * (`renameAccountDir`) — otherwise the sparkline/forecast/caps for that
+   * account silently reset to empty under the new path while the old key
+   * sits orphaned forever.
+   */
+  renameDir(oldDir: string, newDir: string): void {
+    if (oldDir === newDir || !this.data[oldDir]) return;
+    const merged = [...(this.data[newDir] || []), ...this.data[oldDir]].sort((a, b) => a.ts - b.ts);
+    this.data[newDir] = merged;
+    delete this.data[oldDir];
+    this.save();
+  }
+
   /** Reset/cap retrospective over the retained history, or null when empty. */
   caps(dir: string): LimitsCaps | null {
     const arr = this.data[dir];

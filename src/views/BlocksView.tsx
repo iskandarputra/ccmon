@@ -9,7 +9,6 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Panel } from '../components/ui/Panel';
 import { Hint } from '../components/ui/Hint';
 import { StatCard } from '../components/cards/StatCard';
-import { PlanLimits } from '../components/cards/PlanLimits';
 import { useUsageStore } from '../store/useUsageStore';
 import { useNow } from '../hooks/useNow';
 import { useScopedDirs } from '../hooks/useScopedDirs';
@@ -462,12 +461,6 @@ export function BlocksView() {
           />
         )}
       </div>
-
-      {scopedLimitDirs.length > 0 && (
-        <div className="g12">
-          <PlanLimits />
-        </div>
-      )}
 
       <div className="g3">
         <StatCard label={`blocks · ${blkShort}`} value={fmtInt(usage.length)} sub="5h billing windows" />

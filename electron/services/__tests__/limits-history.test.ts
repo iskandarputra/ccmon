@@ -134,3 +134,37 @@ describe('LimitsHistory — cap retrospective', () => {
     expect(caps.week.capped).toBe(1);
   });
 });
+
+describe('LimitsHistory — renameDir', () => {
+  const NEW_DIR = '/data2/projects';
+
+  it('moves the history to the new dir key and drops the old one', () => {
+    const h = fresh();
+    h.record(DIR, ok(10, 10, NOW - MIN), NOW - MIN);
+    h.record(DIR, ok(20, 20, NOW), NOW);
+    h.renameDir(DIR, NEW_DIR);
+    expect(h.uiSamples(DIR)).toEqual([]);
+    expect(h.uiSamples(NEW_DIR).map((s) => s.week)).toEqual([10, 20]);
+  });
+
+  it('is a no-op when there is nothing recorded under the old dir', () => {
+    const h = fresh();
+    h.renameDir(DIR, NEW_DIR);
+    expect(h.uiSamples(NEW_DIR)).toEqual([]);
+  });
+
+  it('is a no-op when old and new dir are the same', () => {
+    const h = fresh();
+    h.record(DIR, ok(10, 10, NOW), NOW);
+    h.renameDir(DIR, DIR);
+    expect(h.uiSamples(DIR).map((s) => s.week)).toEqual([10]);
+  });
+
+  it('merges into an existing new-dir history, sorted by time', () => {
+    const h = fresh();
+    h.record(DIR, ok(30, 30, NOW), NOW);
+    h.record(NEW_DIR, ok(5, 5, NOW - MIN), NOW - MIN);
+    h.renameDir(DIR, NEW_DIR);
+    expect(h.uiSamples(NEW_DIR).map((s) => s.week)).toEqual([5, 30]);
+  });
+});

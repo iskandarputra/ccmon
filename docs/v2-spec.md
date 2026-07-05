@@ -353,7 +353,7 @@ pricing refetch; `pricing:meta` events carry `engine.meta()`.
 
 `accountWrapperPrefs: Record<config-root, { name?, disabled? }>` holds
 per-account overrides for the generated shell wrapper (`claude-*` commands,
-§8): `name` renames the wrapper command; `disabled: true` untracks the
+§8): `name` overrides the wrapper command; `disabled: true` untracks the
 account — it's dropped from the next generated
 `~/.config/ccmon/claude-accounts.sh`, but the config root, its transcripts,
 and its credentials are never touched. Absent/empty means every detected
@@ -361,14 +361,23 @@ root gets its auto-suggested name (`~/.claude` → `claude-personal`, else
 `claude-<suffix>`). `AccountsView`'s per-account rename/remove controls and
 `SetupWizard` both read and write this map via `effectiveWrapperAccounts()`
 (`src/lib/crossAccount.ts`) so the wizard and the quick-action buttons never
-disagree on what the wrapper file should contain. Renaming the wrapper
-label or untracking calls `window.ccmon.updateWrapperAccounts(accounts)`,
-which only rewrites the managed wrapper file (`writeWrapperAccounts` in
-`account-setup.ts`) — it never touches rc files, so it needs no shell
-selection. This map is keyed by absolute config-root path, so renaming the
-account's *folder* on disk (§8, `renameAccountDir`) requires the caller to
-migrate the entry to the new root key itself — the map has no path-rename
-awareness of its own.
+disagree on what the wrapper file should contain.
+
+For every account EXCEPT the default `~/.claude` root, `name` is never set
+independently of the folder — `AccountsView`'s single "rename" control (§8)
+always renames the config-root folder AND sets `name` to
+`claude-<newSuffix>` in the same action, so the wrapper command and the
+folder suffix can never drift apart (a real bug from the two-control design
+this replaced: a user's own hand-maintained shell rc could fall out of sync
+with a renamed folder with no indication anything was wrong). The default
+root has no folder to rename, so it's the one place `name` is still a
+free-text label. Untracking (`disabled`) and re-adding are unaffected by
+this and still call `updateWrapperAccounts(accounts)` directly, which only
+rewrites the managed wrapper file (`writeWrapperAccounts` in
+`account-setup.ts`) — never rc files, so no shell selection is needed. This
+map is keyed by absolute config-root path, so a folder rename (§8,
+`renameAccountDir`) migrates the entry to the new root key itself — the map
+has no path-rename awareness of its own.
 
 ### 5.2 Accounts and live limits — `electron/services/accounts.ts`
 
@@ -418,9 +427,11 @@ keeps ccmon and Claude Code in lockstep. Exposed as `login(dir)` /
 Results per dir, `{ok, fetchedAt, session, week, weekOpus, weekSonnet}`
 with windows as `{pct, resetsAt}` (from `five_hour` / `seven_day` /
 `seven_day_opus` / `seven_day_sonnet`), flow via `limits:data` events and
-`limits` in getState. The shared `<PlanLimits/>` panel renders the scoped
-account(s) on the overview and blocks views; the accounts dashboard
-(`src/views/AccountsView.tsx`) renders ALL of them. `bindingSession`/
+`limits` in getState. The `<PlanLimits/>` panel renders the scoped
+account(s) on the overview view only (the Blocks view used to duplicate it;
+now it just reads `haveLiveLimits` off the same `limits` map to decide
+whether to hide its own local block-derived estimate); the accounts
+dashboard (`src/views/AccountsView.tsx`) renders ALL of them. `bindingSession`/
 `bindingWeek` in `src/lib/limits.ts` take an optional `dirs` allow-list so a
 caller can bind across the scoped accounts (overview) or all of them.
 
@@ -457,6 +468,12 @@ Each ok `LimitsResult` then carries:
 
 Failed refreshes re-serve the last good history/forecast/caps unchanged,
 under the same `stale` flag.
+
+Samples are keyed by project dir, so a folder rename (§8,
+`renameAccountDir`) would otherwise orphan them under the old key —
+`renameDir(oldDir, newDir)` moves (merging + re-sorting by `ts` if the new
+key somehow already has samples) and deletes the old entry; the
+`setup:renameAccount` handler calls it right after a successful rename.
 
 ### 5.4 Display currency — `electron/services/currency.ts`
 
@@ -635,15 +652,29 @@ generation, detection, and linking — one family per run.
   when `CLAUDE_CONFIG_DIR` is unset, so moving it would break tools outside
   ccmon's control (`isDefaultAccountRoot` in `src/lib/crossAccount.ts` gates
   the UI control for the same reason). Rejects a collision with an existing
-  dir. The Accounts view's "rename folder…" control calls this, then
-  migrates that root's `accountWrapperPrefs` key (§5.1) and re-detects
-  `sourceDirs`/`accounts` the same way `createAccount` does — live
-  file-watching of the new path still needs an app relaunch, so the UI
-  says so after a successful rename.
+  dir. The Accounts view's single "rename" control (every account except the
+  default root) calls this AND sets `accountWrapperPrefs[newRoot].name` to
+  `claude-<suffix>` in the same confirmed action (§5.1) — the folder and the
+  wrapper command always rename together, never independently, then
+  re-detects `sourceDirs`/`accounts` the same way `createAccount` does —
+  live file-watching of the new path still needs an app relaunch, so the UI
+  says so after a successful rename. The `setup:renameAccount` IPC handler
+  (main.ts) ALSO migrates the two other places a pre-rename project-dir
+  path can be pinned, so the renamed account doesn't quietly vanish or lose
+  history after a restart: `LimitsHistory.renameDir()` (§5.3, moves the
+  sparkline/forecast/caps samples to the new dir key) and, if the old dir
+  was named in `settings.sources` (§5.1 — e.g. the account was individually
+  scoped or included in "view all together"), that entry is rewritten to
+  the new dir and `settings:changed` is re-broadcast. Without this, a saved
+  scope naming the old path goes stale per §5.1's "stale paths are ignored"
+  rule and the renamed account silently drops out of Overview/Insights
+  while still showing correctly in the Accounts view (which lists every
+  `sourceDirs` entry unscoped).
 - `writeWrapperAccounts(accounts)` rewrites ONLY the managed script file —
   no rc edits, no helper install, no rc-selection requirement. Backs the
-  Accounts view's per-account rename ("wrapper name" inline edit) and
-  untrack ("remove from shell", confirmed via `ConfirmDialog`) controls,
+  Accounts view's combined rename (above), the default root's label-only
+  rename (inline edit — the one case with no folder to move), and untrack
+  ("remove from shell", confirmed via `ConfirmDialog`) controls, all of
   which persist to `settings.accountWrapperPrefs` (§5.1) and then call this
   so the wrapper file matches immediately, without going through the full
   wizard/rc flow. `SetupWizard` filters `disabled` roots out of the accounts

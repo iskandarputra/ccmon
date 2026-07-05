@@ -742,6 +742,7 @@ ipcMain.handle('setup:createAccount', (_e, suffix: string) => {
   return res;
 });
 ipcMain.handle('setup:renameAccount', (_e, root: string, suffix: string) => {
+  const oldDir = path.join(root, 'projects');
   const res = renameAccountDir(root, suffix);
   if (res.ok) {
     // same as setup:createAccount — re-detect so the renamed root shows up
@@ -750,6 +751,19 @@ ipcMain.handle('setup:renameAccount', (_e, root: string, suffix: string) => {
     state.sourceDirs = detectProjectDirs(cfg.claudeDirs || []);
     state.accounts = accountsFor(state.sourceDirs);
     void refreshLimits(true);
+
+    const newDir = path.join(res.root, 'projects');
+    state.limitsHistory?.renameDir(oldDir, newDir);
+
+    // a saved scope (settings.sources) can still name the pre-rename dir —
+    // migrate it so the renamed account doesn't silently drop out of the
+    // overview/insights views after a restart
+    const settings = state.settings;
+    const sources = settings?.get().sources;
+    if (settings && Array.isArray(sources) && sources.includes(oldDir)) {
+      const next = settings.patch({ sources: sources.map((d) => (d === oldDir ? newDir : d)) });
+      send('settings:changed', next);
+    }
   }
   return res;
 });
