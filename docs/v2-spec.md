@@ -351,6 +351,25 @@ The renderer patches via `window.ccmon.setSettings(partial)`; main echoes
 tokenLimit / sources change. `window.ccmon.refreshPricing()` forces a
 pricing refetch; `pricing:meta` events carry `engine.meta()`.
 
+`accountWrapperPrefs: Record<config-root, { name?, disabled? }>` holds
+per-account overrides for the generated shell wrapper (`claude-*` commands,
+§8): `name` renames the wrapper command; `disabled: true` untracks the
+account — it's dropped from the next generated
+`~/.config/ccmon/claude-accounts.sh`, but the config root, its transcripts,
+and its credentials are never touched. Absent/empty means every detected
+root gets its auto-suggested name (`~/.claude` → `claude-personal`, else
+`claude-<suffix>`). `AccountsView`'s per-account rename/remove controls and
+`SetupWizard` both read and write this map via `effectiveWrapperAccounts()`
+(`src/lib/crossAccount.ts`) so the wizard and the quick-action buttons never
+disagree on what the wrapper file should contain. Renaming the wrapper
+label or untracking calls `window.ccmon.updateWrapperAccounts(accounts)`,
+which only rewrites the managed wrapper file (`writeWrapperAccounts` in
+`account-setup.ts`) — it never touches rc files, so it needs no shell
+selection. This map is keyed by absolute config-root path, so renaming the
+account's *folder* on disk (§8, `renameAccountDir`) requires the caller to
+migrate the entry to the new root key itself — the map has no path-rename
+awareness of its own.
+
 ### 5.2 Accounts and live limits — `electron/services/accounts.ts`
 
 Each source root's identity (plan / tier / email / org) is read from
@@ -360,6 +379,17 @@ root) plus `<root>/.credentials.json`'s `rateLimitTier`
 the same value exists server-side at `/api/oauth/profile`
 `organization.rate_limit_tier`). Exposed as `accounts` (dir-keyed) in
 `app:getState`.
+
+`AccountInfo.cleanupPeriodDays` reads `<root>/settings.json`'s
+`cleanupPeriodDays` (Claude Code's own transcript-retention window — it
+deletes session transcripts older than this, at CLI startup) via
+`cleanupPeriodDays()` in `accounts.ts`, falling back to Claude Code's
+default of 30 when the file is missing or the value is invalid (< 1 or
+non-numeric — the CLI itself rejects those). This is why "all time" totals
+(`OverviewView.tsx`'s summary card) can't cover more history than that
+window: ccmon has no data beyond whatever transcripts are still on disk.
+The overview Hint names the actual configured window(s) for the accounts in
+scope rather than assuming the default.
 
 Main ALWAYS polls Anthropic's OAuth usage endpoint (the same one Claude
 Code's `/usage` screen calls) every 60 s for EVERY discovered account —
@@ -598,10 +628,33 @@ generation, detection, and linking — one family per run.
 - `createAccountDir(suffix)` makes `~/.claude-<suffix>/projects` (validated
   suffix) so a new account shows up; live file-watching of it still needs an
   app relaunch.
+- `renameAccountDir(root, suffix)` moves `~/.claude-<old>` →
+  `~/.claude-<suffix>` on disk with `fs.renameSync`. Refuses the literal
+  `~/.claude` root unconditionally — Claude Code's CLI, and anything else
+  that doesn't go through a ccmon wrapper, falls back to that exact path
+  when `CLAUDE_CONFIG_DIR` is unset, so moving it would break tools outside
+  ccmon's control (`isDefaultAccountRoot` in `src/lib/crossAccount.ts` gates
+  the UI control for the same reason). Rejects a collision with an existing
+  dir. The Accounts view's "rename folder…" control calls this, then
+  migrates that root's `accountWrapperPrefs` key (§5.1) and re-detects
+  `sourceDirs`/`accounts` the same way `createAccount` does — live
+  file-watching of the new path still needs an app relaunch, so the UI
+  says so after a successful rename.
+- `writeWrapperAccounts(accounts)` rewrites ONLY the managed script file —
+  no rc edits, no helper install, no rc-selection requirement. Backs the
+  Accounts view's per-account rename ("wrapper name" inline edit) and
+  untrack ("remove from shell", confirmed via `ConfirmDialog`) controls,
+  which persist to `settings.accountWrapperPrefs` (§5.1) and then call this
+  so the wrapper file matches immediately, without going through the full
+  wizard/rc flow. `SetupWizard` filters `disabled` roots out of the accounts
+  it manages, so an untracked account isn't resurrected by a later full
+  apply; re-adding it (no confirmation — non-destructive) is a plain toggle
+  in the Accounts view.
 
-IPC: `detectShells`, `previewSetup`, `applySetup`, `createAccount`. Within
-the POSIX family the wrapper body is identical across bash/zsh/zy; only the
-target rc differs. PowerShell uses its own syntax and skips the bash helper,
-so on Windows the dashboard's cross-resume command needs WSL/Git Bash. The
-read-only features (accounts dashboard, live limits, cross-account headroom)
-are platform-independent — only this wizard is shell/OS-specific.
+IPC: `detectShells`, `previewSetup`, `applySetup`, `createAccount`,
+`renameAccount`, `updateWrapperAccounts`. Within the POSIX family the wrapper body is
+identical across bash/zsh/zy; only the target rc differs. PowerShell uses
+its own syntax and skips the bash helper, so on Windows the dashboard's
+cross-resume command needs WSL/Git Bash. The read-only features (accounts
+dashboard, live limits, cross-account headroom) are platform-independent —
+only this wizard is shell/OS-specific.

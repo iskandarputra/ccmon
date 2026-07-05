@@ -9,8 +9,17 @@ import {
   accountRoot,
   crossAccountAdvice,
   crossResumeCommand,
+  effectiveWrapperAccounts,
+  isDefaultAccountRoot,
+  suggestWrapperName,
 } from '../crossAccount';
-import type { AccountInfo, AccountsMap, LimitsMap, LimitsResult } from '../../../shared/types';
+import type {
+  AccountInfo,
+  AccountWrapperPrefs,
+  AccountsMap,
+  LimitsMap,
+  LimitsResult,
+} from '../../../shared/types';
 
 const PERSONAL = '/home/isz/.claude/projects';
 const WORK = '/home/isz/.claude-work/projects';
@@ -21,6 +30,7 @@ const acct = (hasCredentials: boolean): AccountInfo => ({
   email: null,
   organization: null,
   hasCredentials,
+  cleanupPeriodDays: 30,
 });
 
 const ok = (session: number | null, week: number | null = null): LimitsResult => ({
@@ -131,5 +141,44 @@ describe('accountRoot + crossResumeCommand', () => {
     expect(crossResumeCommand(spaced, WORK, 'x')).toBe(
       'claude-cross-resume "/home/isz/My Claude" /home/isz/.claude-work x',
     );
+  });
+});
+
+describe('suggestWrapperName + effectiveWrapperAccounts', () => {
+  it('names the default root claude-personal, others claude-<suffix>', () => {
+    expect(suggestWrapperName('/home/isz/.claude')).toBe('claude-personal');
+    expect(suggestWrapperName('/home/isz/.claude-work')).toBe('claude-work');
+  });
+
+  it('resolves every source dir to its root with the suggested name by default', () => {
+    const accounts = effectiveWrapperAccounts([PERSONAL, WORK], {});
+    expect(accounts).toEqual([
+      { name: 'claude-personal', root: '/home/isz/.claude' },
+      { name: 'claude-work', root: '/home/isz/.claude-work' },
+    ]);
+  });
+
+  it('applies a custom name override', () => {
+    const prefs: Record<string, AccountWrapperPrefs> = {
+      '/home/isz/.claude-work': { name: 'claude-client-x' },
+    };
+    const accounts = effectiveWrapperAccounts([PERSONAL, WORK], prefs);
+    expect(accounts.find((a) => a.root === '/home/isz/.claude-work')?.name).toBe('claude-client-x');
+  });
+
+  it('drops a disabled (untracked) account entirely', () => {
+    const prefs: Record<string, AccountWrapperPrefs> = {
+      '/home/isz/.claude-work': { disabled: true },
+    };
+    const accounts = effectiveWrapperAccounts([PERSONAL, WORK], prefs);
+    expect(accounts.map((a) => a.root)).toEqual(['/home/isz/.claude']);
+  });
+});
+
+describe('isDefaultAccountRoot', () => {
+  it('is true only for the literal ~/.claude root', () => {
+    expect(isDefaultAccountRoot('/home/isz/.claude')).toBe(true);
+    expect(isDefaultAccountRoot('/home/isz/.claude-work')).toBe(false);
+    expect(isDefaultAccountRoot('/home/isz/.claude-personal')).toBe(false);
   });
 });

@@ -8,8 +8,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Panel } from '../ui/Panel';
 import { Hint } from '../ui/Hint';
 import { useUsageStore } from '../../store/useUsageStore';
+import { refreshAccounts, updateSettings } from '../../bootstrap';
 import { tildify } from '../../lib/format';
-import { accountRoot } from '../../lib/crossAccount';
+import { accountRoot, suggestWrapperName } from '../../lib/crossAccount';
 import type {
   AccountSpec,
   SetupOptions,
@@ -17,14 +18,6 @@ import type {
   SetupReport,
   ShellTarget,
 } from '../../../shared/types';
-
-/** A nice default wrapper name for a config root (renderer mirror of the service). */
-function suggestName(root: string): string {
-  const base = root.split('/').filter(Boolean).pop() || root;
-  if (base === '.claude') return 'claude-personal';
-  const suffix = base.replace(/^\.+/, '').replace(/^claude[-_]?/, '');
-  return suffix ? `claude-${suffix}` : 'claude-account';
-}
 
 /** Human OS label from process.platform. */
 function osLabel(platform: string): string {
@@ -37,14 +30,9 @@ function osLabel(platform: string): string {
         : platform || '…';
 }
 
-/** Refresh the store's account list after the wizard creates a new dir. */
-async function refreshAccounts(): Promise<void> {
-  const s = await window.ccmon?.getState();
-  if (s) useUsageStore.setState({ sourceDirs: s.sourceDirs, accounts: s.accounts, limits: s.limits });
-}
-
 export function SetupWizard() {
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
+  const prefs = useUsageStore((s) => s.settings?.accountWrapperPrefs) ?? {};
 
   const [shells, setShells] = useState<ShellTarget[]>([]);
   const [platform, setPlatform] = useState<string>('');
@@ -73,23 +61,31 @@ export function SetupWizard() {
     };
   }, []);
 
-  // seed wrapper-name suggestions for every detected account root
+  // untracked (deleted) accounts stay out of the wizard entirely — re-add
+  // them from the Accounts view, which doesn't need a confirmation
+  const roots = useMemo(
+    () => sourceDirs.map(accountRoot).filter((root) => !prefs[root]?.disabled),
+    [sourceDirs, prefs],
+  );
+
+  // seed wrapper-name suggestions for every account root, preferring a saved
+  // rename over the auto-suggested default
   useEffect(() => {
     setNames((prev) => {
       const next = { ...prev };
-      for (const dir of sourceDirs) {
-        const root = accountRoot(dir);
-        if (!next[root]) next[root] = suggestName(root);
+      for (const root of roots) {
+        if (next[root] === undefined) next[root] = prefs[root]?.name ?? suggestWrapperName(root);
       }
       return next;
     });
-  }, [sourceDirs]);
-
-  const roots = useMemo(() => sourceDirs.map(accountRoot), [sourceDirs]);
+  }, [roots, prefs]);
 
   const opts: SetupOptions = useMemo(
     () => ({
-      accounts: roots.map<AccountSpec>((root) => ({ name: names[root] || suggestName(root), root })),
+      accounts: roots.map<AccountSpec>((root) => ({
+        name: names[root] || suggestWrapperName(root),
+        root,
+      })),
       rcPaths: [...picked],
       installHelper,
       tidyExisting: tidy,
@@ -130,6 +126,12 @@ export function SetupWizard() {
       const r = await window.ccmon?.applySetup(opts);
       setReport(r ?? null);
       setPlan(null);
+      if (r?.ok) {
+        // persist wizard-typed names so they survive reopening the wizard
+        const nextPrefs = { ...prefs };
+        for (const root of roots) nextPrefs[root] = { ...nextPrefs[root], name: names[root] };
+        void updateSettings({ accountWrapperPrefs: nextPrefs });
+      }
       const found = await window.ccmon?.detectShells();
       if (found) setShells(found.shells);
     } finally {

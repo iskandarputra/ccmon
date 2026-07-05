@@ -9,6 +9,7 @@
  */
 
 import type {
+  AccountSpec,
   AccountsMap,
   AdvisorMessage,
   AdvisorResult,
@@ -111,6 +112,18 @@ export interface CcmonApi {
   applySetup(opts: SetupOptions): Promise<SetupReport>;
   /** Create a sibling config dir `~/.claude-<suffix>` for a new account. */
   createAccount(suffix: string): Promise<{ ok: boolean; root: string; error?: string }>;
+  /**
+   * Rename an account's config dir on disk to `~/.claude-<suffix>`. Refuses
+   * the default `~/.claude` root. Requires an app relaunch afterward for
+   * live file-watching to pick up the new path.
+   */
+  renameAccount(root: string, suffix: string): Promise<{ ok: boolean; root: string; error?: string }>;
+  /**
+   * Rewrite just the managed wrapper file to this exact account list — used
+   * by the Accounts view's rename / remove-from-shell controls. Never
+   * touches rc files or the cross-resume helper.
+   */
+  updateWrapperAccounts(accounts: AccountSpec[]): Promise<{ ok: boolean; errors: string[] }>;
 
   onSnapshot(cb: (snapshot: Snapshot) => void): Unsubscribe;
   onEvents(cb: (events: FeedEvent[]) => void): Unsubscribe;

@@ -89,3 +89,9 @@ export function useBootstrap(): void {
 export function updateSettings(partial: Partial<AppSettings>) {
   return window.ccmon?.setSettings(partial);
 }
+
+/** Refresh the store's account list after main re-detects config roots (new/renamed account dir). */
+export async function refreshAccounts(): Promise<void> {
+  const s = await window.ccmon?.getState();
+  if (s) useUsageStore.setState({ sourceDirs: s.sourceDirs, accounts: s.accounts, limits: s.limits });
+}

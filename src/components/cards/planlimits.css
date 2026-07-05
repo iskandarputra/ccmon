@@ -27,21 +27,22 @@
 }
 
 /* plan + tier badge — the headline fact of the account, so it gets size,
-   a slow gradient sheen, and a breathing glow */
+   a slow gradient sheen, and a breathing glow. Colored per plan/tier via
+   --pc (src/lib/plans.ts#planBadgeColor), set inline per account. */
 .plim-plan {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.12em;
-  color: var(--amber);
-  border: 1px solid color-mix(in srgb, var(--amber) 50%, transparent);
+  color: var(--pc);
+  border: 1px solid color-mix(in srgb, var(--pc) 50%, transparent);
   border-radius: 6px;
   padding: 2.5px 10px;
   white-space: nowrap;
   background: linear-gradient(
     110deg,
-    color-mix(in srgb, var(--amber) 8%, transparent) 25%,
-    color-mix(in srgb, var(--amber) 22%, transparent) 50%,
-    color-mix(in srgb, var(--amber) 8%, transparent) 75%
+    color-mix(in srgb, var(--pc) 8%, transparent) 25%,
+    color-mix(in srgb, var(--pc) 22%, transparent) 50%,
+    color-mix(in srgb, var(--pc) 8%, transparent) 75%
   );
   background-size: 220% 100%;
   animation:
@@ -56,7 +57,7 @@
 
 @keyframes plim-badge-glow {
   0%, 100% { box-shadow: 0 0 0 0 transparent; }
-  50%      { box-shadow: 0 0 12px 1px color-mix(in srgb, var(--amber) 30%, transparent); }
+  50%      { box-shadow: 0 0 12px 1px color-mix(in srgb, var(--pc) 30%, transparent); }
 }
 
 /* manual retry — bypasses the failure backoff in main */

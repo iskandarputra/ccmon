@@ -281,11 +281,11 @@
   font-size: 10px;
   text-transform: none;
   letter-spacing: 0;
-  color: var(--text-dim);
+  color: var(--pc);
   padding: 1px 7px;
   border-radius: 999px;
-  background: var(--bg2);
-  border: 1px solid var(--line-soft);
+  background: color-mix(in oklab, var(--pc) 14%, var(--bg2));
+  border: 1px solid color-mix(in oklab, var(--pc) 35%, var(--line-soft));
 }
 .acc-scoped-badge {
   font-family: var(--mono);
@@ -314,6 +314,55 @@
 }
 .acc-root {
   color: var(--text-faint);
+}
+
+.acc-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.acc-wrapper-label {
+  color: var(--text-faint);
+}
+.acc-wrapper-name {
+  color: var(--text);
+  background: var(--bg2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+}
+.acc-wrapper-name.is-disabled {
+  color: var(--text-faint);
+  border-style: dashed;
+}
+.acc-wrapper-input {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  background: var(--bg2);
+  border: 1px solid var(--amber);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  width: 160px;
+}
+.acc-wrapper-input:focus {
+  outline: none;
+}
+.acc-wrapper-err {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--rose);
+  flex-basis: 100%;
+}
+.acc-wrapper-note {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--sage);
+  flex-basis: 100%;
 }
 
 .acc-meters {

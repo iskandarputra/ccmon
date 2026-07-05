@@ -24,6 +24,7 @@ export const DEFAULTS: AppSettings = {
   sources: null, //           null (primary account) | array of project dirs
   notifyNearCap: false, //    opt-in OS notifications when an account nears a cap
   aiModel: 'claude-sonnet-4-6', // advisor model (reuses the Claude Code login)
+  accountWrapperPrefs: {}, // per-root shell-wrapper rename/untrack overrides
 };
 
 export class Settings {

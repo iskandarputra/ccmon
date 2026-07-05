@@ -26,11 +26,19 @@ import {
 import { askAdvisor, buildUsageContext } from './services/advisor';
 import { snapshotToCsv } from './services/export';
 import { recentSessions } from './services/cross-account';
-import { applySetup, createAccountDir, detectShells, planSetup } from './services/account-setup';
+import {
+  applySetup,
+  createAccountDir,
+  detectShells,
+  planSetup,
+  renameAccountDir,
+  writeWrapperAccounts,
+} from './services/account-setup';
 import { LimitsHistory } from './services/limits-history';
 import { CurrencyService } from './services/currency';
 import { loadState, trackState } from './services/window-state';
 import type {
+  AccountSpec,
   AccountsMap,
   AppSettings,
   AdvisorMessage,
@@ -733,6 +741,21 @@ ipcMain.handle('setup:createAccount', (_e, suffix: string) => {
   }
   return res;
 });
+ipcMain.handle('setup:renameAccount', (_e, root: string, suffix: string) => {
+  const res = renameAccountDir(root, suffix);
+  if (res.ok) {
+    // same as setup:createAccount — re-detect so the renamed root shows up
+    // immediately; live file-watching of it still needs a relaunch
+    const cfg = loadConfig();
+    state.sourceDirs = detectProjectDirs(cfg.claudeDirs || []);
+    state.accounts = accountsFor(state.sourceDirs);
+    void refreshLimits(true);
+  }
+  return res;
+});
+ipcMain.handle('setup:updateWrapperAccounts', (_e, accounts: AccountSpec[]) =>
+  writeWrapperAccounts(accounts),
+);
 
 ipcMain.handle('pricing:refresh', async () => {
   if (!state.pricing) return null;
