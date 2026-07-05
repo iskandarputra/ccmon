@@ -19,9 +19,10 @@
 .cfd {
   width: min(420px, 92%);
   background: var(--bg1);
-  border: 1px solid var(--line);
   border-radius: 14px;
-  box-shadow: 0 24px 70px -18px rgba(0, 0, 0, 0.6);
+  box-shadow: calc(var(--neu-dist) * 1.4) calc(var(--neu-dist) * 1.4) calc(var(--neu-blur) * 1.6) var(--neu-dark),
+    calc(var(--neu-dist) * -1.4) calc(var(--neu-dist) * -1.4) calc(var(--neu-blur) * 1.6) var(--neu-light),
+    0 0 0 1px var(--neu-edge);
   padding: 20px;
   animation: cfd-rise var(--dur-2) var(--ease-out);
 }
@@ -63,31 +64,32 @@
   font-size: 12.5px;
   padding: 7px 14px;
   border-radius: 8px;
-  border: 1px solid var(--line);
   cursor: pointer;
+  transition: box-shadow var(--dur-1) var(--ease-out);
 }
 .cfd-cancel {
-  background: transparent;
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   color: var(--text-dim);
 }
 .cfd-cancel:hover {
-  background: var(--bg2);
+  box-shadow: var(--neu-inset);
 }
 
 .cfd-confirm {
-  background: color-mix(in srgb, var(--amber) 20%, var(--bg2));
+  background: color-mix(in srgb, var(--amber) 16%, var(--bg1));
   color: var(--text);
-  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 .cfd-confirm:hover {
-  background: color-mix(in srgb, var(--amber) 30%, var(--bg2));
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 .cfd-confirm.is-danger {
-  background: color-mix(in srgb, var(--rose) 20%, var(--bg2));
-  border-color: color-mix(in srgb, var(--rose) 45%, var(--line));
+  background: color-mix(in srgb, var(--rose) 16%, var(--bg1));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent);
 }
 .cfd-confirm.is-danger:hover {
-  background: color-mix(in srgb, var(--rose) 32%, var(--bg2));
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent);
 }
 .cfd-confirm:disabled,
 .cfd-cancel:disabled {

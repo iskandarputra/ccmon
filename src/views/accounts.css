@@ -174,13 +174,12 @@
   margin-top: 14px;
   padding: 9px 12px;
   border-radius: var(--radius-sm);
-  background: var(--bg0);
-  border: 1px solid var(--line-soft);
-  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
+  transition: box-shadow var(--dur-2) var(--ease-out);
 }
 .hr-cmd:hover {
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line-soft));
-  box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--amber) 12%, transparent);
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 .hr-prompt {
   font-family: var(--mono);
@@ -232,10 +231,7 @@
   opacity: 0.7;
 }
 .acc-card.is-scoped {
-  border-color: color-mix(in oklab, var(--amber) 42%, var(--line));
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent),
-    0 4px 20px -8px color-mix(in srgb, var(--amber) 16%, transparent);
+  box-shadow: var(--neu-raised), 0 0 0 1px color-mix(in oklab, var(--amber) 42%, transparent);
 }
 .acc-card.is-scoped::before {
   background: var(--amber);
@@ -261,8 +257,8 @@
   font-size: 12px;
   font-weight: 700;
   color: var(--acc, var(--text));
-  background: color-mix(in oklab, var(--acc, var(--text)) 15%, var(--bg2));
-  border: 1px solid color-mix(in oklab, var(--acc, var(--line)) 35%, transparent);
+  background: color-mix(in oklab, var(--acc, var(--text)) 15%, var(--bg1));
+  box-shadow: var(--neu-raised-sm), 0 0 0 1px color-mix(in oklab, var(--acc, var(--line)) 35%, transparent);
   transition: transform var(--dur-2) var(--ease-out);
 }
 .acc-card:hover .acc-avatar {
@@ -330,24 +326,24 @@
 }
 .acc-wrapper-name {
   color: var(--text);
-  background: var(--bg2);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   border-radius: var(--radius-sm);
   padding: 3px 8px;
 }
 .acc-wrapper-name.is-disabled {
   color: var(--text-faint);
-  border-style: dashed;
+  box-shadow: var(--neu-inset);
 }
 .acc-wrapper-input {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text);
-  background: var(--bg2);
-  border: 1px solid var(--amber);
+  background: var(--bg1);
   border-radius: var(--radius-sm);
   padding: 3px 8px;
   width: 160px;
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
 }
 .acc-wrapper-input:focus {
   outline: none;
@@ -387,9 +383,10 @@
 }
 .acc-meter-track {
   margin-top: 5px;
-  height: 5px;
+  height: 6px;
   border-radius: 3px;
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   overflow: hidden;
 }
 .acc-meter-track i {
@@ -409,9 +406,9 @@
   text-align: center;
   margin-top: 16px;
   padding: 26px 16px;
-  border: 1px dashed var(--line-soft);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--bg2) 30%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   font-family: var(--mono);
   font-size: 12px;
   color: var(--text-faint);
@@ -471,16 +468,14 @@
   flex-direction: column;
   gap: 6px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
-  transition:
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
+  transition: box-shadow var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
 .acc-spend-cell:hover {
-  border-color: color-mix(in srgb, var(--amber) 30%, var(--line));
-  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  transform: translateY(-1px);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 30%, transparent);
 }
 .acc-spend-cap {
   display: inline-flex;
@@ -555,27 +550,34 @@
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-dim);
-  background: var(--bg2);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   border-radius: var(--radius-sm);
   padding: 5px 11px;
   cursor: pointer;
   white-space: nowrap;
   transition:
     color var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out);
+    box-shadow var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 .acc-copy:hover,
 .acc-scope-btn:hover:not(:disabled),
 .acc-viewall:hover:not(:disabled) {
   color: var(--text);
-  border-color: var(--amber);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
+}
+.acc-copy:active,
+.acc-scope-btn:active:not(:disabled),
+.acc-viewall:active:not(:disabled) {
+  box-shadow: var(--neu-inset);
+  transform: none;
 }
 .acc-scope-btn:disabled,
 .acc-viewall:disabled {
   color: var(--text-faint);
   cursor: default;
+  box-shadow: var(--neu-inset);
 }
 
 /* ===== setup wizard ===================================================== */
@@ -629,14 +631,13 @@
   gap: 12px;
   margin-bottom: 8px;
   padding: 8px 12px;
-  background: var(--bg2);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   border-radius: var(--radius-sm);
-  transition: all var(--dur-2) ease;
+  transition: box-shadow var(--dur-2) ease, transform var(--dur-2) ease;
 }
 .wiz-acct:focus-within {
-  border-color: color-mix(in srgb, var(--amber) 40%, transparent);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--amber) 15%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
   transform: translateY(-1px);
 }
 .wiz-name,
@@ -645,12 +646,11 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
-  background: var(--bg0);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
   border-radius: var(--radius-sm);
   padding: 6px 9px;
-  transition: all var(--dur-2) var(--ease-out);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow var(--dur-2) var(--ease-out);
+  box-shadow: var(--neu-inset);
 }
 .wiz-name {
   width: 170px;
@@ -658,9 +658,7 @@
 .wiz-name:focus,
 .wiz-suffix:focus {
   outline: none;
-  border-color: var(--amber);
-  background: var(--bg1);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent), inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--neu-inset), inset 0 0 0 1px var(--amber);
 }
 .wiz-arrow {
   color: var(--text-faint);
@@ -678,8 +676,8 @@
   gap: 8px;
   margin-top: 12px;
   padding: 10px 12px;
-  background: color-mix(in srgb, var(--bg1) 50%, transparent);
-  border: 1px dashed var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: var(--radius-sm);
 }
 .wiz-add-pre {
@@ -709,24 +707,21 @@
   padding: 9px 13px;
   min-width: 148px;
   border-radius: var(--radius-sm);
-  background: var(--bg2);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   cursor: pointer;
   transition:
-    border-color var(--dur-2) var(--ease-out),
-    background var(--dur-2) var(--ease-out),
     box-shadow var(--dur-2) var(--ease-out),
     transform var(--dur-2) var(--ease-out);
 }
 .wiz-shell:hover {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--amber) 40%, var(--line-soft));
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 .wiz-shell.is-picked {
-  border-color: var(--amber);
-  background: color-mix(in oklab, var(--amber) 12%, var(--bg2));
-  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--amber) 14%, transparent);
+  /* pressed in — the chosen shell reads as "selected" */
+  background: color-mix(in oklab, var(--amber) 8%, var(--bg1));
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
+  transform: none;
 }
 .wiz-shell-name {
   font-family: var(--mono);
@@ -762,8 +757,8 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--bg0);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   transition: all 0.15s ease;
   position: relative;
 }
@@ -781,8 +776,8 @@
 }
 
 .wiz-shell.is-picked .wiz-shell-radio {
-  border-color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 15%, transparent);
+  box-shadow: var(--neu-inset), inset 0 0 0 1px var(--amber);
+  background: color-mix(in srgb, var(--amber) 15%, var(--bg1));
 }
 .wiz-shell.is-picked .wiz-shell-radio::after {
   transform: translate(-50%, -50%) scale(1);
@@ -796,13 +791,13 @@
   margin-top: 15px;
   cursor: pointer;
   padding: 10px 14px;
-  background: var(--bg2);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   border-radius: var(--radius-sm);
-  transition: all var(--dur-2) ease;
+  transition: box-shadow var(--dur-2) ease;
 }
 .wiz-toggle:hover {
-  border-color: var(--line);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px var(--neu-edge);
 }
 .wiz-toggle input {
   position: absolute;
@@ -817,9 +812,9 @@
   height: 18px;
   margin-top: 1px;
   border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--bg0);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
+  transition: background 0.15s ease;
 }
 .wiz-toggle-track::after {
   content: '';
@@ -830,14 +825,11 @@
   height: 12px;
   border-radius: 50%;
   background: var(--text-faint);
+  box-shadow: var(--neu-raised-sm);
   transition: transform 0.15s ease, background 0.15s ease;
 }
-.wiz-toggle:hover .wiz-toggle-track {
-  border-color: var(--text-faint);
-}
 .wiz-toggle input:checked + .wiz-toggle-track {
-  border-color: color-mix(in srgb, var(--amber) 65%, transparent);
-  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  background: color-mix(in srgb, var(--amber) 18%, var(--bg1));
 }
 .wiz-toggle input:checked + .wiz-toggle-track::after {
   transform: translateX(14px);
@@ -856,7 +848,8 @@
 }
 .wiz-toggle-text code {
   color: var(--text);
-  background: var(--bg0);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   padding: 2px 5px;
   border-radius: 4px;
 }
@@ -864,8 +857,8 @@
   margin-top: 13px;
   padding: 9px 11px;
   border-radius: var(--radius-sm);
-  background: var(--bg0);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.55;
@@ -886,24 +879,27 @@
   font-weight: 600;
   color: var(--bg0);
   background: var(--amber);
-  border: 1px solid var(--amber);
   border-radius: var(--radius-sm);
   padding: 6px 16px;
   cursor: pointer;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--amber) 25%, transparent);
-  transition: all var(--dur-2) var(--ease-out);
+  /* extruded FROM amber material, not a neutral chip with a colored glow */
+  box-shadow: var(--neu-dist-sm) var(--neu-dist-sm) var(--neu-blur-sm) color-mix(in srgb, black 30%, var(--amber)),
+    calc(var(--neu-dist-sm) * -1) calc(var(--neu-dist-sm) * -1) var(--neu-blur-sm) color-mix(in srgb, white 25%, var(--amber));
+  transition: box-shadow var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
 }
 .wiz-apply:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text) 8%, var(--amber));
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--amber) 40%, transparent);
   transform: translateY(-1px);
+}
+.wiz-apply:active:not(:disabled) {
+  transform: none;
+  box-shadow: inset var(--neu-dist-sm) var(--neu-dist-sm) var(--neu-blur-sm) color-mix(in srgb, black 30%, var(--amber)),
+    inset calc(var(--neu-dist-sm) * -1) calc(var(--neu-dist-sm) * -1) var(--neu-blur-sm) color-mix(in srgb, white 25%, var(--amber));
 }
 .wiz-apply:disabled {
   color: var(--text-faint);
-  background: var(--bg2);
-  border-color: var(--line-soft);
+  background: var(--bg1);
   cursor: default;
-  box-shadow: none;
+  box-shadow: var(--neu-inset);
 }
 
 .wiz-preview {
@@ -915,9 +911,7 @@
   color: var(--text-dim);
   margin: 14px 0 0;
   padding: 8px 12px;
-  background: var(--bg2);
-  border: 1px solid var(--line-soft);
-  border-bottom: 1px solid var(--line);
+  background: var(--bg1);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   display: flex;
   align-items: center;
@@ -931,30 +925,28 @@
   margin: 0;
   padding: 12px 14px;
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  background: color-mix(in srgb, var(--bg0) 70%, var(--bg1));
-  border: 1px solid var(--line-soft);
-  border-top: none;
+  background: var(--bg1);
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.6;
   color: var(--text);
   white-space: pre;
   overflow-x: auto;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--neu-inset-deep);
 }
 
 .wiz-report {
   margin-top: 13px;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--line-soft);
-  background: var(--bg0);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
 }
 .wiz-report.is-ok {
-  border-color: color-mix(in oklab, var(--ok) 40%, var(--line));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in oklab, var(--ok) 40%, transparent);
 }
 .wiz-report.is-err {
-  border-color: color-mix(in oklab, var(--bad) 40%, var(--line));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in oklab, var(--bad) 40%, transparent);
 }
 .wiz-report-head {
   font-family: var(--mono);
@@ -978,15 +970,15 @@
   padding: 9px 11px;
   margin-bottom: 8px;
   border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--warn) 10%, var(--bg0));
-  border: 1px solid color-mix(in oklab, var(--warn) 30%, var(--line));
+  background: color-mix(in oklab, var(--warn) 8%, var(--bg1));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in oklab, var(--warn) 30%, transparent);
 }
 .wiz-conflicts {
   margin: 6px 0 4px;
   padding: 8px 11px;
   border-radius: var(--radius-sm);
-  background: var(--bg0);
-  border: 1px dashed var(--line);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
 }
 .wiz-conflicts-head {
   font-family: var(--mono);
@@ -1025,8 +1017,8 @@
   justify-content: space-between;
   margin-bottom: 22px;
   padding: 6px 12px;
-  background: var(--bg0);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: var(--radius);
 }
 .wiz-step-pill {
@@ -1047,7 +1039,7 @@
 .wiz-step-pill.is-active {
   color: var(--text);
   background: var(--bg1);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent);
+  box-shadow: var(--neu-raised-sm);
 }
 .wiz-step-num {
   display: inline-flex;
@@ -1056,18 +1048,18 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--bg2);
+  background: var(--bg1);
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 600;
-  border: 1px solid var(--line);
+  box-shadow: var(--neu-raised-sm);
   color: var(--text-dim);
   transition: all var(--dur-2) var(--ease-out);
 }
 .wiz-step-pill.is-active .wiz-step-num {
   background: var(--amber);
-  border-color: var(--amber);
   color: var(--bg0);
+  box-shadow: var(--neu-raised-sm);
 }
 .wiz-step-text {
   font-family: var(--mono);
@@ -1137,7 +1129,8 @@
   border-top: 1px solid color-mix(in srgb, var(--line-soft) 60%, transparent);
 }
 .acc-recent-list li:hover {
-  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
 }
 .acc-recent-list li:hover .acc-recent-name {
   color: var(--text);

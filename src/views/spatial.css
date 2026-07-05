@@ -5,7 +5,7 @@
   height: clamp(420px, 62vh, 740px);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  border: 1px solid var(--line-soft);
+  box-shadow: 0 0 0 1px var(--neu-edge);
 }
 
 .spa-stage canvas {
@@ -34,9 +34,9 @@
   flex-direction: column;
   gap: 2px;
   padding: 9px 7px;
-  background: color-mix(in srgb, var(--bg2) 76%, transparent);
-  border: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--bg1) 90%, transparent);
   border-radius: 10px;
+  box-shadow: var(--neu-raised-sm);
   backdrop-filter: blur(8px);
   overflow-y: auto;
   scrollbar-width: none;
@@ -109,9 +109,9 @@
      doesn't make the chip jump */
   min-height: 58px;
   padding: 9px 12px;
-  background: color-mix(in srgb, var(--bg2) 88%, transparent);
-  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg1) 92%, transparent);
   border-radius: var(--radius-sm);
+  box-shadow: var(--neu-raised-sm);
   font-family: var(--mono);
   font-size: 11px;
   pointer-events: none;

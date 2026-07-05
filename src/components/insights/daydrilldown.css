@@ -23,9 +23,10 @@
   max-height: 84vh;
   overflow: auto;
   background: var(--bg1);
-  border: 1px solid var(--line);
   border-radius: 14px;
-  box-shadow: 0 24px 70px -20px rgba(0, 0, 0, 0.6);
+  box-shadow: calc(var(--neu-dist) * 1.4) calc(var(--neu-dist) * 1.4) calc(var(--neu-blur) * 1.6) var(--neu-dark),
+    calc(var(--neu-dist) * -1.4) calc(var(--neu-dist) * -1.4) calc(var(--neu-blur) * 1.6) var(--neu-light),
+    0 0 0 1px var(--neu-edge);
   padding: 20px 22px;
   animation: dd-rise var(--dur-2) var(--ease-out);
 }
@@ -60,7 +61,8 @@
 }
 .dd-close:hover {
   color: var(--text);
-  background: var(--bg2);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
 }
 
 .dd-empty {
@@ -153,7 +155,8 @@
 }
 .dd-row-bar {
   height: 5px;
-  background: var(--bg0);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -183,11 +186,11 @@
   font-size: 10.5px;
   color: var(--text-dim);
   padding: 4px 10px;
-  border: 1px solid var(--line-soft);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--bg2) 50%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
 }
 .dd-chip-new {
   color: var(--amber);
-  border-color: color-mix(in srgb, var(--amber) 40%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }

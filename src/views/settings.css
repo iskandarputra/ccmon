@@ -39,19 +39,15 @@
   letter-spacing: 0.04em;
   color: var(--text-dim);
   padding: 4px 10px;
-  border: 1px solid var(--line);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--bg2) 50%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   cursor: pointer;
-  transition:
-    color var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out);
+  transition: color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
 .set-reveal:hover {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
-  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 .set-reveal-icon {
   width: 13px;
@@ -81,24 +77,21 @@
   flex-direction: column;
   text-align: left;
   padding: 0;
-  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   overflow: hidden;
   cursor: pointer;
   transition:
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 .set-theme-card:hover {
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
-  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
   transform: translateY(-1px);
 }
 .set-theme-card.is-active {
-  border-color: color-mix(in srgb, var(--amber) 75%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent);
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 75%, transparent);
 }
 .set-theme-card:focus-visible {
   outline: 1px solid var(--amber);
@@ -168,23 +161,21 @@
   gap: 12px;
   cursor: pointer;
   padding: 11px 14px;
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   border-radius: var(--radius-sm);
   transition:
     color var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 .set-radio:hover {
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
-  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
   transform: translateY(-1px);
 }
 .set-radio.is-on {
-  border-color: color-mix(in srgb, var(--amber) 40%, transparent);
-  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  background: color-mix(in srgb, var(--amber) 7%, var(--bg1));
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 .set-radio input {
   position: absolute;
@@ -198,9 +189,9 @@
   height: 13px;
   margin-top: 1.5px;
   border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--bg0);
-  transition: border-color var(--dur-1) var(--ease-out);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
+  transition: box-shadow var(--dur-1) var(--ease-out);
 }
 .set-radio-dot::after {
   content: '';
@@ -212,11 +203,8 @@
   background: transparent;
   transition: background var(--dur-1) var(--ease-out);
 }
-.set-radio:hover .set-radio-dot {
-  border-color: var(--text-faint);
-}
 .set-radio.is-on .set-radio-dot {
-  border-color: color-mix(in srgb, var(--amber) 80%, transparent);
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 80%, transparent);
 }
 .set-radio.is-on .set-radio-dot::after {
   background: var(--amber);
@@ -263,17 +251,15 @@
   gap: 12px;
   cursor: pointer;
   padding: 11px 14px;
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
-  border: 1px solid var(--line-soft);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   border-radius: var(--radius-sm);
   transition:
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 .set-toggle:hover {
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
-  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px var(--neu-edge);
   transform: translateY(-1px);
 }
 .set-toggle input {
@@ -289,11 +275,9 @@
   height: 15px;
   margin-top: 1px;
   border-radius: 9px;
-  border: 1px solid var(--line);
-  background: var(--bg2);
-  transition:
-    background var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
+  transition: background var(--dur-1) var(--ease-out);
 }
 .set-toggle-track::after {
   content: '';
@@ -304,16 +288,13 @@
   height: 9px;
   border-radius: 50%;
   background: var(--text-faint);
+  box-shadow: var(--neu-raised-sm);
   transition:
     transform var(--dur-1) var(--ease-out),
     background var(--dur-1) var(--ease-out);
 }
-.set-toggle:hover .set-toggle-track {
-  border-color: var(--text-faint);
-}
 .set-toggle input:checked + .set-toggle-track {
-  border-color: color-mix(in srgb, var(--amber) 65%, transparent);
-  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  background: color-mix(in srgb, var(--amber) 18%, var(--bg1));
 }
 .set-toggle input:checked + .set-toggle-track::after {
   transform: translateX(13px);
@@ -338,8 +319,8 @@
   flex-direction: column;
   gap: 5px;
   padding: 10px 12px;
-  background: color-mix(in srgb, var(--bg2) 45%, transparent);
-  border: 1px solid var(--line);
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   border-radius: 14px;
   flex: 1;
   min-width: 100px;
@@ -372,9 +353,9 @@
   color: color-mix(in srgb, var(--warn) 80%, var(--text));
   margin-top: 12px;
   padding: 9px 11px;
-  border: 1px solid color-mix(in srgb, var(--warn) 28%, var(--line-soft));
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  background: color-mix(in srgb, var(--warn) 8%, var(--bg1));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--warn) 28%, transparent);
 }
 .set-err-icon {
   flex: none;
@@ -392,23 +373,20 @@
   letter-spacing: 0.05em;
   color: var(--text-dim);
   padding: 6px 12px;
-  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
   cursor: pointer;
-  transition:
-    color var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
-    background var(--dur-1) var(--ease-out);
+  transition: color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
 .set-btn:hover:not(:disabled) {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
-  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 .set-btn:disabled {
   opacity: 0.55;
   cursor: default;
+  box-shadow: var(--neu-inset);
 }
 
 /* button with a leading stroke glyph */
@@ -445,21 +423,19 @@
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text);
-  background: var(--bg0);
-  border: 1px solid var(--line);
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
   border-radius: var(--radius-sm);
   padding: 7px 10px;
   width: 132px;
   outline: none;
-  transition:
-    border-color var(--dur-1) var(--ease-out),
-    opacity var(--dur-1) var(--ease-out);
+  transition: box-shadow var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
 }
 .set-input::placeholder {
   color: var(--text-faint);
 }
 .set-input:focus {
-  border-color: color-mix(in srgb, var(--amber) 60%, transparent);
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 60%, transparent);
 }
 .set-input:disabled {
   opacity: 0.5;
