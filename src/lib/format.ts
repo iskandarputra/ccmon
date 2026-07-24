@@ -113,10 +113,11 @@ export const fmtTok = (n: Numeric): string => {
   return (v / 1e9).toFixed(2) + 'B';
 };
 
-/** claude-fable-5[1m] → fable-5 · claude-opus-4-8 → opus-4.8 · claude-3-7-sonnet-2025.. → sonnet-3.7 */
+/** claude-fable-5[1m] → fable-5 · claude-opus-4-8 → opus-4.8 · deepseek-v4-pro[1m] → v4-pro */
 export const shortModel = (id = ''): string => {
   const s = id
     .replace(/^claude-/, '')
+    .replace(/^deepseek-/, '')
     .replace(/-20\d{6,}$/, '')
     .replace(/\[[^\]]*\]$/, '');
   const dateFirst = s.match(/^(\d+)-(\d+)-(.+)$/);

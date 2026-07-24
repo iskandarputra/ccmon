@@ -40,7 +40,8 @@ import {
 import { withAlpha } from '../lib/palette';
 import { scopedDirs } from '../lib/limits';
 import { planPriceUSD } from '../lib/plans';
-import type { AccountInfo, AccountsMap, MonthlyRow, Snapshot, WeeklyRow } from '../../shared/types';
+import { detectProvider, isApiKeyOnly } from '../lib/providers';
+import type { AccountInfo, AccountsMap, ModelRow, MonthlyRow, Snapshot, WeeklyRow } from '../../shared/types';
 
 const AXIS_TICK = { fill: 'var(--text-faint)', fontSize: 10, fontFamily: 'JetBrains Mono' };
 const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -159,6 +160,43 @@ function derivePlanValue(
     projMultiple: projectedMonth != null ? projectedMonth / price : null,
     saved: monthCost - price,
   };
+}
+
+interface BillingSummary {
+  totalCost: number;
+  providers: Array<{
+    id: string;
+    label: string;
+    cost: number;
+    share: number;
+    effectiveOutRate: number | null;
+  }>;
+}
+
+/** Per-provider cost summary for API-key users (no subscription to compare against). */
+function deriveBillingSummary(models: ModelRow[]): BillingSummary | null {
+  if (!models.length) return null;
+  const totalCost = models.reduce((s, m) => s + m.cost, 0);
+  const byProvider = new Map<string, { label: string; cost: number; out: number }>();
+  for (const m of models) {
+    const p = detectProvider(m.model);
+    const id = p?.id ?? 'other';
+    const label = p?.label ?? 'Other';
+    const cur = byProvider.get(id) || { label, cost: 0, out: 0 };
+    cur.cost += m.cost;
+    cur.out += m.out;
+    byProvider.set(id, cur);
+  }
+  const providers = [...byProvider.entries()]
+    .map(([id, v]) => ({
+      id,
+      label: v.label,
+      cost: v.cost,
+      share: totalCost > 0 ? v.cost / totalCost : 0,
+      effectiveOutRate: v.out > 0 ? v.cost / (v.out / 1e6) : null,
+    }))
+    .sort((a, b) => b.cost - a.cost);
+  return { totalCost, providers };
 }
 
 /** Everything on this view derives from the snapshot in one pass. */
@@ -375,6 +413,14 @@ export function InsightsView() {
           )
         : null,
     [ins, accounts, settings, sourceDirs],
+  );
+  const billingSummary = useMemo(
+    () => (snapshot?.models?.length ? deriveBillingSummary(snapshot.models) : null),
+    [snapshot],
+  );
+  const apiKey = useMemo(
+    () => (snapshot ? isApiKeyOnly(snapshot.models.map((m) => m.model)) : false),
+    [snapshot],
   );
   const costliest = useMemo(
     () =>
@@ -621,11 +667,11 @@ export function InsightsView() {
       </div>
       <div className="g6">
         <Panel
-          title={<>plan value <Hint label="how it's computed">api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded.</Hint></>}
+          title={<>{(plan ? 'plan value' : apiKey ? 'billing' : 'plan value')} <Hint label="how it's computed">{plan ? "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded." : apiKey ? 'api-key billing — you pay per token at the provider\'s published rates. effective rates are blended (total cost ÷ output tokens) and include input + cache costs, so they read higher than the pure output rate.' : "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."}</Hint></>}
           right={
             <span className="panel-note">
               {ins.curMonth ? `${monthLabel(ins.curMonth.month)} · ` : ''}
-              api-equivalent vs subscription
+              {plan ? 'api-equivalent vs subscription' : apiKey ? 'per-provider spend' : 'api-equivalent vs subscription'}
             </span>
           }
         >
@@ -675,6 +721,41 @@ export function InsightsView() {
                 <li>
                   <span>proj month end</span>
                   <b>{plan.projMultiple != null ? `×${plan.projMultiple.toFixed(1)}` : '—'}</b>
+                </li>
+              </ul>
+            </div>
+          ) : apiKey && billingSummary ? (
+            <div className="ins-cache">
+              <div className="ins-cache-row">
+                <span className="ins-cache-label">total spend</span>
+                <div className="ins-cache-track">
+                  <div
+                    className="ins-cache-fill"
+                    style={{
+                      width: `${Math.max(2, (billingSummary.totalCost / Math.max(billingSummary.totalCost, 1)) * 100)}%`,
+                      background: 'var(--chart-1)',
+                    }}
+                  />
+                </div>
+                <b>{fmtUSD(billingSummary.totalCost)}</b>
+              </div>
+              <ul className="ins-facts">
+                {billingSummary.providers.map((p) => (
+                  <li key={p.id}>
+                    <span>{p.label}</span>
+                    <b>
+                      {fmtUSD(p.cost)}
+                      {p.share > 0 && (
+                        <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
+                          {fmtPct(p.share * 100)} · {p.effectiveOutRate != null ? `${currencySymbol()}${fmtUSD(p.effectiveOutRate)}/mtok out` : '—'}
+                        </span>
+                      )}
+                    </b>
+                  </li>
+                ))}
+                <li>
+                  <span>billing</span>
+                  <b style={{ color: 'var(--text-dim)' }}>api key · per-token</b>
                 </li>
               </ul>
             </div>

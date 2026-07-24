@@ -37,13 +37,15 @@ import type {
   UsageEntry,
 } from '../../shared/types';
 import bundledLitellmJson from './data/litellm-claude.json';
+import bundledDeepseekJson from './data/litellm-deepseek.json';
 import bundledModelsDevJson from './data/modelsdev-anthropic.json';
+import bundledModelsDevDeepseekJson from './data/modelsdev-deepseek.json';
 import { localDateKey } from './parser';
 import type { PricingArchive } from './pricing-archive';
 
 const LITELLM_URL =
   'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json';
-const LITELLM_PREFIXES = ['claude-', 'anthropic.', 'anthropic/'];
+const LITELLM_PREFIXES = ['claude-', 'anthropic.', 'anthropic/', 'deepseek/', 'deepseek.'];
 /** Fields kept when compacting the raw LiteLLM catalog (snapshot + cache). */
 const LITELLM_FIELDS = [
   'input_cost_per_token',
@@ -251,7 +253,9 @@ export class PricingEngine {
   readonly offline: boolean;
   private readonly overrides: Array<{ re: RegExp; row: RateRow }> = [];
   private readonly bundled: LitellmCatalog;
+  private readonly bundledDeepseek: LitellmCatalog;
   private readonly modelsdev: ModelsDevCatalog;
+  private readonly modelsdevDeepseek: ModelsDevCatalog;
   private runtime: LitellmCatalog | null = null;
   private readonly archive: PricingArchive | null;
   private source: PricingSource = 'bundled';
@@ -279,7 +283,9 @@ export class PricingEngine {
     }
 
     this.bundled = bundledLitellmJson as LitellmCatalog;
+    this.bundledDeepseek = bundledDeepseekJson as LitellmCatalog;
     this.modelsdev = bundledModelsDevJson as ModelsDevCatalog;
+    this.modelsdevDeepseek = bundledModelsDevDeepseekJson as ModelsDevCatalog;
 
     // Runtime LiteLLM layer from the disk cache, when present and sane.
     // A stale cache is still kept as a layer — better than nothing until
@@ -354,8 +360,10 @@ export class PricingEngine {
   meta(): PricingMeta {
     const keys = new Set([
       ...Object.keys(this.bundled),
+      ...Object.keys(this.bundledDeepseek),
       ...(this.runtime ? Object.keys(this.runtime) : []),
       ...Object.keys(this.modelsdev),
+      ...Object.keys(this.modelsdevDeepseek),
     ]);
     return {
       source: this.source,
@@ -475,13 +483,24 @@ export class PricingEngine {
     if (memo !== undefined) return memo;
     const layers: Array<{ models: LitellmCatalog | ModelsDevCatalog | null; litellm: boolean; source: string }> = [
       { models: this.bundled, litellm: true, source: 'litellm-bundled' },
+      { models: this.bundledDeepseek, litellm: true, source: 'litellm-bundled-deepseek' },
       { models: this.runtime, litellm: true, source: this.source },
       { models: this.modelsdev, litellm: false, source: 'modelsdev' },
+      { models: this.modelsdevDeepseek, litellm: false, source: 'modelsdev-deepseek' },
     ];
     let row: RateRow | null = null;
     for (const layer of layers) {
       if (!layer.models) continue;
-      for (const key of candidates(model)) {
+      const keys = candidates(model);
+      // Bridge provider prefixes for LiteLLM layers: deepseek-v4-pro →
+      // deepseek/deepseek-v4-pro so runtime-fetched LiteLLM catalogs match.
+      if (layer.litellm) {
+        const bare = model.replace(/\[[^\]]*\]$/, '');
+        if (bare.startsWith('deepseek-')) {
+          keys.push('deepseek/' + bare, 'deepseek/' + bare.replace(/-\d{8}$/, ''));
+        }
+      }
+      for (const key of keys) {
         if (!Object.prototype.hasOwnProperty.call(layer.models, key)) continue;
         row = layer.litellm
           ? normalizeLitellm((layer.models as LitellmCatalog)[key], layer.source)

@@ -393,6 +393,7 @@ function ModelsTable({ models, now }: ModelsTableProps) {
     return <p className="view-placeholder">no models seen yet</p>;
   }
   const rows = [...models].sort((a, b) => b.cost - a.cost);
+  const haveRates = rows.some((m) => m.inputRate != null || m.outputRate != null);
   return (
     <div className="tbl-wrap mdl-tbl-wrap">
       <table className="tbl">
@@ -407,7 +408,13 @@ function ModelsTable({ models, now }: ModelsTableProps) {
             <th>read</th>
             <th>write</th>
             <th title="cache hit: read ÷ (read + uncached input)">hit</th>
-            <th title="blended: total cost ÷ output Mtok">{currencySymbol()}/mtok out</th>
+            {haveRates && (
+              <>
+                <th title="resolved input price per million tokens (pure rate, not blended)">{currencySymbol()}/mtok in</th>
+                <th title="resolved output price per million tokens (pure rate, not blended)">{currencySymbol()}/mtok out</th>
+              </>
+            )}
+            <th title="blended: total cost ÷ output Mtok">blended</th>
             <th>first seen</th>
             <th>last seen</th>
           </tr>
@@ -430,7 +437,13 @@ function ModelsTable({ models, now }: ModelsTableProps) {
                 <td>{fmtTok(m.read)}</td>
                 <td>{fmtTok(m.write)}</td>
                 <td>{m.read + m.in > 0 ? fmtPct((m.read / (m.read + m.in)) * 100) : '—'}</td>
-                <td>{perMtokOut == null ? '—' : fmtUSD(perMtokOut)}</td>
+                {haveRates && (
+                  <>
+                    <td className="t-rate">{m.inputRate != null ? fmtUSD(m.inputRate) : '—'}</td>
+                    <td className="t-rate">{m.outputRate != null ? fmtUSD(m.outputRate) : '—'}</td>
+                  </>
+                )}
+                <td className="t-rate">{perMtokOut == null ? '—' : fmtUSD(perMtokOut)}</td>
                 <td>{relTime(m.firstTs, now)}</td>
                 <td>{relTime(m.lastTs, now)}</td>
               </tr>
