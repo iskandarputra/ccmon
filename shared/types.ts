@@ -367,6 +367,10 @@ export interface ModelRow extends SumRow {
   sessions: number;
   firstTs: number;
   lastTs: number;
+  /** resolved input price USD per MTok (from the pricing engine), or null when unknown */
+  inputRate: number | null;
+  /** resolved output price USD per MTok (from the pricing engine), or null when unknown */
+  outputRate: number | null;
 }
 
 export interface ProjectRow {
@@ -660,7 +664,7 @@ export interface AdvisorMessage {
 export type AdvisorResult = { ok: true; answer: string } | { ok: false; error: string };
 
 /** Candidate models offered in Settings for the advisor. */
-export const ADVISOR_MODELS = ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5'] as const;
+export const ADVISOR_MODELS = ['claude-opus-4-8', 'claude-sonnet-5', 'claude-sonnet-4-6', 'claude-haiku-4-5'] as const;
 
 // ---- CSV export -------------------------------------------------------------
 

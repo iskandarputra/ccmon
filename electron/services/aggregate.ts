@@ -760,18 +760,23 @@ export function buildSnapshot(
     }));
 
   const models: ModelRow[] = [...modelMap.values()]
-    .map((m) => ({
-      model: m.model,
-      cost: m.cost,
-      in: m.in,
-      out: m.out,
-      read: m.read,
-      write: m.write,
-      entries: m.entries,
-      sessions: m.sessions.size,
-      firstTs: m.firstTs,
-      lastTs: m.lastTs,
-    }))
+    .map((m) => {
+      const row = pricing?.rates(m.model);
+      return {
+        model: m.model,
+        cost: m.cost,
+        in: m.in,
+        out: m.out,
+        read: m.read,
+        write: m.write,
+        entries: m.entries,
+        sessions: m.sessions.size,
+        firstTs: m.firstTs,
+        lastTs: m.lastTs,
+        inputRate: row ? row.input * 1e6 : null,
+        outputRate: row ? row.output * 1e6 : null,
+      };
+    })
     .sort((a, b) => b.cost - a.cost);
 
   const projects: ProjectRow[] = [...projMap.values()]
