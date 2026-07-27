@@ -11,6 +11,7 @@ import { Hint } from '../components/ui/Hint';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { SetupWizard } from '../components/accounts/SetupWizard';
 import { LoginPrompt } from '../components/auth/LoginPrompt';
+import { DeepseekCard } from '../components/deepseek/DeepseekCard';
 import { useUsageStore } from '../store/useUsageStore';
 import { useNow } from '../hooks/useNow';
 import { useScopedDirs } from '../hooks/useScopedDirs';
@@ -27,6 +28,7 @@ import {
   suggestWrapperName,
   WRAPPER_NAME_RE,
 } from '../lib/crossAccount';
+import { usesDeepseek } from '../../shared/providers';
 import type {
   AccountInfo,
   AccountSpend,
@@ -223,12 +225,16 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
   const root = accountRoot(dir);
   const isDefault = isDefaultAccountRoot(root);
   const currentSuffix = root.split(/[\\/]/).pop()?.replace(/^\.claude-?/, '') ?? '';
-  const sourceDirs = useUsageStore((s) => s.sourceDirs);
+  // the wrapper file must list EVERY account, hidden included — hiding is a
+  // ccmon view preference and must never quietly rewrite the user's shell
+  const allSourceDirs = useUsageStore((s) => s.allSourceDirs);
+  const visibleCount = useUsageStore((s) => s.sourceDirs.length);
   const prefs = useUsageStore((s) => s.settings?.accountWrapperPrefs) ?? {};
   const wrapperName = prefs[root]?.name || suggestWrapperName(root);
   const wrapperDisabled = prefs[root]?.disabled ?? false;
 
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [hideOpen, setHideOpen] = useState(false);
   const [wrapperBusy, setWrapperBusy] = useState(false);
   const [wrapperErr, setWrapperErr] = useState<string | null>(null);
 
@@ -237,12 +243,21 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
     try {
       updateSettings({ accountWrapperPrefs: nextPrefs });
       const res = await window.ccmon?.updateWrapperAccounts(
-        effectiveWrapperAccounts(sourceDirs, nextPrefs),
+        effectiveWrapperAccounts(allSourceDirs, nextPrefs),
       );
       if (res && !res.ok) setWrapperErr(res.errors.join(' · '));
     } finally {
       setWrapperBusy(false);
     }
+  }
+
+  /**
+   * Hide this account from ccmon. Settings-only — no wrapper rewrite, nothing
+   * touched on disk — so this is the "remove" that can always be undone.
+   */
+  function hideAccount() {
+    updateSettings({ accountWrapperPrefs: { ...prefs, [root]: { ...prefs[root], hidden: true } } });
+    setHideOpen(false);
   }
 
   async function confirmRemove() {
@@ -270,7 +285,7 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
       setWrapperErr('use letters, digits, dash or underscore, starting with a letter');
       return;
     }
-    const clash = effectiveWrapperAccounts(sourceDirs, prefs).some(
+    const clash = effectiveWrapperAccounts(allSourceDirs, prefs).some(
       (a) => a.root !== root && a.name === trimmed,
     );
     if (clash) {
@@ -454,6 +469,21 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
             >
               remove from shell
             </button>
+            {/* the last visible account can't be hidden — an empty dashboard
+                with no obvious way back is worse than a cluttered one */}
+            <button
+              type="button"
+              className="acc-copy"
+              onClick={() => setHideOpen(true)}
+              disabled={visibleCount < 2}
+              title={
+                visibleCount < 2
+                  ? 'this is the only account in view'
+                  : 'hide this account from ccmon (nothing is deleted)'
+              }
+            >
+              hide
+            </button>
           </>
         )}
         {wrapperErr && <span className="acc-wrapper-err">{wrapperErr}</span>}
@@ -478,6 +508,28 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
         busy={wrapperBusy}
         onConfirm={confirmRemove}
         onCancel={() => setConfirmOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={hideOpen}
+        title={`Hide ${label} from ccmon?`}
+        body={
+          <>
+            It disappears from this dashboard, the scope picker and the live limits poll, and its
+            usage drops out of every total. <b>Nothing is deleted</b> — transcripts, login and the{' '}
+            <code>{wrapperName}</code> shell command at <code>{tildify(root)}</code> all stay exactly
+            as they are, and you can unhide it from the bar at the top of this view.
+            <br />
+            <br />
+            ccmon has no delete-account: that folder holds every transcript the app reads, so
+            removing it would be irreversible. To actually erase it, delete{' '}
+            <code>{tildify(root)}</code> yourself.
+          </>
+        }
+        confirmLabel="hide"
+        busy={wrapperBusy}
+        onConfirm={hideAccount}
+        onCancel={() => setHideOpen(false)}
       />
 
       {!isDefault && (
@@ -735,8 +787,24 @@ export function AccountsView() {
   const limits = useUsageStore((s) => s.limits);
   const spend = useUsageStore((s) => s.snapshot?.accountSpend);
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
+  const allSourceDirs = useUsageStore((s) => s.allSourceDirs);
+  const prefs = useUsageStore((s) => s.settings?.accountWrapperPrefs) ?? {};
+  const models = useUsageStore((s) => s.snapshot?.models);
+  const deepseekConnected = useUsageStore((s) => !!s.deepseekAuth?.connected);
   const scoped = useScopedDirs();
   const now = useNow(30000);
+
+  const hidden = allSourceDirs.filter((d) => !sourceDirs.includes(d));
+  const unhide = (dir: string) => {
+    const root = accountRoot(dir);
+    updateSettings({ accountWrapperPrefs: { ...prefs, [root]: { ...prefs[root], hidden: false } } });
+  };
+
+  // DeepSeek isn't an account root — it's a key against a prepaid balance —
+  // so the card only appears for users it means something to: those already
+  // running DeepSeek models, or those who have connected a key.
+  const showDeepseek =
+    deepseekConnected || usesDeepseek((models ?? []).map((m) => m.model));
 
   const scopedSet = new Set(scoped);
   const canScope = sourceDirs.length > 1;
@@ -764,6 +832,22 @@ export function AccountsView() {
         </div>
       )}
 
+      {/* the only way back from "hide" — without this the account is gone
+          from the UI with no affordance to restore it */}
+      {hidden.length > 0 && (
+        <div className="g12 acc-toolbar acc-hidden-bar">
+          <span className="acc-toolbar-label">
+            {hidden.length} hidden {hidden.length === 1 ? 'account' : 'accounts'} · nothing was
+            deleted
+          </span>
+          {hidden.map((dir) => (
+            <button key={dir} type="button" className="acc-viewall" onClick={() => unhide(dir)}>
+              unhide {sourceLabel(dir)}
+            </button>
+          ))}
+        </div>
+      )}
+
       {sourceDirs.map((dir, i) => (
         <div className="g6" key={dir}>
           <AccountCard
@@ -778,6 +862,12 @@ export function AccountsView() {
           />
         </div>
       ))}
+
+      {showDeepseek && (
+        <div className="g6">
+          <DeepseekCard />
+        </div>
+      )}
 
       <div className="g12">
         <SetupWizard />

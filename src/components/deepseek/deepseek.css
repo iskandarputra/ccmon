@@ -1,0 +1,389 @@
+/* deepseek balance card + connect control (.ds- prefix) */
+
+.ds-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.ds-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* DeepSeek has no plan tier to badge, so this just names the billing model —
+   quieter than .plim-plan on purpose: it is a constant, not a live fact. */
+.ds-tag {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
+}
+
+/* ---- balance hero ------------------------------------------------------- */
+
+.ds-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0 14px;
+}
+
+.ds-hero-num {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+}
+
+.ds-hero-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.ds-native {
+  font-style: normal;
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+/* ---- balance sparkline -------------------------------------------------- */
+
+.ds-spark-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 4px;
+}
+
+.ds-spark-label {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+}
+
+.ds-spark svg {
+  display: block;
+  width: 132px;
+  height: 18px;
+}
+.ds-spark path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--chart-4) 80%, transparent);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* ---- derived facts ------------------------------------------------------ */
+
+.ds-facts {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin: 4px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.ds-facts li {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
+  transition:
+    box-shadow var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+.ds-facts li:hover {
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  transform: translateY(-1px);
+}
+
+.ds-facts span {
+  font-family: var(--mono);
+  color: var(--text-faint);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-facts b {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* qualifier riding along with a value — 'measured' vs 'estimated' matters
+   enough to always show, but not enough to compete with the number */
+.ds-src {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+
+/* ---- states ------------------------------------------------------------- */
+
+.ds-alert {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--bad);
+  padding: 8px 11px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bad) 9%, var(--bg1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 35%, transparent);
+}
+
+.ds-stale {
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--warn);
+  margin-top: 12px;
+}
+
+.ds-error {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 0 10px;
+}
+.ds-error-msg {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--bad);
+}
+.ds-error-retry {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.ds-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0 16px;
+}
+.ds-empty-lead {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.ds-empty-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
+.ds-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+/* ---- connect control ---------------------------------------------------- */
+
+.ds-connect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.ds-connect.is-open {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+}
+
+.ds-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ds-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+.ds-status code {
+  color: var(--text);
+}
+
+.ds-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.ds-status.is-on .ds-dot {
+  background: var(--ok);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 55%, transparent);
+}
+
+.ds-btn {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--amber);
+  padding: 3px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--amber) 8%, var(--bg1));
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 50%, transparent);
+  white-space: nowrap;
+  transition: all var(--dur-1) ease;
+}
+.ds-btn:hover:not(:disabled) {
+  color: var(--bg0);
+  background: var(--amber);
+  box-shadow: var(--neu-raised-sm);
+}
+.ds-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ds-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: var(--bg1);
+  box-shadow: var(--neu-inset);
+}
+.ds-input:focus {
+  outline: none;
+  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent);
+}
+
+.ds-link {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 3px 4px;
+  transition: color var(--dur-1) ease;
+}
+.ds-link:hover:not(:disabled) {
+  color: var(--text);
+}
+.ds-link:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ds-extlink {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ds-extlink:hover {
+  color: var(--text);
+}
+
+.ds-note {
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+
+.ds-warn {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--warn);
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--warn) 10%, var(--bg1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 35%, transparent);
+}
+
+.ds-err {
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--bad);
+}
+
+/* ---- title-bar balance chip --------------------------------------------- */
+
+.tb-ds {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--bg1);
+  box-shadow: var(--neu-raised-sm);
+  -webkit-app-region: no-drag;
+  cursor: pointer;
+  transition: color var(--dur-1) ease;
+}
+.tb-ds:hover {
+  color: var(--text);
+}
+.tb-ds b {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+.tb-ds.is-low b {
+  color: var(--warn);
+}
+.tb-ds.is-critical b {
+  color: var(--bad);
+}
+.tb-ds-mark {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--chart-4);
+}

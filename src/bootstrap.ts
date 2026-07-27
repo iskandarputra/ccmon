@@ -47,12 +47,15 @@ export function useBootstrap(): void {
       useUsageStore.setState({
         version: s.version,
         sourceDirs: s.sourceDirs,
+        allSourceDirs: s.allSourceDirs || s.sourceDirs,
         progress: s.progress,
         settings: s.settings || null,
         pricingMeta: s.pricingMeta || null,
         accounts: s.accounts || {},
         limits: s.limits || {},
         currency: s.currency || null,
+        deepseek: s.deepseek || null,
+        deepseekAuth: s.deepseekAuth || null,
       });
       applyTheme(s.settings?.theme || DEFAULT_THEME_ID);
       applyCurrency();
@@ -76,6 +79,15 @@ export function useBootstrap(): void {
         useUsageStore.setState({ currency: rates || null });
         applyCurrency();
       }),
+      api.onDeepseek?.((result) => useUsageStore.setState({ deepseek: result || null })),
+      api.onDeepseekAuth?.((auth) => useUsageStore.setState({ deepseekAuth: auth || null })),
+      api.onAccounts?.((p) =>
+        useUsageStore.setState({
+          sourceDirs: p.sourceDirs,
+          allSourceDirs: p.allSourceDirs,
+          accounts: p.accounts,
+        }),
+      ),
     ].filter(Boolean);
 
     return () => {
@@ -93,5 +105,12 @@ export function updateSettings(partial: Partial<AppSettings>) {
 /** Refresh the store's account list after main re-detects config roots (new/renamed account dir). */
 export async function refreshAccounts(): Promise<void> {
   const s = await window.ccmon?.getState();
-  if (s) useUsageStore.setState({ sourceDirs: s.sourceDirs, accounts: s.accounts, limits: s.limits });
+  if (s) {
+    useUsageStore.setState({
+      sourceDirs: s.sourceDirs,
+      allSourceDirs: s.allSourceDirs || s.sourceDirs,
+      accounts: s.accounts,
+      limits: s.limits,
+    });
+  }
 }

@@ -25,7 +25,7 @@ const VIEWS = [
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const targets = await (await fetch('http://127.0.0.1:9222/json/list')).json();
-const page = targets.find((t) => t.type === 'page' && t.url.startsWith('http://localhost:5173'));
+const page = targets.find((t) => t.type === 'page' && t.url.startsWith('http://localhost:5183'));
 if (!page) {
   console.error('no app page target found; targets:', targets.map((t) => `${t.type} ${t.url}`));
   process.exit(1);

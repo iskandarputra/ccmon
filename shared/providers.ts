@@ -2,6 +2,10 @@
  * @file providers.ts
  * @brief Detect which LLM providers are in use from model id prefixes.
  * @author Iskandar Putra <www.iskandarputra.com>
+ *
+ * Shared because BOTH processes need it: the renderer splits billing by
+ * provider, and main filters entries down to one provider's spend when
+ * reconciling a DeepSeek balance against local transcripts (§5.7).
  */
 
 /** Known provider prefixes — first match wins, checked in definition order. */
@@ -44,3 +48,9 @@ export function isApiKeyOnly(models: string[]): boolean {
   const providers = detectProviders(models);
   return providers.length > 0 && providers.every((p) => p.id !== 'anthropic');
 }
+
+/** True when the model id belongs to DeepSeek — the balance reconciliation filter. */
+export const isDeepseekModel = (model: string): boolean => detectProvider(model)?.id === 'deepseek';
+
+/** True when ANY model in the list is DeepSeek (drives whether to offer the connect UI). */
+export const usesDeepseek = (models: string[]): boolean => models.some(isDeepseekModel);

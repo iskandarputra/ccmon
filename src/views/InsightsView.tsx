@@ -40,7 +40,15 @@ import {
 import { withAlpha } from '../lib/palette';
 import { scopedDirs } from '../lib/limits';
 import { planPriceUSD } from '../lib/plans';
-import { detectProvider, isApiKeyOnly } from '../lib/providers';
+import { detectProvider, isApiKeyOnly } from '../../shared/providers';
+import {
+  DRIFT_ALERT,
+  deriveRunway,
+  driftLabel,
+  nativeToUSD,
+  runwayColor,
+  runwayLabel,
+} from '../lib/deepseek';
 import type { AccountInfo, AccountsMap, ModelRow, MonthlyRow, Snapshot, WeeklyRow } from '../../shared/types';
 
 const AXIS_TICK = { fill: 'var(--text-faint)', fontSize: 10, fontFamily: 'JetBrains Mono' };
@@ -422,6 +430,16 @@ export function InsightsView() {
     () => (snapshot ? isApiKeyOnly(snapshot.models.map((m) => m.model)) : false),
     [snapshot],
   );
+  const deepseek = useUsageStore((s) => s.deepseek);
+  const rates = useUsageStore((s) => s.currency);
+  // the live balance is the one number here that isn't derived from the
+  // transcripts — it's what the provider says is actually left
+  const dsBalanceUSD =
+    deepseek?.ok ? nativeToUSD(deepseek.primary.total, deepseek.primary.currency, rates) : null;
+  const dsRunway = useMemo(
+    () => deriveRunway(deepseek, rates, snapshot?.days ?? []),
+    [deepseek, rates, snapshot],
+  );
   const costliest = useMemo(
     () =>
       snapshot && snapshot.sessions.length
@@ -667,7 +685,7 @@ export function InsightsView() {
       </div>
       <div className="g6">
         <Panel
-          title={<>{(plan ? 'plan value' : apiKey ? 'billing' : 'plan value')} <Hint label="how it's computed">{plan ? "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded." : apiKey ? 'api-key billing — you pay per token at the provider\'s published rates. effective rates are blended (total cost ÷ output tokens) and include input + cache costs, so they read higher than the pure output rate.' : "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."}</Hint></>}
+          title={<>{(plan ? 'plan value' : apiKey ? 'billing' : 'plan value')} <Hint label="how it's computed">{plan ? "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded." : apiKey ? 'api-key billing — you pay per token at the provider\'s published rates. effective rates are blended (total cost ÷ output tokens) and include input + cache costs, so they read higher than the pure output rate. balance left, runway and the cost check come from your connected deepseek key (accounts view): runway is balance ÷ burn, measured from the balance actually falling once there are a few hours of polls and estimated from local transcripts before that. the cost check compares real balance consumption against ccmon\'s computed cost over the same span — a large gap usually means usage on the same key from another tool or machine.' :"api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."}</Hint></>}
           right={
             <span className="panel-note">
               {ins.curMonth ? `${monthLabel(ins.curMonth.month)} · ` : ''}
@@ -726,19 +744,37 @@ export function InsightsView() {
             </div>
           ) : apiKey && billingSummary ? (
             <div className="ins-cache">
+              {/* with a live balance the bar becomes a real gauge — spend so
+                  far against spend + what's left — instead of a lone total
+                  filling its own track to 100% and meaning nothing */}
               <div className="ins-cache-row">
                 <span className="ins-cache-label">total spend</span>
                 <div className="ins-cache-track">
                   <div
                     className="ins-cache-fill"
                     style={{
-                      width: `${Math.max(2, (billingSummary.totalCost / Math.max(billingSummary.totalCost, 1)) * 100)}%`,
+                      width: `${Math.max(2, dsBalanceUSD != null ? (billingSummary.totalCost / (billingSummary.totalCost + dsBalanceUSD)) * 100 : 100)}%`,
                       background: 'var(--chart-1)',
                     }}
                   />
                 </div>
                 <b>{fmtUSD(billingSummary.totalCost)}</b>
               </div>
+              {dsBalanceUSD != null && (
+                <div className="ins-cache-row">
+                  <span className="ins-cache-label">balance left</span>
+                  <div className="ins-cache-track">
+                    <div
+                      className="ins-cache-fill"
+                      style={{
+                        width: `${Math.max(2, (dsBalanceUSD / (billingSummary.totalCost + dsBalanceUSD)) * 100)}%`,
+                        background: withAlpha('var(--chart-4)', 0.6),
+                      }}
+                    />
+                  </div>
+                  <b>{fmtUSD(dsBalanceUSD)}</b>
+                </div>
+              )}
               <ul className="ins-facts">
                 {billingSummary.providers.map((p) => (
                   <li key={p.id}>
@@ -753,6 +789,33 @@ export function InsightsView() {
                     </b>
                   </li>
                 ))}
+                {dsRunway && (
+                  <li>
+                    <span>runway</span>
+                    <b style={{ color: runwayColor(dsRunway.days) }}>
+                      {runwayLabel(dsRunway.days)}
+                      <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
+                        {dsRunway.source === 'measured' ? 'measured' : 'estimated'}
+                      </span>
+                    </b>
+                  </li>
+                )}
+                {deepseek?.ok && deepseek.drift?.ratio != null && (
+                  <li>
+                    <span>cost check</span>
+                    <b
+                      style={{
+                        color:
+                          Math.abs(deepseek.drift.ratio) >= DRIFT_ALERT ? 'var(--warn)' : undefined,
+                      }}
+                    >
+                      {driftLabel(deepseek.drift.ratio)}
+                      <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
+                        real vs computed
+                      </span>
+                    </b>
+                  </li>
+                )}
                 <li>
                   <span>billing</span>
                   <b style={{ color: 'var(--text-dim)' }}>api key · per-token</b>

@@ -18,6 +18,7 @@ import {
   renderManagedScript,
   scanRcForWrappers,
   suggestLabel,
+  visibleAccountDirs,
   writeWrapperAccounts,
   type SetupEnv,
 } from '../account-setup';
@@ -414,5 +415,47 @@ describe('renameAccountDir', () => {
     const res = renameAccountDir(path.join(home, '.claude-ghost'), 'ghost2', env);
     expect(res.ok).toBe(false);
     expect(res.error).toBeTruthy();
+  });
+});
+
+describe('visibleAccountDirs', () => {
+  const DEFAULT = '/home/u/.claude/projects';
+  const WORK = '/home/u/.claude-work/projects';
+  const TEAM = '/home/u/.claude-work-team/projects';
+  const ALL = [DEFAULT, WORK, TEAM];
+
+  it('passes everything through with no prefs', () => {
+    expect(visibleAccountDirs(ALL)).toEqual(ALL);
+    expect(visibleAccountDirs(ALL, {})).toEqual(ALL);
+  });
+
+  it('drops hidden roots and keeps the original order', () => {
+    expect(visibleAccountDirs(ALL, { '/home/u/.claude-work': { hidden: true } })).toEqual([
+      DEFAULT,
+      TEAM,
+    ]);
+  });
+
+  it('can hide the default account like any other', () => {
+    expect(visibleAccountDirs(ALL, { '/home/u/.claude': { hidden: true } })).toEqual([WORK, TEAM]);
+  });
+
+  it('ignores the untrack-from-shell pref — a different concern entirely', () => {
+    expect(visibleAccountDirs(ALL, { '/home/u/.claude-work': { disabled: true } })).toEqual(ALL);
+  });
+
+  it('refuses to hide everything, so the app can never end up with no data', () => {
+    const prefs = {
+      '/home/u/.claude': { hidden: true },
+      '/home/u/.claude-work': { hidden: true },
+      '/home/u/.claude-work-team': { hidden: true },
+    };
+    expect(visibleAccountDirs(ALL, prefs)).toEqual(ALL);
+  });
+
+  it('keeps stale prefs for accounts that no longer exist harmless', () => {
+    expect(visibleAccountDirs([DEFAULT], { '/home/u/.claude-gone': { hidden: true } })).toEqual([
+      DEFAULT,
+    ]);
   });
 });
