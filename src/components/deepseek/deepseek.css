@@ -11,8 +11,6 @@
   gap: 8px;
 }
 
-/* DeepSeek has no plan tier to badge, so this just names the billing model —
-   quieter than .plim-plan on purpose: it is a constant, not a live fact. */
 .ds-tag {
   font-family: var(--mono);
   font-size: 9.5px;
@@ -21,8 +19,8 @@
   color: var(--text-faint);
   padding: 2px 7px;
   border-radius: 5px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line);
 }
 
 /* ---- balance hero ------------------------------------------------------- */
@@ -103,17 +101,14 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  padding: 11px 13px;
-  border-radius: 14px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  transition:
-    box-shadow var(--dur-1) var(--ease-out),
-    transform var(--dur-1) var(--ease-out);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  transition: border-color 0.12s ease;
 }
 .ds-facts li:hover {
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
-  transform: translateY(-1px);
+  border-color: var(--text-dim);
 }
 
 .ds-facts span {
@@ -129,13 +124,11 @@
 .ds-facts b {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text);
 }
 
-/* qualifier riding along with a value — 'measured' vs 'estimated' matters
-   enough to always show, but not enough to compete with the number */
 .ds-src {
   font-family: var(--mono);
   font-style: normal;
@@ -151,19 +144,19 @@
   font-family: var(--mono);
   font-size: 10.5px;
   line-height: 1.5;
-  color: var(--bad);
+  color: var(--rose);
   padding: 8px 11px;
   margin-bottom: 12px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bad) 9%, var(--bg1));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 35%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid color-mix(in srgb, var(--rose) 40%, var(--line));
 }
 
 .ds-stale {
   font-family: var(--mono);
   font-size: 10px;
   line-height: 1.5;
-  color: var(--warn);
+  color: var(--amber);
   margin-top: 12px;
 }
 
@@ -177,7 +170,7 @@
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.5;
-  color: var(--bad);
+  color: var(--rose);
 }
 .ds-error-retry {
   font-family: var(--mono);
@@ -254,8 +247,7 @@
   background: var(--text-faint);
 }
 .ds-status.is-on .ds-dot {
-  background: var(--ok);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 55%, transparent);
+  background: var(--sage);
 }
 
 .ds-btn {
@@ -263,20 +255,19 @@
   font-size: 10.5px;
   letter-spacing: 0.05em;
   color: var(--amber);
-  padding: 3px 12px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--amber) 8%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 50%, transparent);
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line);
   white-space: nowrap;
-  transition: all var(--dur-1) ease;
+  transition: color 0.12s ease, border-color 0.12s ease;
 }
 .ds-btn:hover:not(:disabled) {
-  color: var(--bg0);
-  background: var(--amber);
-  box-shadow: var(--neu-raised-sm);
+  color: var(--text);
+  border-color: var(--amber);
 }
 .ds-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
 
@@ -286,14 +277,14 @@
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text);
-  padding: 4px 9px;
-  border-radius: 6px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  outline: none;
 }
 .ds-input:focus {
-  outline: none;
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent);
+  border-color: var(--amber);
 }
 
 .ds-link {
@@ -301,13 +292,13 @@
   font-size: 10px;
   color: var(--text-dim);
   padding: 3px 4px;
-  transition: color var(--dur-1) ease;
+  transition: color 0.12s ease;
 }
 .ds-link:hover:not(:disabled) {
   color: var(--text);
 }
 .ds-link:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
 
@@ -326,64 +317,22 @@
   font-family: var(--mono);
   font-size: 10px;
   line-height: 1.5;
-  letter-spacing: 0.02em;
   color: var(--text-faint);
 }
 
 .ds-warn {
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.04em;
-  color: var(--warn);
+  color: var(--amber);
   padding: 2px 7px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--warn) 10%, var(--bg1));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 35%, transparent);
+  border-radius: 4px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
 }
 
 .ds-err {
   font-family: var(--mono);
   font-size: 10px;
   line-height: 1.5;
-  color: var(--bad);
-}
-
-/* ---- title-bar balance chip --------------------------------------------- */
-
-.tb-ds {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.03em;
-  color: var(--text-dim);
-  padding: 3px 9px;
-  border-radius: 6px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  -webkit-app-region: no-drag;
-  cursor: pointer;
-  transition: color var(--dur-1) ease;
-}
-.tb-ds:hover {
-  color: var(--text);
-}
-.tb-ds b {
-  font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--text);
-}
-.tb-ds.is-low b {
-  color: var(--warn);
-}
-.tb-ds.is-critical b {
-  color: var(--bad);
-}
-.tb-ds-mark {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--chart-4);
+  color: var(--rose);
 }

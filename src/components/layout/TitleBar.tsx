@@ -47,6 +47,14 @@ function ControlIcon({ kind }: ControlIconProps) {
  * Renders nothing until a key is connected and a balance has landed; clicking
  * it opens the accounts view where the full card lives.
  */
+function DeepseekLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2C6.48 2 2 6.48 2 12c0 3.69 2.01 6.91 5 8.65v-2.22c-1.83-1.39-3-3.62-3-6.43 0-4.41 3.59-8 8-8s8 3.59 8 8c0 2.81-1.17 5.04-3 6.43v2.22c2.99-1.74 5-4.96 5-8.65 0-5.52-4.48-10-10-10z" />
+    </svg>
+  );
+}
+
 function DeepseekChip() {
   const result = useUsageStore((s) => s.deepseek);
   const rates = useUsageStore((s) => s.currency);
@@ -57,8 +65,6 @@ function DeepseekChip() {
   const { primary } = result;
   const usd = nativeToUSD(primary.total, primary.currency, rates);
   const runway = deriveRunway(result, rates, days ?? []);
-  // the chip's urgency comes from runway when it's known, and from the API's
-  // own is_available flag otherwise — a raw balance can't say what's "low"
   const level =
     !result.isAvailable || (runway && runway.days < 3)
       ? 'is-critical'
@@ -73,7 +79,8 @@ function DeepseekChip() {
       onClick={() => setView('accounts')}
       title={`DeepSeek balance${runway ? ` · ~${runwayLabel(runway.days)} left at ${runway.source === 'measured' ? 'measured' : 'estimated'} burn` : ''}${result.stale ? ' · last refresh failed' : ''}`}
     >
-      <i className="tb-ds-mark" aria-hidden />
+      <DeepseekLogo className="tb-ds-logo" />
+      <span className="tb-ds-name">DeepSeek</span>
       <b>{usd == null ? fmtNative(primary.total, primary.currency) : fmtUSD(usd)}</b>
       {runway && <span>{runwayLabel(runway.days)}</span>}
     </button>
