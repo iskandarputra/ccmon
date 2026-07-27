@@ -1,14 +1,12 @@
 /* Overview dashboard (.ovr- prefix) — section rhythm, hero accent, empty state */
 
-/* ── labeled section dividers ─────────────────────────────────────────────── *
- * Names the implicit row groups of the grid; gives the dashboard breathing
- * rhythm without nesting panels. Sits flush as a full-width grid child. */
 .ovr-section {
   display: flex;
   align-items: center;
   gap: 9px;
   margin: 6px 0 -6px;
   min-height: 18px;
+  grid-column: span 12;
 }
 .ovr-section:first-child {
   margin-top: 0;
@@ -29,30 +27,17 @@
 .ovr-section-rule {
   flex: 1;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--line) 90%, transparent),
-    transparent
-  );
+  background: var(--line-soft);
 }
 
-/* ── hero slot: the headline "today" tile carries a faint amber accent ─────── *
- * StatCard already renders hero numerals; here we lift the single most
- * important tile so the eye lands on it first. */
 .ovr-hero-slot .stat-card {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--amber) 6%, transparent), transparent 55%),
-    var(--bg1);
-  box-shadow: var(--neu-raised), inset 0 0 0 1px color-mix(in srgb, var(--amber) 24%, transparent);
-}
-.ovr-hero-slot .stat-card:hover {
-  box-shadow: var(--neu-raised), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
+  background: var(--bg1);
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
 }
 .ovr-hero-slot .stat-label {
-  color: color-mix(in srgb, var(--amber) 70%, var(--text-dim));
+  color: var(--amber);
 }
 
-/* ── empty state ──────────────────────────────────────────────────────────── */
 .ovr-empty {
   display: flex;
   flex-direction: column;
@@ -69,7 +54,7 @@
   padding: 12px;
   border-radius: 50%;
   background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  border: 1px solid var(--line);
   box-sizing: content-box;
   margin-bottom: 4px;
 }
@@ -87,10 +72,4 @@
   color: var(--text-faint);
   margin: 0;
   max-width: 360px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ovr-hero-slot .stat-card:hover {
-    transform: none;
-  }
 }

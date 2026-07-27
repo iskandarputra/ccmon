@@ -1,115 +1,124 @@
-/* ── projects view (.prj- prefix) ────────────────────────────────────────── */
+/* ───────────────────────────────────────────────────────────────────────────
+   ProjectsView (.prj- prefix) · Redesigned from scratch
+   Executive Project Intelligence Hub — dual grid/table modes & hero metrics
+   ─────────────────────────────────────────────────────────────────────────── */
 
-/* header controls — responsive: search flexes, controls wrap gracefully */
+/* ── Hero Banner ────────────────────────────────────────────────────────── */
 
-.prj-controls {
+.prj-hero-banner {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.prj-hero-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.prj-h-lbl {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.prj-h-val {
+  font-family: var(--sans);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.prj-h-top {
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--amber);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prj-h-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* ── Toolbar Controls ───────────────────────────────────────────────────── */
+
+.prj-toolbar {
   display: flex;
   align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px 10px;
-  min-width: 0;
-  flex: 1;
 }
 
-.prj-search-wrap {
+.prj-search-box {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  flex: 1 1 160px;
-  max-width: 280px;
-  min-width: 130px;
+  width: 240px;
 }
+
 .prj-search-icon {
   position: absolute;
-  left: 9px;
-  width: 13px;
-  height: 13px;
-  pointer-events: none;
+  left: 10px;
+  width: 14px;
+  height: 14px;
   color: var(--text-faint);
-  transition: color var(--dur-1) var(--ease-out);
-}
-.prj-search-wrap:focus-within .prj-search-icon {
-  color: var(--amber);
+  pointer-events: none;
 }
 
-.prj-search {
-  flex: 1;
-  min-width: 0;
+.prj-input {
+  width: 100%;
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.02em;
   color: var(--text);
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 5px 10px 5px 27px;
+  padding: 6px 10px 6px 30px;
   outline: none;
-  transition: box-shadow var(--dur-1) var(--ease-out);
+  transition: border-color 0.12s ease;
 }
-.prj-search::placeholder {
+.prj-input::placeholder {
   color: var(--text-faint);
 }
-.prj-search:focus {
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
+.prj-input:focus {
+  border-color: var(--amber);
 }
 
-.prj-sortwrap {
-  position: relative;
-  display: inline-flex;
-  flex: none;
-}
-.prj-sortwrap::after {
-  content: '▾';
-  position: absolute;
-  right: 9px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  font-size: 9px;
-  color: var(--text-faint);
-}
-
-.prj-sort {
-  appearance: none;
-  -webkit-appearance: none;
+.prj-select {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.02em;
   color: var(--text-dim);
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 5px 24px 5px 10px;
+  padding: 6px 10px;
   outline: none;
   cursor: pointer;
-  transition: box-shadow var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+  transition: color 0.12s ease, border-color 0.12s ease;
 }
-.prj-sort:hover {
+.prj-select:hover {
   color: var(--text);
-}
-.prj-sort:focus {
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
-}
-.prj-sort option {
-  background: var(--bg1);
-  color: var(--text);
+  border-color: var(--text-dim);
 }
 
-.prj-summary {
-  flex: none;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
+/* ── Grid Container & Cards ────────────────────────────────────────────── */
 
-/* card grid */
-
-.prj-grid {
+.prj-grid-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 14px;
 }
 
@@ -117,31 +126,42 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-width: 0;
-  padding: 14px 15px;
+  padding: 16px;
   background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  border-radius: 14px;
-  transition:
-    box-shadow var(--dur-1) var(--ease-out),
-    transform var(--dur-1) var(--ease-out);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  transition: border-color 0.12s ease, background-color 0.12s ease;
 }
 .prj-card:hover {
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
-  transform: translateY(-1px);
+  border-color: var(--text-dim);
+  background: var(--bg2);
 }
 
-/* head — title block + hero total */
-
-.prj-head {
-  display: flex;
+.prj-card-top {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
 }
 
-.prj-title {
+.prj-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amber);
+}
+
+.prj-folder-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.prj-meta {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -150,9 +170,8 @@
 
 .prj-name {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.01em;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -162,134 +181,171 @@
 .prj-path {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.03em;
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.prj-hero {
-  flex: none;
+.prj-hero-cost {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 1px;
-  text-align: right;
 }
-.prj-hero-label {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.prj-hero-value {
+
+.prj-cost-val {
   font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
-  line-height: 1.05;
   color: var(--text);
-  white-space: nowrap;
 }
 
-/* sparkline — clip rather than rely on a fragile negative margin */
+.prj-cost-lbl {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
-.prj-spark {
-  height: 40px;
-  border-radius: 8px;
+.prj-spark-wrap {
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
   overflow: hidden;
+  display: flex;
+  align-items: center;
 }
 
 .prj-spark-empty {
-  height: 40px;
-  display: flex;
-  align-items: center;
+  padding: 0 10px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.06em;
   color: var(--text-faint);
 }
 
-/* stat tiles */
-
-.prj-stats {
+.prj-metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  margin: 0;
 }
 
-.prj-tile {
+.prj-metric {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  padding: 7px 9px;
-  border-radius: 9px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
 }
-.prj-tile-label {
+
+.prj-m-lbl {
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: lowercase;
-  color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 9.5px;
+  color: var(--text-faint);
 }
-.prj-tile-value {
-  font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  font-size: 12.5px;
+
+.prj-m-val {
+  font-family: var(--mono);
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.prj-tile-value.prj-hot {
+.prj-m-val.is-amber {
   color: var(--amber);
 }
-.prj-tile-value.prj-dim {
+
+.prj-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.prj-foot-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.prj-tokens {
   color: var(--text-dim);
 }
 
-/* empty state */
+.prj-sub-tag {
+  color: var(--blue);
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+}
+
+.prj-last-active {
+  color: var(--text-faint);
+  flex: none;
+}
+
+/* ── Table Extensions ────────────────────────────────────────────────────── */
+
+.tbl-prj-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tbl-prj-title b {
+  color: var(--text);
+  font-weight: 600;
+}
+.tbl-prj-title span {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+/* ── Empty States ────────────────────────────────────────────────────────── */
 
 .prj-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
   gap: 8px;
-  padding: 40px 0;
+  padding: 48px 24px;
 }
 .prj-empty-icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   color: var(--text-faint);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 .prj-empty-lead {
   font-family: var(--sans);
-  font-size: 14px;
-  color: var(--text-dim);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
   margin: 0;
 }
 .prj-empty-sub {
   font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
+  font-size: 11px;
   color: var(--text-faint);
   margin: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .prj-card:hover {
-    transform: none;
+@media (max-width: 900px) {
+  .prj-hero-banner {
+    grid-template-columns: 1fr;
   }
 }
