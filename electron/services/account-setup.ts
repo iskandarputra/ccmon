@@ -10,6 +10,7 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import type {
   AccountSpec,
+  AccountWrapperPrefs,
   RcExisting,
   SetupOptions,
   SetupPlan,
@@ -729,6 +730,31 @@ export function writeWrapperAccounts(
   } catch (e) {
     return { ok: false, errors: [`managed file: ${msg(e)}`] };
   }
+}
+
+/**
+ * The source dirs ccmon should actually show, given every discovered dir and
+ * the per-root prefs. Hiding is how an account is "removed": it drops out of
+ * the grid, the scope picker, the limits poll and the snapshot, while nothing
+ * on disk is touched and the shell wrapper is left exactly as it was.
+ *
+ * ccmon deliberately has no delete: an account root holds the OAuth
+ * credentials AND every session transcript — the app's entire data source —
+ * so removing one would be an irreversible `rm -rf` with no preview that
+ * could make it safe. Every other write in this module is narrow and
+ * reversible, and this stays in line with that.
+ *
+ * Hiding everything is refused: an empty source list would leave the app with
+ * nothing to render and no obvious way back, so a prefs file that would do
+ * that (hand-edited, or an account list that shrank) falls back to showing
+ * all of them.
+ */
+export function visibleAccountDirs(
+  dirs: string[],
+  prefs: Record<string, AccountWrapperPrefs> = {},
+): string[] {
+  const visible = dirs.filter((dir) => !prefs[path.dirname(dir)]?.hidden);
+  return visible.length ? visible : dirs;
 }
 
 const SUFFIX_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;

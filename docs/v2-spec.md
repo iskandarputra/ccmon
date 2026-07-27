@@ -400,6 +400,37 @@ window: ccmon has no data beyond whatever transcripts are still on disk.
 The overview Hint names the actual configured window(s) for the accounts in
 scope rather than assuming the default.
 
+**Hiding an account, and why there is no delete.** An account root holds the
+OAuth credentials AND every session transcript — ccmon's entire data source —
+so removing one would be an irreversible `rm -rf` with no preview that could
+make it safe, and every other write in the app is narrow and reversible. So
+"remove this account" is `AccountWrapperPrefs.hidden`, a per-root view
+preference: the account drops out of the grid, the scope picker, the limits
+poll and the snapshot, while nothing on disk is touched and the shell wrapper
+is left alone.
+
+Main therefore keeps TWO lists: `allSourceDirs` (everything
+`detectProjectDirs()` found) and `sourceDirs` (`visibleAccountDirs()` in
+`account-setup.ts` applied on top). `sourceDirs` is what the rest of the app
+sees; `allSourceDirs` exists because the wrapper controls must still be able
+to name a hidden account — hiding must never quietly rewrite the user's
+shell. Three consequences worth knowing:
+
+- The watcher subscribes to `allSourceDirs`, so unhiding restores an account
+  live rather than needing a relaunch.
+- With anything hidden, `sourceScope()` can no longer return `null` for
+  "all" — null means "don't filter", which would let hidden entries back in
+  through the side door — so it returns the explicit visible set instead.
+  `accountEntries` (scope-independent per-account spend) is filtered the same
+  way: hidden is out of the app, not merely out of scope.
+- `visibleAccountDirs()` refuses to hide everything, falling back to showing
+  all — an empty dashboard with no obvious way back is worse than a cluttered
+  one. The UI also disables "hide" on the last visible account and keeps a
+  restore bar at the top of the accounts view whenever anything is hidden.
+
+Toggling it re-derives visibility, rebuilds `accounts`, re-polls limits and
+pushes `accounts:data`.
+
 Main ALWAYS polls Anthropic's OAuth usage endpoint (the same one Claude
 Code's `/usage` screen calls) every 60 s for EVERY discovered account —
 independent of the data scope, since the account about to cap may not be the
@@ -529,6 +560,88 @@ binding account is ≥80 % utilized AND another account with a stored login is
 shell-quoted). ccmon NEVER copies or launches a session — it surfaces the
 command for the user to run their own wrapper.
 
+### 5.7 DeepSeek balance — `electron/services/deepseek.ts`, `deepseek-history.ts`, `deepseek-key.ts`
+
+DeepSeek is API-key billing against a **prepaid balance**, not a
+subscription, and the platform has **no OAuth** — so this is deliberately
+not shaped like §5.2. There is no browser grant, no token to rotate, and no
+credentials file shared with another app. There is also no usage, quota, or
+rate-limit endpoint: `GET https://api.deepseek.com/user/balance` (Bearer, 10 s
+timeout, read-only) is the *only* account endpoint DeepSeek publishes.
+Everything more interesting than the raw balance is therefore MEASURED
+locally, not reported.
+
+**Key handling (`deepseek-key.ts`).** The one secret ccmon owns, so ccmon is
+responsible for it. Stored at `<userData>/deepseek-key.json`, atomic write,
+mode 0600, encrypted through an INJECTED `KeyCrypto` (Electron `safeStorage`,
+wrapped in `main.ts` so the service itself stays pure Node per §7). With no
+OS keyring the key is stored plaintext and `DeepseekAuth.encrypted: false`
+is reported all the way to the UI, which says so — silently downgrading a
+secret is the failure mode worth avoiding. `envKey()` detects
+`DEEPSEEK_API_KEY`, or `ANTHROPIC_AUTH_TOKEN` **only** when
+`ANTHROPIC_BASE_URL` points at DeepSeek (the Claude-Code-through-DeepSeek
+setup, where that token *is* the DeepSeek key); a bare `ANTHROPIC_AUTH_TOKEN`
+is never sent to DeepSeek. A saved key beats an env key. The key crosses the
+IPC bridge once, inbound; only a masked 4-char tail comes back
+(`connectDeepseek()` with no argument adopts the detected env key, so it
+never has to cross at all). `deepseek:connect` VERIFIES against the balance
+endpoint before persisting — an invalid key fails at the click, not five
+minutes later on a poll.
+
+**Polling.** Every 5 min (`DEEPSEEK_REFRESH_MS`) when a key is configured,
+with the same keep-last-good contract as §5.2: last good balance stays on
+screen flagged `stale` with `lastError` + `nextRetryAt`, fixed 5-minute
+retry, server `Retry-After` honoured when longer. Startup polls only after
+the first currency refresh, since a CNY balance needs a rate to become USD.
+
+**Currency.** `balance_infos[]` amounts are in the account's own currency
+(commonly CNY) and arrive as decimal STRINGS. `primary` is the USD row when
+present, else the first. This is the one number in ccmon that is not already
+USD (§5.4), so every DERIVED figure is converted to USD first
+(`deepseekToUSD` in main, `nativeToUSD` in the renderer); a missing rate
+nulls the derived figures rather than guessing, and the native amount still
+renders.
+
+**Derived, in `deepseek-history.ts`** (pure Node; conversion and
+transcript cost are injected). Samples `{ts, total, currency}` persist to
+`<userData>/deepseek-history.json` — raw for 24 h, thinned hourly beyond,
+capped at 30 days:
+
+- `consumption()` sums only the DROPS over a trailing 7-day window. A top-up
+  re-baselines rather than netting against spend, and consecutive samples in
+  different currencies are never differenced.
+- `burnUSDPerDay` / `runwayDays` — measured spend per day and balance ÷ burn,
+  needing ≥2 h of span; a burn under $0.01/day yields no runway rather than
+  one measured in centuries. The renderer falls back to a transcript-derived
+  burn (`transcriptBurnUSDPerDay`, averaged over the ACTIVE days of the last
+  week) until then, and labels which source it used — measured vs estimated.
+- `drift` — the reconciliation, needing ≥6 h of span: balance actually
+  consumed vs `deepseekCostBetween()` in main over the same span, as
+  `observedUSD` / `computedUSD` / `ratio`. **The one place ccmon can check
+  its own cost math against ground truth.** A large positive ratio means real
+  spend outran the computed cost: usage on the same key from another tool or
+  machine, or a stale pricing snapshot. Caveat it cannot see: expiring granted
+  credit also drops the balance and reads as spend.
+
+`deepseekCostBetween()` is deliberately **unscoped** — one key bills all of
+it regardless of which config root the transcript landed in, so scoping would
+compare a subset of spend against the whole balance drop and manufacture
+drift. It walks `entries` backwards with an early break (sorted-only), so a
+few hours of entries stay cheap enough to run on the poll without its own
+aggregation pass.
+
+**Surfaces.** `DeepseekResult` / `DeepseekAuth` flow via `deepseek:data` /
+`deepseek:auth` events and `deepseek` / `deepseekAuth` in getState.
+`<DeepseekCard/>` (accounts view, shown only when a key is connected or
+DeepSeek models appear in the snapshot) carries the balance, sparkline,
+runway, granted-left and cost check; `<DeepseekConnect/>` is the
+connect/adopt/disconnect control; the Insights billing panel adds balance
+left, runway and the cost check beside per-provider spend; the title bar
+carries an always-visible balance chip that colours on a short runway (a
+prepaid balance hitting zero stops work with no warning from Claude Code
+itself). Disconnecting clears the balance history too, so a new key never
+inherits the old curve.
+
 ## 6. Renderer conventions
 
 - One store: `src/store/useUsageStore.ts`. Subscribe with selectors
@@ -583,6 +696,7 @@ Keep changes scoped to one area per PR where possible:
 | themes | `src/theme/themes.ts` | `npm run typecheck` (the `Theme` type enforces every token) |
 | views | one `src/views/<X>View.tsx` + its co-located css | `npm run typecheck` |
 | accounts | `electron/services/accounts.ts`, `cross-account.ts`, `account-setup.ts`, `src/lib/crossAccount.ts`, `src/views/AccountsView.tsx`, `src/components/accounts/` | `npm test` + `npm run smoke` |
+| deepseek | `electron/services/deepseek.ts`, `deepseek-history.ts`, `deepseek-key.ts`, `src/lib/deepseek.ts`, `src/components/deepseek/` | `npm test` |
 | wiring | `main.ts`, `preload.ts`, `watcher.ts`, store, bootstrap, `shared/` | all of the above |
 
 Cross-boundary changes (snapshot fields, IPC, settings) start in this spec

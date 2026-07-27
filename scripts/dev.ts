@@ -13,7 +13,7 @@ import http from 'http';
 import path from 'path';
 import { buildElectron } from './build-electron';
 
-const DEV_URL = 'http://localhost:5173';
+const DEV_URL = 'http://localhost:5183';
 const TIMEOUT_MS = 30000;
 
 function waitFor(url: string, deadline: number): Promise<void> {

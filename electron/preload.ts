@@ -31,6 +31,11 @@ const api: CcmonApi = {
   submitLoginCode: (projectDir: string, code: string) =>
     ipcRenderer.invoke('auth:submitCode', projectDir, code),
 
+  deepseekAuth: () => ipcRenderer.invoke('deepseek:getAuth'),
+  connectDeepseek: (key?: string) => ipcRenderer.invoke('deepseek:connect', key),
+  disconnectDeepseek: () => ipcRenderer.invoke('deepseek:disconnect'),
+  refreshDeepseek: () => ipcRenderer.invoke('deepseek:refresh'),
+
   listRecentSessions: (projectDir: string, limit?: number) =>
     ipcRenderer.invoke('sessions:recent', projectDir, limit),
 
@@ -58,6 +63,9 @@ const api: CcmonApi = {
   onPricingMeta: on('pricing:meta'),
   onLimits: on('limits:data'),
   onCurrency: on('currency:data'),
+  onDeepseek: on('deepseek:data'),
+  onDeepseekAuth: on('deepseek:auth'),
+  onAccounts: on('accounts:data'),
 
   openUrl: (url: string) => ipcRenderer.send('app:openUrl', url),
 

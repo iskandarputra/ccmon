@@ -196,6 +196,14 @@ export interface AccountWrapperPrefs {
   name?: string;
   /** true = excluded from the generated wrapper file (untracked, not deleted) */
   disabled?: boolean;
+  /**
+   * true = hidden from ccmon entirely (grid, scope picker, limits poll,
+   * snapshot). Purely a view preference: nothing on disk is touched and the
+   * shell wrapper is left alone, so unhiding restores everything. This is
+   * ccmon's answer to "remove this account" — it never deletes a config dir,
+   * because that dir holds the transcripts the whole app is built on.
+   */
+  hidden?: boolean;
 }
 
 // ---- currency (§5) ----------------------------------------------------------
@@ -816,6 +824,93 @@ export type LoginResult =
 
 /** Outcome of submitting the pasted authorization code to finish a browser login. */
 export interface LoginCodeResult {
+  ok: boolean;
+  error?: string;
+}
+
+// ---- DeepSeek balance (§5.7) -----------------------------------------------
+
+/**
+ * One currency's balance from DeepSeek's `/user/balance`. Amounts are in
+ * `currency` — NOT USD — because that is what the provider bills in; every
+ * derived figure ccmon computes from them (`burnUSDPerDay`, drift) is
+ * converted to USD first so it stays comparable to snapshot money.
+ */
+export interface DeepseekBalance {
+  /** 'CNY' | 'USD' per the API; treated as an open set */
+  currency: string;
+  total: number;
+  /** promotional balance — expires, and is spent before the topped-up part */
+  granted: number;
+  toppedUp: number;
+}
+
+/** One persisted balance poll — the basis for measured burn and drift. */
+export interface DeepseekSample {
+  ts: number;
+  /** primary balance total, in `currency` */
+  total: number;
+  currency: string;
+}
+
+/**
+ * Reconciliation of the balance DeepSeek actually consumed against the cost
+ * ccmon computed from local transcripts over the same span. A ratio far from
+ * 0 means the pricing snapshot, the cost mode, or the assumption that all
+ * DeepSeek spend flows through Claude Code is off.
+ */
+export interface DeepseekDrift {
+  /** span the comparison covers (epoch ms, inclusive) */
+  fromTs: number;
+  toTs: number;
+  /** balance actually consumed over the span, converted to USD */
+  observedUSD: number;
+  /** ccmon's transcript-derived DeepSeek cost over the same span */
+  computedUSD: number;
+  /** observed ÷ computed − 1 (positive = ccmon under-counts), null when computed ≈ 0 */
+  ratio: number | null;
+}
+
+export type DeepseekResult =
+  | {
+      ok: true;
+      fetchedAt: number;
+      /** the API's own verdict on whether the balance can still fund calls */
+      isAvailable: boolean;
+      /** every currency the account holds, as returned */
+      balances: DeepseekBalance[];
+      /** the balance ccmon leads with — USD when present, else the first */
+      primary: DeepseekBalance;
+      /** thinned ascending samples for the balance sparkline */
+      history?: DeepseekSample[];
+      /** measured spend per day from the balance history, in USD */
+      burnUSDPerDay?: number | null;
+      /** days of balance left at the measured burn, null when burn ≈ 0 */
+      runwayDays?: number | null;
+      /** computed-vs-observed reconciliation, null without enough history */
+      drift?: DeepseekDrift | null;
+      /** retained pre-failure data — still shown, just aging */
+      stale?: boolean;
+      lastError?: { error: string; at: number } | null;
+      nextRetryAt?: number | null;
+    }
+  | ({ ok: false } & LimitsFailure);
+
+/** Whether a DeepSeek key is configured, and where it came from. */
+export interface DeepseekAuth {
+  connected: boolean;
+  /** 'stored' → saved by the user; 'env' → detected this run, not persisted */
+  source: 'stored' | 'env' | null;
+  /** masked tail for display, e.g. '…a91f' — never the key itself */
+  hint: string | null;
+  /** false when the OS keyring was unavailable and the stored key is plaintext */
+  encrypted: boolean;
+  /** an unsaved env key is available to adopt (drives the "use detected key" offer) */
+  envDetected: boolean;
+}
+
+/** Outcome of connecting or disconnecting a DeepSeek key. */
+export interface DeepseekAuthResult {
   ok: boolean;
   error?: string;
 }

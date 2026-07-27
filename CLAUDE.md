@@ -2,14 +2,14 @@
 
 Electron + React + **TypeScript (strict)** realtime monitor for Claude Code
 usage. Reads `~/.claude/projects/**/*.jsonl` locally; local-first with
-five network paths (see Gotchas) — three background, two user-initiated.
+six network paths (see Gotchas) — four background, two user-initiated.
 
 ## Commands
 
 | Command | What | When to run |
 |---|---|---|
 | `npm run dev` | esbuild + Vite + Electron, hot reload | developing |
-| `npm test` | vitest, 151 cases over `electron/services/__tests__/` + `src/lib/__tests__/` | after touching any service math |
+| `npm test` | vitest, 226 cases over `electron/services/__tests__/` + `src/lib/__tests__/` | after touching any service math |
 | `npm run smoke` | full pipeline against real `~/.claude` data, no Electron | after touching `electron/services/` |
 | `npm run parity` | token-parity diff vs ccusage (npx + network) | after touching parser or watcher dedupe |
 | `npm run typecheck` | strict `tsc --noEmit`, node + web projects | before every commit |
@@ -31,12 +31,16 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
 - `docs/analytics-roadmap.md` — every analysis shipped or parked, with
   reasons; also tracks the engineering debts from the 2026-06 review.
 - `shared/` — contracts imported by BOTH processes: `types.ts`, `ipc.ts`
-  (the `CcmonApi` preload surface), `plans.ts` (dated plan-price table).
+  (the `CcmonApi` preload surface), `plans.ts` (dated plan-price table),
+  `providers.ts` (model-prefix → provider registry), `range.ts`.
 - `electron/services/` — pure Node, **never** import Electron here (this is
   what keeps smoke and the unit tests possible; type-only electron imports
-  erase, so they're fine). Fifteen services: paths, config, settings,
+  erase, so they're fine). Twenty-one services: paths, config, settings,
   watcher, parser, aggregate, blocks, pricing, pricing-archive, accounts,
-  cross-account, account-setup, limits-history, currency, window-state.
+  auth, advisor, export, cross-account, account-setup, limits-history,
+  currency, deepseek, deepseek-history, deepseek-key, window-state. A service
+  needing an Electron API takes it INJECTED rather than importing it —
+  `deepseek-key.ts` receives a `KeyCrypto` that main backs with `safeStorage`.
 - `electron/main.ts` — the only main-process file that touches Electron
   APIs; owns `entries[]`, the debounced recompute, and the two pollers
   (limits 60 s, currency 1 h).
@@ -88,7 +92,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
 - Pricing is layered: bundled LiteLLM → 24h-cached refetch → models.dev →
   user regex overrides (always win). Plan prices are NOT fetchable — they
   live as a dated table in `shared/plans.ts`.
-- The four network paths, all keep-last-good with verbose errors:
+- The six network paths, all keep-last-good with verbose errors:
   1. daily pricing refetch (optional, `pricingOffline` disables);
   2. live plan limits every 60 s via Anthropic's OAuth usage endpoint with
      the stored Claude Code login — read-only; the **poller never refreshes
@@ -105,7 +109,22 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
      Messages API reusing the stored login token (read-only), sending ONLY
      snapshot aggregates, never transcripts. Anthropic's ToS scopes that
      token to Claude Code, so the call sends the Claude Code identity system
-     prompt and surfaces a verbose error if the API declines.
+     prompt and surfaces a verbose error if the API declines;
+  6. DeepSeek balance every 5 min (`deepseek.ts`) when a key is connected —
+     `GET /user/balance`, read-only. DeepSeek has NO OAuth, so this is a bare
+     API key ccmon owns: stored 0600 and encrypted via `safeStorage`
+     (injected — the service stays pure Node), and reported as unencrypted in
+     the UI when no OS keyring exists. `/user/balance` is the ONLY account
+     endpoint DeepSeek publishes — no usage, quota, or rate-limit API — so
+     burn, runway and the computed-vs-observed drift check are all measured
+     locally from the balance falling (`deepseek-history.ts`). The connect
+     click probes the endpoint once before persisting the key.
+- ccmon NEVER deletes an account: that root holds the credentials and every
+  transcript the app reads. "Remove" is `AccountWrapperPrefs.hidden`, a view
+  preference. Main keeps `allSourceDirs` (detected) vs `sourceDirs` (visible);
+  the watcher subscribes to ALL of them so unhiding is live, and with anything
+  hidden `sourceScope()` must return the explicit visible set rather than
+  `null`, or hidden entries leak back into the snapshot.
 - Day bucketing is LOCAL timezone everywhere (entries, day keys, archive
   dates). There is no timezone setting yet.
 - Parity quirk: ccmon can scan extra roots (e.g. `~/.claude-work`) that

@@ -4,9 +4,12 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
+import '../deepseek/deepseek.css';
 import { useUsageStore } from '../../store/useUsageStore';
 import { useNow } from '../../hooks/useNow';
 import { RangePicker } from '../RangePicker';
+import { fmtUSD } from '../../lib/format';
+import { deriveRunway, fmtNative, nativeToUSD, runwayLabel } from '../../lib/deepseek';
 
 const LIVE_WINDOW_MS = 90_000;
 
@@ -37,6 +40,46 @@ function ControlIcon({ kind }: ControlIconProps) {
   );
 }
 
+/**
+ * Always-visible DeepSeek balance. A prepaid balance running out stops work
+ * dead with no warning from Claude Code itself, which is exactly the kind of
+ * thing worth a permanent chip rather than a card you have to go look at.
+ * Renders nothing until a key is connected and a balance has landed; clicking
+ * it opens the accounts view where the full card lives.
+ */
+function DeepseekChip() {
+  const result = useUsageStore((s) => s.deepseek);
+  const rates = useUsageStore((s) => s.currency);
+  const days = useUsageStore((s) => s.snapshot?.days);
+  const setView = useUsageStore((s) => s.setView);
+  if (!result?.ok) return null;
+
+  const { primary } = result;
+  const usd = nativeToUSD(primary.total, primary.currency, rates);
+  const runway = deriveRunway(result, rates, days ?? []);
+  // the chip's urgency comes from runway when it's known, and from the API's
+  // own is_available flag otherwise — a raw balance can't say what's "low"
+  const level =
+    !result.isAvailable || (runway && runway.days < 3)
+      ? 'is-critical'
+      : runway && runway.days < 10
+        ? 'is-low'
+        : '';
+
+  return (
+    <button
+      type="button"
+      className={`tb-ds ${level}`}
+      onClick={() => setView('accounts')}
+      title={`DeepSeek balance${runway ? ` · ~${runwayLabel(runway.days)} left at ${runway.source === 'measured' ? 'measured' : 'estimated'} burn` : ''}${result.stale ? ' · last refresh failed' : ''}`}
+    >
+      <i className="tb-ds-mark" aria-hidden />
+      <b>{usd == null ? fmtNative(primary.total, primary.currency) : fmtUSD(usd)}</b>
+      {runway && <span>{runwayLabel(runway.days)}</span>}
+    </button>
+  );
+}
+
 export function TitleBar() {
   const lastEventTs = useUsageStore((s) => s.lastEventTs);
   const now = useNow(5000);
@@ -57,6 +100,7 @@ export function TitleBar() {
       </div>
       <div className="tb-right">
         {showRange && <RangePicker />}
+        <DeepseekChip />
         <span className={`tb-live ${live ? 'is-live' : ''}`}>
           <span className="dot" />
           {live ? 'live' : 'idle'}

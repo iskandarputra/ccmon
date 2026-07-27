@@ -16,6 +16,9 @@ import type {
   AppSettings,
   CurrencyRates,
   DayBreakdown,
+  DeepseekAuth,
+  DeepseekAuthResult,
+  DeepseekResult,
   ExportKind,
   ExportResult,
   FeedEvent,
@@ -40,12 +43,22 @@ export interface ScanProgress {
 
 export type AppStatus = 'scanning' | 'ready' | 'error';
 
+/** Pushed when the visible account set changes (hide/unhide, create, rename). */
+export interface AccountsPayload {
+  sourceDirs: string[];
+  allSourceDirs: string[];
+  accounts: AccountsMap;
+}
+
 /** Payload of the app:getState invoke. */
 export interface AppState {
   version: string;
   status: AppStatus;
   progress: ScanProgress;
+  /** the accounts ccmon shows — discovered dirs minus hidden ones */
   sourceDirs: string[];
+  /** every discovered dir, hidden included (the shell-wrapper controls need it) */
+  allSourceDirs: string[];
   snapshot: Snapshot | null;
   configPath: string;
   settings: AppSettings | null;
@@ -53,6 +66,9 @@ export interface AppState {
   accounts: AccountsMap;
   limits: LimitsMap;
   currency: CurrencyRates | null;
+  /** latest DeepSeek balance, null without a key or before the first poll */
+  deepseek: DeepseekResult | null;
+  deepseekAuth: DeepseekAuth;
 }
 
 export type Unsubscribe = () => void;
@@ -84,6 +100,28 @@ export interface CcmonApi {
   login(projectDir: string): Promise<LoginResult>;
   /** Finish a browser login by submitting the pasted `code#state` string. */
   submitLoginCode(projectDir: string, code: string): Promise<LoginCodeResult>;
+
+  // ---- DeepSeek balance ----------------------------------------------------
+  /**
+   * Whether a DeepSeek API key is configured and where it came from. The key
+   * itself NEVER crosses this bridge outbound — only a masked 4-char tail.
+   */
+  deepseekAuth(): Promise<DeepseekAuth>;
+  /**
+   * Save a DeepSeek API key. Verified against the balance endpoint before it
+   * is persisted, so an invalid key is rejected here rather than failing
+   * silently on the next poll. Stored encrypted via the OS keyring when one is
+   * available (`DeepseekAuth.encrypted` reports whether it was).
+   *
+   * Omit `key` to adopt the key detected in the environment
+   * (`DeepseekAuth.envDetected`) — main reads it directly, so a detected key
+   * never has to cross this bridge just to be saved.
+   */
+  connectDeepseek(key?: string): Promise<DeepseekAuthResult>;
+  /** Forget the stored key and its balance history. */
+  disconnectDeepseek(): Promise<DeepseekAuthResult>;
+  /** Poll the balance now, bypassing any retry backoff. */
+  refreshDeepseek(): Promise<DeepseekResult | null>;
 
   /** Most recent resumable sessions under an account's `<root>/projects` dir. */
   listRecentSessions(projectDir: string, limit?: number): Promise<RecentSession[]>;
@@ -133,6 +171,9 @@ export interface CcmonApi {
   onPricingMeta(cb: (meta: PricingMeta) => void): Unsubscribe;
   onLimits(cb: (limits: LimitsMap) => void): Unsubscribe;
   onCurrency(cb: (rates: CurrencyRates) => void): Unsubscribe;
+  onDeepseek(cb: (result: DeepseekResult | null) => void): Unsubscribe;
+  onDeepseekAuth(cb: (auth: DeepseekAuth) => void): Unsubscribe;
+  onAccounts(cb: (payload: AccountsPayload) => void): Unsubscribe;
 
   openUrl(url: string): void;
 

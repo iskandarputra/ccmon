@@ -9,6 +9,8 @@ import type {
   AccountsMap,
   AppSettings,
   CurrencyRates,
+  DeepseekAuth,
+  DeepseekResult,
   FeedEvent,
   LimitsMap,
   PricingMeta,
@@ -42,7 +44,10 @@ export interface UsageState {
   feed: FeedEvent[];
   lastEventTs: number | null;
   version: string;
+  /** the accounts ccmon shows — discovered dirs minus hidden ones */
   sourceDirs: string[];
+  /** every discovered dir, hidden included — the shell-wrapper controls use it */
+  allSourceDirs: string[];
   view: ViewId;
   /** loaded from main on boot */
   settings: AppSettings | null;
@@ -54,6 +59,10 @@ export interface UsageState {
   limits: LimitsMap;
   /** hourly USD exchange rates for display conversion */
   currency: CurrencyRates | null;
+  /** live DeepSeek balance, null without a connected key */
+  deepseek: DeepseekResult | null;
+  /** whether a DeepSeek key is configured, and where it came from */
+  deepseekAuth: DeepseekAuth | null;
   /** the user-selected global analytics range (drives the snapshot's body) */
   range: TimeRange;
 
@@ -80,12 +89,15 @@ export const useUsageStore = create<UsageState>((set) => ({
   lastEventTs: null,
   version: '',
   sourceDirs: [],
+  allSourceDirs: [],
   view: 'overview',
   settings: null,
   pricingMeta: null,
   accounts: {},
   limits: {},
   currency: null,
+  deepseek: null,
+  deepseekAuth: null,
   range: { preset: 'all' },
 
   setView: (view) => set({ view }),

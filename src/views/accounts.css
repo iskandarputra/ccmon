@@ -214,6 +214,14 @@
   color: var(--text-faint);
 }
 
+/* the restore bar for hidden accounts — the only route back from "hide", so
+   it stays visible whenever anything is hidden rather than living in a menu */
+.acc-hidden-bar {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
 /* ===== account card ===================================================== */
 .acc-card {
   position: relative;
