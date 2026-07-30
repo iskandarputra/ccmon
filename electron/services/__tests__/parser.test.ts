@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { decodeProjectDir, localDateKey, parseLine } from '../parser';
+import { decodeProjectDir, localDateKey, mayCarryData, parseLine } from '../parser';
 import type { UsageEntry } from '../../../shared/types';
 
 const FILE = '/data/projects/-home-user-proj/abc-session.jsonl';
@@ -126,6 +126,64 @@ describe('parseLine — skip rules', () => {
     ['malformed json', '{nope'],
   ])('returns null for %s', (_label, raw) => {
     expect(parseLine(raw, FILE, 1)).toBeNull();
+  });
+});
+
+describe('mayCarryData — the pre-parse prefilter', () => {
+  it('rejects the bulk shapes that carry nothing: user text, thinking, system', () => {
+    expect(mayCarryData(JSON.stringify({ type: 'user', message: { content: 'hi there' } }))).toBe(
+      false,
+    );
+    expect(
+      mayCarryData(
+        JSON.stringify({ type: 'assistant', message: { content: [{ type: 'thinking' }] } }),
+      ),
+    ).toBe(false);
+    expect(mayCarryData(JSON.stringify({ type: 'system', subtype: 'init' }))).toBe(false);
+    expect(mayCarryData('')).toBe(false);
+    expect(mayCarryData('{nope')).toBe(false);
+  });
+
+  it('admits every line kind parseLine can return', () => {
+    expect(mayCarryData(assistantLine())).toBe(true);
+    expect(mayCarryData(JSON.stringify({ isApiErrorMessage: true }))).toBe(true);
+    expect(mayCarryData(JSON.stringify({ isCompactSummary: true }))).toBe(true);
+    expect(mayCarryData(JSON.stringify({ message: { content: [{ type: 'tool_result' }] } }))).toBe(
+      true,
+    );
+  });
+
+  it('is a false-negative guard: nothing the parser accepts may be filtered out', () => {
+    // Every raw line in this file that parseLine turns into a result must also
+    // pass the prefilter — otherwise the filter would silently drop billable
+    // data. Kept as an explicit cross-check of the two lists.
+    const accepted = [
+      assistantLine(),
+      assistantLine({ isSidechain: true }),
+      assistantLine({}, { speed: 'fast' }),
+      JSON.stringify({
+        type: 'assistant',
+        isApiErrorMessage: true,
+        timestamp: '2026-06-01T10:00:00Z',
+        message: { content: 'Claude AI usage limit reached|1780000000' },
+      }),
+      JSON.stringify({
+        type: 'user',
+        isCompactSummary: true,
+        timestamp: '2026-06-01T10:00:00Z',
+        sessionId: 'sess-9',
+      }),
+      JSON.stringify({
+        type: 'user',
+        timestamp: '2026-06-01T10:00:00Z',
+        sessionId: 'sess-tr',
+        message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'hello' }] },
+      }),
+    ];
+    for (const raw of accepted) {
+      expect(parseLine(raw, FILE, 1)).not.toBeNull();
+      expect(mayCarryData(raw)).toBe(true);
+    }
   });
 });
 

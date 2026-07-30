@@ -48,6 +48,39 @@ export function decodeProjectDir(dirName: string): string {
 const USAGE_LIMIT_RE = /Claude AI usage limit reached\|(\d+)/;
 
 /**
+ * Substrings that gate every line kind `parseLine` can return, one per branch:
+ *
+ *   usage             → a billable entry needs `message.usage`
+ *   isApiErrorMessage → a reset marker needs the flag (its regex also says
+ *                       "usage", but keep the marker explicit alongside its
+ *                       branch so the two can't drift apart)
+ *   isCompactSummary  → a compaction marker needs the flag
+ *   tool_result       → a tool-result marker needs a block of that type
+ *
+ * Anything missing all four cannot produce a result, so it never needs parsing.
+ */
+const LINE_MARKERS = ['usage', 'isApiErrorMessage', 'isCompactSummary', 'tool_result'] as const;
+
+/**
+ * Cheap reject for lines that cannot carry data, applied before `JSON.parse`.
+ *
+ * Transcripts are mostly user text, thinking blocks and system lines; parsing
+ * each one allocates an object graph that is thrown away immediately. A
+ * substring scan is far cheaper than a parse, so this trades a few scans on
+ * rejected lines for skipping the parse entirely. ccusage does the same thing
+ * with a SIMD `memmem` prefilter (`rust/crates/ccusage-core/src/fast.rs`).
+ *
+ * MUST NOT produce false negatives: every marker here is required by the
+ * branch it guards, so a line that would have parsed to a non-null result
+ * always contains at least one. False positives are harmless — they just pay
+ * for the parse they would have paid for anyway.
+ */
+export function mayCarryData(raw: string): boolean {
+  for (const m of LINE_MARKERS) if (raw.includes(m)) return true;
+  return false;
+}
+
+/**
  * Character length of a tool_result `content` field, which is either a plain
  * string or an array of content blocks (text / image / nested). Text blocks
  * count their text; anything else counts its serialized length as a fallback.
@@ -112,6 +145,8 @@ interface TranscriptLine {
  * cost-mode or pricing changes never require a rescan.
  */
 export function parseLine(raw: string, file: string, lineNo: number): ParsedLine {
+  if (!mayCarryData(raw)) return null;
+
   let j: TranscriptLine;
   try {
     j = JSON.parse(raw) as TranscriptLine;
