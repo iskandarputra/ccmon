@@ -12,8 +12,13 @@ the section numbering is stable. Don't renumber.
 
 ## 1. Entry contract (parser output)
 
-`parseLine(raw, file, lineNo)` in `electron/services/parser.ts` returns one
-of four things:
+Entries reach the watcher through a {@link SourceAdapter}
+(`electron/services/adapters/`): the adapter owns root discovery, which files
+carry usage (`owns`), and line parsing; the watcher owns tailing, dedupe and
+markers, and stamps `agent` with the adapter's id. Only `claude` ships today.
+
+`parseLine(raw, file, lineNo, zone)` in `electron/services/parser.ts` — the
+Claude Code implementation — returns one of four things:
 
 ```mermaid
 flowchart TD
@@ -44,7 +49,10 @@ Entry `e`:
   key,        // `${message.id}:${requestId}` | `m:${id}` | `f:${file}#${line}`
   msgId,      // message.id or null (for sidechain-aware dedupe)
   ts,         // epoch ms (Date.parse of line.timestamp)
-  dateKey,    // 'YYYY-MM-DD' local time
+  dateKey,    // 'YYYY-MM-DD' in settings.timezone ('' = system zone).
+              //   Derived by shared/daykey.ts#dayKeyFor — the ONE
+              //   timestamp→calendar point. Re-stamped in place (no rescan)
+              //   when the setting changes.
   model,      // model id; '-fast' suffix appended when usage.speed === 'fast'
   fast,       // bool, usage.speed === 'fast'
   project,    // line.cwd, else lossy-decoded dir name
@@ -134,7 +142,13 @@ The layered sources (later layers consulted only on miss, ccusage parity):
    costs ÷ 1e6 on load: `{cost: {input, output, cache_read, cache_write},
    limit: {context}}`).
 4. **User overrides** (regex pattern keys, case-insensitive, per-MTok
-   values: `{in, out, w5m, w1h, read}`) — always win.
+   values: `{in, out, w5m, w1h, read, tier: {in, out, w5m, read},
+   contextLimit, fast}`) — always win. Overrides reach EVERY field the engine
+   consumes, so a private deployment or proxy can declare its own above-200k
+   tier, context window and fast multiplier; a model with no `tier` block
+   never switches rates. Unset `tier` fields derive from `tier.in` by the same
+   rules as the LiteLLM layer (`w5m = in × 1.25`, `read = in × 0.1`), and
+   `tier.out` falls back to the base `out`.
 
 ### Resolution rules
 
@@ -149,10 +163,21 @@ The layered sources (later layers consulted only on miss, ccusage parity):
   `CACHE_CREATE_1H_INPUT_MULTIPLIER`) unless an explicit per-model override
   provides `w1h`.
 - Tiered >200k rates: when the entry's `in + read + w5m + w1h > 200_000`
-  and `*_above_200k_tokens` fields exist, the WHOLE entry prices at the
-  above-200k rates (ccusage threshold = 200_000).
+  and `*_above_200k_tokens` fields exist (or the override sets `tier`), the
+  WHOLE entry prices at the above-200k rates (ccusage threshold = 200_000).
 - Fast entries (model ends in `-fast`): resolve the base model and multiply
-  the final cost by `provider_specific_entry.fast`, else 2.0.
+  the final cost by `provider_specific_entry.fast` / the override's `fast`,
+  else 2.0. `-fast` is stripped BEFORE override matching, so a prefix pattern
+  can't accidentally match the fast variant and skip its multiplier; set
+  `fast: 1` to price a fast variant absolutely instead.
+- `contextLimit(model)` prefers an override's `contextLimit`, then the data
+  layers, then 200_000. A rates-only override does NOT shrink the window.
+- Archive layers are dated in the SYSTEM zone, NOT `settings.timezone`: a layer
+  records when rates were observed, so re-dating it whenever the display zone
+  changes would rewrite the past. Consequence: for an entry whose `dateKey`
+  falls on the other side of a zone boundary, `costAt` may resolve the
+  neighbouring day's layer — bounded to one day, and only observable when rates
+  changed on exactly that day.
 - `engine.cost` returns null only when no layer knows the model.
 
 ### Historical pricing — `electron/services/pricing-archive.ts`
@@ -334,6 +359,10 @@ exact split. Raw tool names are kept verbatim (`mcp__server__tool`).
                           // are normalized to monday on load
   tokenLimit: 'max' | <number> | null, compactNumbers: true,
   currency: 'USD',        // display currency code — see §5.4
+  timezone: '',           // IANA zone for ALL day bucketing; '' = system zone
+  privacyMode: false,     // blank every money figure (display only, §5)
+  closeToTray: false,     // opt-in: close hides to tray instead of quitting
+  blockHours: null,       // block window in hours; null = 5 (real billing window)
   sources: null | [<project-dir path>] }
 ```
 
@@ -346,9 +375,23 @@ by the watcher); main filters entries by scope before `buildSnapshot` and
 before emitting feed events, so switching scope never rescans. Stale paths
 in `sources` are ignored; an all-stale selection falls back to the default.
 
+`privacyMode` masks money in the renderer (`format.ts`), the tray and the CLI
+statusline (`status-text.ts#money`) — never in `ccmon json`/`csv`, which are
+data. `blockHours` (1-24) is threaded as a parameter into `computeBlocks`; only
+5 matches Anthropic's billing window.
+
+`timezone` decides which calendar day every message counts against — entry
+`dateKey`s, the day/week/month rollups, the rhythm heatmap, `accountSpend.today`
+and range resolution — via the single `shared/daykey.ts#dayKeyFor(ts, zone)`.
+Changing it re-buckets history WITHOUT a rescan: main re-stamps every entry's
+`dateKey` in one pass, bumps `dataEpoch`, and `recomputeSig` includes the zone
+so the forced recompute cannot be elided. 5-hour blocks are real-time windows
+and are unaffected. The pricing archive keeps SYSTEM-zone dates (see §2).
+
 The renderer patches via `window.ccmon.setSettings(partial)`; main echoes
 `settings:changed` and recomputes the snapshot when costMode / startOfWeek /
-tokenLimit / sources change. `window.ccmon.refreshPricing()` forces a
+tokenLimit / timezone / blockHours / sources change. `privacyMode` needs no
+recompute (format-time only) but does refresh the tray immediately. `window.ccmon.refreshPricing()` forces a
 pricing refetch; `pricing:meta` events carry `engine.meta()`.
 
 `accountWrapperPrefs: Record<config-root, { name?, disabled? }>` holds
@@ -697,10 +740,18 @@ Keep changes scoped to one area per PR where possible:
 | views | one `src/views/<X>View.tsx` + its co-located css | `npm run typecheck` |
 | accounts | `electron/services/accounts.ts`, `cross-account.ts`, `account-setup.ts`, `src/lib/crossAccount.ts`, `src/views/AccountsView.tsx`, `src/components/accounts/` | `npm test` + `npm run smoke` |
 | deepseek | `electron/services/deepseek.ts`, `deepseek-history.ts`, `deepseek-key.ts`, `src/lib/deepseek.ts`, `src/components/deepseek/` | `npm test` |
+| cli | `cli/` (`args.ts`, `statusline.ts`, `userdata.ts`, `index.ts`) | `npm test` + `npm run build:cli` then run `dist-cli/index.cjs` |
+| ambient text | `electron/services/status-text.ts` (tray + CLI statusline strings) | `npm test` |
+| adapters | `electron/services/adapters/` (seam + registry) | `npm test` + `npm run parity` (the Claude path must stay at 0.000%) |
 | wiring | `main.ts`, `preload.ts`, `watcher.ts`, store, bootstrap, `shared/` | all of the above |
 
 Cross-boundary changes (snapshot fields, IPC, settings) start in this spec
 and `shared/types.ts`, then fan out.
+
+`cli/` may import from `electron/services/` and `shared/` but NOTHING from
+`electron/main.ts`, `preload.ts` or `src/` — it is a peer of the Electron main
+process, not a client of it. Adding a snapshot field automatically exposes it
+to `ccmon json`, so treat the snapshot as the CLI's public contract too.
 
 ## 8. Multi-account setup wizard — `electron/services/account-setup.ts`
 

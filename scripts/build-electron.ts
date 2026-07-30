@@ -8,8 +8,14 @@
  * inlined as JSON imports). `electron` stays external by necessity and
  * `chokidar` by choice: it is the one production dependency, shipped in
  * node_modules by electron-builder.
+ *
+ * The headless CLI builds from the same services into dist-cli/ with a
+ * shebang, and is deliberately a SEPARATE bundle: it must not link Electron,
+ * which is what keeps `ccmon json` runnable under plain node.
  */
 
+import fs from 'fs/promises';
+import path from 'path';
 import { build, type BuildOptions } from 'esbuild';
 
 const common: BuildOptions = {
@@ -18,7 +24,6 @@ const common: BuildOptions = {
   format: 'cjs',
   target: 'node22',
   sourcemap: true,
-  outdir: 'dist-electron',
   outExtension: { '.js': '.cjs' },
   external: ['electron', 'chokidar'],
   logLevel: 'info',
@@ -27,12 +32,27 @@ const common: BuildOptions = {
 export async function buildElectron(): Promise<void> {
   await build({
     ...common,
+    outdir: 'dist-electron',
     entryPoints: ['electron/main.ts', 'electron/preload.ts'],
   });
 }
 
+export async function buildCli(): Promise<void> {
+  await build({
+    ...common,
+    outdir: 'dist-cli',
+    entryPoints: ['cli/index.ts'],
+    banner: { js: '#!/usr/bin/env node' },
+  });
+  // the shebang is only useful if the file is executable — npm's bin symlink
+  // does not add the bit for you
+  await fs.chmod(path.join('dist-cli', 'index.cjs'), 0o755);
+}
+
 if (require.main === module) {
-  buildElectron().catch((err) => {
+  const cliOnly = process.argv.includes('--cli-only');
+  const task = cliOnly ? buildCli() : Promise.all([buildElectron(), buildCli()]);
+  task.catch((err) => {
     console.error(err);
     process.exit(1);
   });

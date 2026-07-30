@@ -113,6 +113,34 @@ written anywhere except your own disk.
 Artifacts land in `release/`. Install the deb with
 `sudo apt install ./release/ccmon-*.deb`.
 
+### The `ccmon` command line
+
+Every build ships the headless CLI alongside the app, at
+`<install>/resources/cli/index.cjs`. It is not put on your `PATH`
+automatically — that needs a root-run install hook, which is not worth the
+risk for a convenience — so link it once yourself:
+
+```bash
+# Debian/Ubuntu install
+sudo ln -sf /opt/ccmon/resources/cli/index.cjs /usr/local/bin/ccmon
+
+# from a source checkout
+npm run build:cli && sudo ln -sf "$PWD/dist-cli/index.cjs" /usr/local/bin/ccmon
+
+ccmon --help
+ccmon json --range 30d --section totals,models --pretty
+ccmon json | jq '.totals.cost'
+ccmon csv days --since 20260101 > days.csv
+```
+
+It reads the same data and settings as the app, never writes anything, and
+never polls your login — plan limits come from the history the app already
+persisted. Useful as a Claude Code statusline:
+
+```json
+{ "statusLine": { "type": "command", "command": "ccmon statusline" } }
+```
+
 Tagged pushes cut a GitHub release with Linux, Windows and macOS artifacts
 attached (`.github/workflows/build.yml`):
 

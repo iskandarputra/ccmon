@@ -19,6 +19,7 @@ import {
   dayLabel,
   projectName,
   tildify,
+  projectAlias,
 } from '../lib/format';
 import { withAlpha } from '../lib/palette';
 import type { ProjectRow } from '../../shared/types';
@@ -118,7 +119,7 @@ function ProjectCard({ p, now }: { p: ProjectRow; now: number }) {
             {projectName(p.path)}
           </h4>
           <div className="prj-path" title={p.path}>
-            {tildify(p.path)}
+            {pathLabel(p.path)}
           </div>
         </div>
         <div className="prj-hero-cost">
@@ -165,6 +166,14 @@ function ProjectCard({ p, now }: { p: ProjectRow; now: number }) {
       </footer>
     </article>
   );
+}
+
+/**
+ * Display label for a project path: the user's alias when they set one, else the
+ * tilde-shortened path. An alias is an explicit choice, so it wins outright.
+ */
+function pathLabel(p = ''): string {
+  return projectAlias(p) ?? tildify(p);
 }
 
 export function ProjectsView() {
@@ -340,7 +349,7 @@ export function ProjectsView() {
                         <td className="t-name">
                           <div className="tbl-prj-title">
                             <b>{projectName(p.path)}</b>
-                            <span>{tildify(p.path)}</span>
+                            <span>{pathLabel(p.path)}</span>
                           </div>
                         </td>
                         <td className="t-cost">{fmtUSD(p.cost)}</td>

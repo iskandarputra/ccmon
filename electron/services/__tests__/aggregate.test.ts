@@ -9,6 +9,7 @@ import { accountSpend, buildSnapshot, dayBreakdown } from '../aggregate';
 import { createPricingEngine } from '../pricing';
 import { localDateKey } from '../parser';
 import { resolveRange } from '../../../shared/range';
+import { dayKeyFor } from '../../../shared/daykey';
 import { HOUR, MIN, makeEntry } from './helpers';
 import type { CompactMarker, UsageEntry } from '../../../shared/types';
 
@@ -315,5 +316,165 @@ describe('dayBreakdown — why was this day expensive', () => {
     const b = dayBreakdown(entries, TODAY, { compactions: comps })!;
     expect(b.compactions).toBe(1);
     expect(dayBreakdown(entries, '2000-01-01')).toBeNull();
+  });
+});
+
+describe('buildSnapshot — timezone bucketing', () => {
+  // 23:30 UTC: still the 10th in UTC, already the 11th in Tokyo.
+  const LATE = Date.parse('2026-06-10T23:30:00Z');
+
+  /** An entry stamped the way the parser would stamp it under `zone`. */
+  const zoned = (ts: number, zone: string, over: Partial<UsageEntry> = {}): UsageEntry => ({
+    ...makeEntry({ ts, ...over }),
+    dateKey: dayKeyFor(ts, zone),
+  });
+
+  const snapIn = (zone: string, entries: UsageEntry[]) =>
+    buildSnapshot([...entries].sort((a, b) => a.ts - b.ts), {
+      now: LATE,
+      settings: { costMode: 'auto', startOfWeek: 'monday', timezone: zone },
+    });
+
+  it('puts the same instant on different calendar days per zone', () => {
+    const utc = snapIn('UTC', [zoned(LATE, 'UTC', { costUSD: 5 })]);
+    const tokyo = snapIn('Asia/Tokyo', [zoned(LATE, 'Asia/Tokyo', { costUSD: 5 })]);
+
+    expect(utc.days[utc.days.length - 1]!.date).toBe('2026-06-10');
+    expect(tokyo.days[tokyo.days.length - 1]!.date).toBe('2026-06-11');
+    // and in both cases the entry counts as "today" — the point of the setting
+    expect(utc.today.cost).toBe(5);
+    expect(tokyo.today.cost).toBe(5);
+  });
+
+  it('treats an empty timezone as the system zone', () => {
+    const sys = snapIn('', [zoned(LATE, '', { costUSD: 5 })]);
+    expect(sys.days[sys.days.length - 1]!.date).toBe(localDateKey(LATE));
+    expect(sys.today.cost).toBe(5);
+  });
+
+  it('splits one instant across yesterday/today depending on the zone', () => {
+    // An entry 2h earlier (21:30 UTC) is the 10th in UTC and the 11th in Tokyo,
+    // so under Tokyo BOTH entries are "today" while under UTC both are the 10th.
+    const earlier = LATE - 2 * HOUR;
+    const utc = snapIn('UTC', [
+      zoned(earlier, 'UTC', { costUSD: 3, sessionId: 'a' }),
+      zoned(LATE, 'UTC', { costUSD: 5, sessionId: 'b' }),
+    ]);
+    const tokyo = snapIn('Asia/Tokyo', [
+      zoned(earlier, 'Asia/Tokyo', { costUSD: 3, sessionId: 'a' }),
+      zoned(LATE, 'Asia/Tokyo', { costUSD: 5, sessionId: 'b' }),
+    ]);
+    expect(utc.today.cost).toBe(8);
+    expect(tokyo.today.cost).toBe(8);
+    // Honolulu (−10:00) puts 21:30Z and 23:30Z on the 10th, i.e. still "today"
+    const hono = snapIn('Pacific/Honolulu', [
+      zoned(earlier, 'Pacific/Honolulu', { costUSD: 3, sessionId: 'a' }),
+      zoned(LATE, 'Pacific/Honolulu', { costUSD: 5, sessionId: 'b' }),
+    ]);
+    expect(hono.days[hono.days.length - 1]!.date).toBe('2026-06-10');
+    expect(hono.today.cost).toBe(8);
+  });
+
+  it('orients the rhythm heatmap by the zone, not the system clock', () => {
+    const utc = snapIn('UTC', [zoned(LATE, 'UTC', { in: 100, out: 50 })]);
+    const tokyo = snapIn('Asia/Tokyo', [zoned(LATE, 'Asia/Tokyo', { in: 100, out: 50 })]);
+
+    // 23:30 UTC on Wed 10 Jun → weekday 2 (Mon-first), hour 23
+    expect(utc.hourly[2]![23]).toBe(150);
+    // 08:30 Thu 11 Jun in Tokyo → weekday 3, hour 8
+    expect(tokyo.hourly[3]![8]).toBe(150);
+  });
+
+  it('scopes accountSpend.today by the zone', () => {
+    const e = zoned(LATE, 'Asia/Tokyo', { costUSD: 5, source: '/root/projects' });
+    const spendTokyo = accountSpend([e], { now: LATE, timezone: 'Asia/Tokyo' });
+    const spendUtc = accountSpend([e], { now: LATE, timezone: 'UTC' });
+    // the entry's key is Tokyo's 11th, which is Tokyo's today but not UTC's
+    expect(Object.values(spendTokyo)[0]!.today).toBe(5);
+    expect(Object.values(spendUtc)[0]!.today).toBe(0);
+  });
+});
+
+describe('buildSnapshot — cost reconciliation', () => {
+  /** engine prices fake-model at $10/MTok in, $20/MTok out */
+  const priced = (over: Partial<UsageEntry> = {}) =>
+    makeEntry({ model: 'fake-model', in: 1e6, out: 0, ...over });
+
+  const recon = (entries: UsageEntry[], costMode = 'auto') =>
+    snap(entries, { pricing: engine, settings: { costMode, startOfWeek: 'monday' } }).reconcile;
+
+  it('compares recorded costUSD against a fresh calculation', () => {
+    // calculated = 1M × $10 = $10; the CLI recorded $12
+    const r = recon([priced({ costUSD: 12 })]);
+    expect(r.compared).toBe(1);
+    expect(r.recorded).toBeCloseTo(12, 6);
+    expect(r.calculated).toBeCloseTo(10, 6);
+    expect(r.drift).toBeCloseTo(-2, 6);
+    expect(r.driftPct).toBeCloseTo(-2 / 12, 6);
+  });
+
+  it('reports drift under EVERY cost mode — the whole point of the panel', () => {
+    // Under 'auto'/'display' the snapshot's own cost IS the recorded value, so a
+    // naive implementation would report 0 here and say nothing.
+    for (const mode of ['auto', 'calculate', 'display']) {
+      const r = recon([priced({ costUSD: 12 })], mode);
+      expect(r.drift, `mode ${mode}`).toBeCloseTo(-2, 6);
+    }
+  });
+
+  it('only counts entries that carry a recorded cost, and reports coverage', () => {
+    const r = recon([priced({ costUSD: 12 }), priced({ costUSD: null })]);
+    expect(r.compared).toBe(1);
+    expect(r.total).toBe(2);
+    expect(r.coverage).toBeCloseTo(0.5, 6);
+  });
+
+  it('skips entries whose model has no price rather than scoring them as 100% drift', () => {
+    const r = recon([
+      priced({ costUSD: 12 }),
+      makeEntry({ model: 'totally-unknown-model', in: 1e6, costUSD: 5 }),
+    ]);
+    expect(r.compared).toBe(1);
+    expect(r.recorded).toBeCloseTo(12, 6);
+  });
+
+  it('is all-zero and coverage 0 when nothing is comparable', () => {
+    const r = recon([priced({ costUSD: null })]);
+    expect(r).toMatchObject({ compared: 0, recorded: 0, calculated: 0, drift: 0, driftPct: 0 });
+    expect(r.coverage).toBe(0);
+    expect(r.byDay).toEqual([]);
+    expect(r.byModel).toEqual([]);
+  });
+
+  it('buckets by day ascending', () => {
+    const r = recon([
+      priced({ ts: NOW - 24 * HOUR, costUSD: 12 }),
+      priced({ ts: NOW, costUSD: 11 }),
+    ]);
+    expect(r.byDay).toHaveLength(2);
+    expect(r.byDay[0]!.key < r.byDay[1]!.key).toBe(true);
+    expect(r.byDay.reduce((n, d) => n + d.entries, 0)).toBe(2);
+  });
+
+  it('sorts models by worst absolute drift first', () => {
+    const r = recon([
+      priced({ costUSD: 10.5 }), //          fake-model: small drift (calc $10)
+      makeEntry({ model: 'fake-model-fast', in: 1e6, costUSD: 5 }), // fast: calc $20 → big drift
+    ]);
+    expect(r.byModel[0]!.key).toBe('fake-model-fast');
+    expect(Math.abs(r.byModel[0]!.calculated - r.byModel[0]!.recorded)).toBeGreaterThan(
+      Math.abs(r.byModel[1]!.calculated - r.byModel[1]!.recorded),
+    );
+  });
+
+  it('day and model buckets both sum to the headline totals', () => {
+    const r = recon([
+      priced({ ts: NOW - 24 * HOUR, costUSD: 12 }),
+      priced({ ts: NOW, costUSD: 11 }),
+    ]);
+    for (const series of [r.byDay, r.byModel]) {
+      expect(series.reduce((n, x) => n + x.recorded, 0)).toBeCloseTo(r.recorded, 6);
+      expect(series.reduce((n, x) => n + x.calculated, 0)).toBeCloseTo(r.calculated, 6);
+    }
   });
 });

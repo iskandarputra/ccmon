@@ -6,6 +6,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
+import { dayKeyFor, type Zone } from './daykey';
 import type { RangePreset, ResolvedRange, TimeRange } from './types';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -18,11 +19,13 @@ function dayKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Noon-anchored local Date for `now` (dodges DST edges in day arithmetic). */
-function noon(now: number): Date {
-  const d = new Date(now);
-  d.setHours(12, 0, 0, 0);
-  return d;
+/**
+ * Noon-anchored Date for the day `now` falls in, per `zone`. Anchoring at noon
+ * makes the subsequent day/month arithmetic zone-independent, so only this
+ * conversion needs to know the zone.
+ */
+function noon(now: number, zone: Zone): Date {
+  return new Date(`${dayKeyFor(now, zone)}T12:00:00`);
 }
 
 function monthLabel(d: Date): string {
@@ -41,11 +44,11 @@ function shortLabel(key: string): string {
  * snap to month edges; 'all' is unbounded; 'custom' uses the stored keys
  * (normalized so start ≤ end). The result is display-labelled.
  */
-export function resolveRange(range: TimeRange, now: number): ResolvedRange {
-  const today = noon(now);
+export function resolveRange(range: TimeRange, now: number, zone: Zone = null): ResolvedRange {
+  const today = noon(now, zone);
   const todayKey = dayKey(today);
   const back = (days: number): string => {
-    const d = noon(now);
+    const d = noon(now, zone);
     d.setDate(d.getDate() - days);
     return dayKey(d);
   };
@@ -61,15 +64,15 @@ export function resolveRange(range: TimeRange, now: number): ResolvedRange {
     case '90d':
       return { preset, startKey: back(89), endKey: todayKey, label: 'last 90 days' };
     case 'month': {
-      const s = noon(now);
+      const s = noon(now, zone);
       s.setDate(1);
       return { preset, startKey: dayKey(s), endKey: todayKey, label: monthLabel(s) };
     }
     case 'lastMonth': {
-      const s = noon(now);
+      const s = noon(now, zone);
       s.setDate(1);
       s.setMonth(s.getMonth() - 1);
-      const e = noon(now);
+      const e = noon(now, zone);
       e.setDate(0); // day 0 of this month = last day of previous month
       return { preset, startKey: dayKey(s), endKey: dayKey(e), label: monthLabel(s) };
     }

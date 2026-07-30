@@ -20,7 +20,21 @@ import type {
   UsageEntry,
 } from '../../shared/types';
 
+/**
+ * Anthropic's billing window, and the default. Exported because the tests and
+ * the settings UI both need the canonical value.
+ */
 export const BLOCK_MS = 5 * 3600 * 1000;
+/** Bounds for a user-chosen window — 1h is the smallest useful, 24h the largest. */
+export const MIN_BLOCK_HOURS = 1;
+export const MAX_BLOCK_HOURS = 24;
+
+/** Clamp a settings value to a usable window length in ms. */
+export function blockMsFor(hours: number | null | undefined): number {
+  if (!hours || !Number.isFinite(hours)) return BLOCK_MS;
+  const h = Math.min(MAX_BLOCK_HOURS, Math.max(MIN_BLOCK_HOURS, Math.round(hours)));
+  return h * 3600 * 1000;
+}
 const RECENT_MS = 30 * 86400000; // history window returned to the renderer
 
 const floorHour = (ts: number) => Math.floor(ts / 3600000) * 3600000;
@@ -104,6 +118,12 @@ export interface ComputeBlocksOptions {
    * same cost-mode dollars as the rest of the snapshot
    */
   costOf?: (e: UsageEntry) => number;
+  /**
+   * Window length in hours; null/absent = 5, Anthropic's actual billing window.
+   * Clamped to 1-24. Only 5 matches real billing — any other value makes the
+   * blocks a personal work-session view, which the settings UI says outright.
+   */
+  blockHours?: number | null;
 }
 
 export interface ComputeBlocksResult {
@@ -120,16 +140,24 @@ export interface ComputeBlocksResult {
 /** @param entries usage entries ascending by ts */
 export function computeBlocks(
   entries: UsageEntry[],
-  { now = Date.now(), tokenLimit = null, costOf = () => 0 }: ComputeBlocksOptions = {},
+  {
+    now = Date.now(),
+    tokenLimit = null,
+    costOf = () => 0,
+    blockHours = null,
+  }: ComputeBlocksOptions = {},
 ): ComputeBlocksResult {
+  // Window length is per-call, not module state: the same process serves the
+  // app, the CLI and the tests, and they must be able to disagree.
+  const blockMs = blockMsFor(blockHours);
   // pass 1 — split entries into raw blocks + gap markers
   const raw: Array<RawGap | RawBlock> = [];
   let cur: RawBlock | null = null;
 
   for (const e of entries) {
-    if (cur && (e.ts - cur.start > BLOCK_MS || e.ts - cur.lastTs > BLOCK_MS)) {
-      if (e.ts - cur.lastTs > BLOCK_MS) {
-        raw.push({ isGap: true, start: cur.lastTs + BLOCK_MS, end: e.ts });
+    if (cur && (e.ts - cur.start > blockMs || e.ts - cur.lastTs > blockMs)) {
+      if (e.ts - cur.lastTs > blockMs) {
+        raw.push({ isGap: true, start: cur.lastTs + blockMs, end: e.ts });
       }
       cur = null;
     }
@@ -138,7 +166,7 @@ export function computeBlocks(
       cur = {
         isGap: false,
         start,
-        end: start + BLOCK_MS,
+        end: start + blockMs,
         entries: 0,
         cost: 0,
         in: 0,
@@ -195,7 +223,7 @@ export function computeBlocks(
 
     count += 1;
     const totalTokens = b.in + b.out + b.read + b.write; // cache included
-    const isActive = now - b.lastTs < BLOCK_MS && now < b.end;
+    const isActive = now - b.lastTs < blockMs && now < b.end;
     if (totalTokens > maxBlockTokens) maxBlockTokens = totalTokens;
     if (!isActive && totalTokens > maxCompleted) maxCompleted = totalTokens;
 

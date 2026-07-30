@@ -32,6 +32,7 @@ import {
   relTime,
   fmtPct,
   dayLabel,
+  modelAlias,
 } from '../lib/format';
 import { ACCENTS, withAlpha } from '../lib/palette';
 import type { CacheStats, DayRow, ModelRow, WhatIfRow } from '../../shared/types';
@@ -65,6 +66,10 @@ function splitFast(id = '') {
 }
 
 function modelLabel(id: string) {
+  // a user alias is an explicit choice — it wins over our shortening, and it
+  // already carries its own -fast suffix handling (shared/aliases.ts)
+  const alias = modelAlias(id);
+  if (alias) return alias;
   const { fast, base } = splitFast(id);
   return fast ? `${shortModel(base)} fast` : shortModel(base);
 }

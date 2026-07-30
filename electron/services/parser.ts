@@ -5,6 +5,7 @@
  */
 
 import path from 'path';
+import { dayKeyFor, type Zone } from '../../shared/daykey';
 import type { ParsedLine } from '../../shared/types';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -29,7 +30,14 @@ function intern(s: string): string {
   return s;
 }
 
-/** Local-timezone YYYY-MM-DD bucket key. */
+/**
+ * SYSTEM-timezone YYYY-MM-DD bucket key.
+ *
+ * Correct for Dates built by local calendar arithmetic (noon-anchored day
+ * walking), where the system zone is the one the Date was constructed in.
+ * For a real event timestamp use `dayKeyFor(ts, zone)` from shared/daykey
+ * instead, so the user's timezone setting is honoured.
+ */
 export function localDateKey(ts: number): string {
   const d = new Date(ts);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -144,7 +152,12 @@ interface TranscriptLine {
  * any costUSD the CLI wrote, and dollars are resolved at aggregate time so
  * cost-mode or pricing changes never require a rescan.
  */
-export function parseLine(raw: string, file: string, lineNo: number): ParsedLine {
+export function parseLine(
+  raw: string,
+  file: string,
+  lineNo: number,
+  zone: Zone = null,
+): ParsedLine {
   if (!mayCarryData(raw)) return null;
 
   let j: TranscriptLine;
@@ -237,7 +250,7 @@ export function parseLine(raw: string, file: string, lineNo: number): ParsedLine
           : `f:${file}#${lineNo}`,
     msgId,
     ts,
-    dateKey: intern(localDateKey(ts)),
+    dateKey: intern(dayKeyFor(ts, zone)),
     model: intern(model),
     fast,
     project: intern(j.cwd || decodeProjectDir(path.basename(path.dirname(file)))),

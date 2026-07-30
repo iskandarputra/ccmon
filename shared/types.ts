@@ -41,6 +41,15 @@ export interface UsageEntry {
   stop?: string | null;
   /** owning data root (source scoping), stamped by the watcher */
   source?: string | null;
+  /**
+   * Which coding CLI produced this usage — a {@link SourceAdapter} id, stamped
+   * by the watcher from the owning root's adapter (e.g. 'claude').
+   *
+   * Optional only for construction convenience (test fixtures, and entries
+   * built before the adapter seam existed); the watcher always sets it. Treat a
+   * missing value as 'claude', the format ccmon was built around.
+   */
+  agent?: string;
 }
 
 export interface ResetMarker {
@@ -194,16 +203,46 @@ export type TokenLimitSetting = 'max' | number | null;
 export interface AppSettings {
   theme: string;
   costMode: CostMode;
+  /**
+   * IANA zone name used for ALL day bucketing (entries, day/week/month keys,
+   * the hourly heatmap, range resolution). '' means the system zone — the
+   * default, and ccmon's behaviour before this setting existed.
+   *
+   * Changing it re-buckets history WITHOUT a rescan: main re-derives every
+   * entry's dateKey in one pass. The pricing archive keeps whatever zone it
+   * recorded in, so rates-of-the-day lookups can be off by a day at a boundary
+   * where rates also changed — bounded and documented in v2-spec.md §2.
+   */
+  timezone: string;
   pricingOffline: boolean;
   startOfWeek: StartOfWeek;
   tokenLimit: TokenLimitSetting;
+  /**
+   * Billing-window length in hours for the blocks view. null = 5, Anthropic's
+   * real window. Any other value turns blocks into a personal work-session
+   * view rather than a billing one — the UI states that.
+   */
+  blockHours: number | null;
   compactNumbers: boolean;
+  /**
+   * Blank every money figure at format time — for screenshots, streams and
+   * shared screens. Display-only: nothing stored or computed changes.
+   */
+  privacyMode: boolean;
   /** display currency, ISO code — costs stay USD internally (§5) */
   currency: string;
   /** null (primary account) | array of project dirs (multi-account scoping) */
   sources: string[] | null;
   /** opt-in: fire an OS notification when any account crosses ~90% of a window */
   notifyNearCap: boolean;
+  /**
+   * Opt-in: closing the window hides it to the tray instead of quitting.
+   *
+   * Default FALSE on purpose. Silently turning a close gesture into "still
+   * running, no visible window" is a trap, so the user has to ask for it, and
+   * the tray's Quit item is the documented way out.
+   */
+  closeToTray: boolean;
   /** model id the AI usage advisor uses (reuses the Claude Code login) */
   aiModel: string;
   /** per config-root shell-wrapper prefs (rename / untrack), keyed by root path */
@@ -258,6 +297,10 @@ export interface CurrencyRates {
 export interface UserConfig {
   claudeDirs?: string[];
   pricing?: Record<string, PricingOverride>;
+  /** raw model id → display label (DISPLAY ONLY — never affects pricing) */
+  modelAliases?: Record<string, string>;
+  /** raw project path → display label (DISPLAY ONLY) */
+  projectAliases?: Record<string, string>;
 }
 
 // ---- blocks (§3) -----------------------------------------------------------
@@ -647,6 +690,17 @@ export interface Snapshot {
    * per-result token count. Sized from user-side lines, never billed.
    */
   toolResults: { count: number; chars: number; estTokens: number };
+  /**
+   * Recorded-vs-calculated cost reconciliation. ALWAYS compares the `costUSD`
+   * the CLI wrote against a fresh token-based calculation, independent of the
+   * active cost mode — under 'auto'/'display' the snapshot's own cost IS the
+   * recorded value, so comparing against it would report zero drift by
+   * construction and say nothing.
+   *
+   * Only entries that carry a recorded cost can be compared; `coverage` says
+   * how many did, so a small sample can't be mistaken for a clean bill.
+   */
+  reconcile: CostReconciliation;
   records: UsageRecords;
   recentEvents: FeedEvent[];
   /**
@@ -675,6 +729,38 @@ export interface AccountSpend {
   week: number;
   /** USD spent over the rolling last 30 days */
   month: number;
+}
+
+/** One bucket of recorded-vs-calculated cost. */
+export interface ReconcileRow {
+  /** day key or model id, depending on the series */
+  key: string;
+  /** sum of costUSD as written by the CLI */
+  recorded: number;
+  /** sum of ccmon's token-based calculation over the SAME entries */
+  calculated: number;
+  /** entries compared (i.e. those carrying a recorded cost) */
+  entries: number;
+}
+
+export interface CostReconciliation {
+  /** entries carrying a recorded costUSD — the comparable set */
+  compared: number;
+  /** entries in scope, comparable or not */
+  total: number;
+  /** compared / total, 0-1; a low value makes the drift below unrepresentative */
+  coverage: number;
+  /** totals over the compared set only */
+  recorded: number;
+  calculated: number;
+  /** calculated − recorded (positive = ccmon prices it higher) */
+  drift: number;
+  /** drift as a share of recorded, 0 when nothing is comparable */
+  driftPct: number;
+  /** ascending by day, comparable entries only */
+  byDay: ReconcileRow[];
+  /** worst absolute drift first */
+  byModel: ReconcileRow[];
 }
 
 /** source dir → lifetime/recent spend */

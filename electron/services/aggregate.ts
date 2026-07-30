@@ -7,6 +7,7 @@
 import { computeBlocks } from './blocks';
 import { costForMode, costWith, type PricingEngine } from './pricing';
 import { localDateKey } from './parser';
+import { dayKeyFor, zonedParts, type Zone } from '../../shared/daykey';
 import { dayKeyInRange, isBoundedRange } from '../../shared/range';
 import type { ResolvedRange } from '../../shared/types';
 import type {
@@ -14,6 +15,7 @@ import type {
   AppSettings,
   CompactMarker,
   CostMode,
+  CostReconciliation,
   DayBreakdown,
   DayContributor,
   DayRow,
@@ -50,10 +52,14 @@ const WHATIF_CANDIDATES = 6; // top models eligible for the re-cost counterfactu
 const TOOL_LIMIT = 20; //      tool rows bundled into the snapshot
 const TOOL_DAILY_LIMIT = 8; //  tool ridges in the 3d daily split
 
-/** Ascending local day keys ending today; noon-anchored to dodge DST edges. */
-function dayKeysBack(n: number, now: number): string[] {
-  const d = new Date(now);
-  d.setHours(12, 0, 0, 0);
+/**
+ * Ascending day keys ending on `zone`'s today; noon-anchored to dodge DST edges.
+ *
+ * Only the FIRST key needs the zone (which day is "today"); walking backwards is
+ * pure calendar arithmetic on the key, where the system zone cancels out.
+ */
+function dayKeysBack(n: number, now: number, zone: Zone = null): string[] {
+  const d = dateAtNoon(dayKeyFor(now, zone));
   const keys: string[] = [];
   for (let i = 0; i < n; i++) {
     keys.unshift(localDateKey(d.getTime()));
@@ -74,9 +80,9 @@ function dateAtNoon(dateKey: string): Date {
  * 35-day chart). Long spans are capped to {@link MAX_RANGE_DAYS}, anchored at
  * the end — weekly/monthly rollups carry the longer history.
  */
-function dayKeysForRange(range: ResolvedRange | null, now: number): string[] {
-  if (!range || !isBoundedRange(range)) return dayKeysBack(DAYS_WINDOW, now);
-  const end = range.endKey ? dateAtNoon(range.endKey) : (() => { const d = new Date(now); d.setHours(12, 0, 0, 0); return d; })();
+function dayKeysForRange(range: ResolvedRange | null, now: number, zone: Zone = null): string[] {
+  if (!range || !isBoundedRange(range)) return dayKeysBack(DAYS_WINDOW, now, zone);
+  const end = range.endKey ? dateAtNoon(range.endKey) : dateAtNoon(dayKeyFor(now, zone));
   const start = range.startKey
     ? dateAtNoon(range.startKey)
     : (() => { const d = new Date(end); d.setDate(d.getDate() - (DAYS_WINDOW - 1)); return d; })();
@@ -228,10 +234,16 @@ export function accountSpend(
     pricing = null,
     costMode = 'auto',
     now = Date.now(),
-  }: { pricing?: PricingEngine | null; costMode?: CostMode; now?: number } = {},
+    timezone = null,
+  }: {
+    pricing?: PricingEngine | null;
+    costMode?: CostMode;
+    now?: number;
+    timezone?: Zone;
+  } = {},
 ): AccountSpendMap {
   const costOf = (e: UsageEntry) => (pricing ? costForMode(e, costMode, pricing) : e.costUSD || 0);
-  const todayKey = localDateKey(now);
+  const todayKey = dayKeyFor(now, timezone);
   const weekCut = now - 7 * DAY_MS;
   const monthCut = now - 30 * DAY_MS;
   interface Acc {
@@ -301,7 +313,13 @@ export function dayBreakdown(
     pricing = null,
     costMode = 'auto',
     compactions = null,
-  }: { pricing?: PricingEngine | null; costMode?: CostMode; compactions?: CompactMarker[] | null } = {},
+    timezone = null,
+  }: {
+    pricing?: PricingEngine | null;
+    costMode?: CostMode;
+    compactions?: CompactMarker[] | null;
+    timezone?: Zone;
+  } = {},
 ): DayBreakdown | null {
   const costOf = (e: UsageEntry) => (pricing ? costForMode(e, costMode, pricing) : e.costUSD || 0);
   const dayCost = new Map<string, number>(); // dateKey → total cost (for the median baseline)
@@ -367,9 +385,11 @@ export function dayBreakdown(
   const med = median([...dayCost.values()].filter((c) => c > 0));
   const newProjects = [...proj.keys()].filter((p) => {
     const ft = projFirstTs.get(p);
-    return ft !== undefined && localDateKey(ft) === dateKey;
+    return ft !== undefined && dayKeyFor(ft, timezone) === dateKey;
   });
-  const dayCompactions = (compactions || []).filter((c) => localDateKey(c.ts) === dateKey).length;
+  const dayCompactions = (compactions || []).filter(
+    (c) => dayKeyFor(c.ts, timezone) === dateKey,
+  ).length;
 
   return {
     date: dateKey,
@@ -418,6 +438,8 @@ export function buildSnapshot(
 ): Snapshot {
   const costMode = settings.costMode || 'auto';
   const startOfWeek: StartOfWeek = settings.startOfWeek === 'monday' ? 'monday' : 'sunday';
+  // '' (the default) means the system zone — dayKeyFor treats falsy as system
+  const zone: Zone = settings.timezone || null;
   const costOf = (e: UsageEntry) => (pricing ? costForMode(e, costMode, pricing) : e.costUSD || 0);
   // per-entry dollars are resolved exactly once — blocks and the feed reuse
   // the memo instead of running a second pricing pass over every entry
@@ -433,7 +455,9 @@ export function buildSnapshot(
   const bounded = isBoundedRange(resolvedRange);
   if (bounded) {
     entries = entries.filter((e) => dayKeyInRange(e.dateKey, resolvedRange));
-    if (compactions) compactions = compactions.filter((c) => dayKeyInRange(localDateKey(c.ts), resolvedRange));
+    if (compactions) {
+      compactions = compactions.filter((c) => dayKeyInRange(dayKeyFor(c.ts, zone), resolvedRange));
+    }
     if (toolResults) {
       const f: ToolResultByDay = new Map();
       for (const [day, b] of toolResults) if (dayKeyInRange(day, resolvedRange)) f.set(day, b);
@@ -441,7 +465,7 @@ export function buildSnapshot(
     }
   }
 
-  const dayKeys = dayKeysForRange(resolvedRange, now);
+  const dayKeys = dayKeysForRange(resolvedRange, now, zone);
   const DAY_SLOTS = dayKeys.length;
   const dayIndex = new Map<string, number>(dayKeys.map((k, i) => [k, i]));
   const todayKey = dayKeys[dayKeys.length - 1];
@@ -497,10 +521,47 @@ export function buildSnapshot(
     return costWith(row, rereadSplit);
   };
 
+  // Recorded-vs-calculated reconciliation, folded into the main pass rather than
+  // a second sweep (a per-entry pass at this scale is not free — see CLAUDE.md).
+  // `calcOf` is deliberately NOT costOf: under 'auto'/'display' the snapshot's
+  // cost already IS the recorded value, so drift would be 0 by construction.
+  const rec = { compared: 0, recorded: 0, calculated: 0 };
+  const recByDay = new Map<string, { recorded: number; calculated: number; entries: number }>();
+  const recByModel = new Map<string, { recorded: number; calculated: number; entries: number }>();
+  const calcOf = (e: UsageEntry): number | null =>
+    pricing ? pricing.costAt(e.model, e, e.dateKey) : null;
+
   for (const e of entries) {
     const write = e.w5m + e.w1h;
     const cost = costOf(e);
     costMemo.set(e, cost);
+
+    if (e.costUSD != null) {
+      const calc = calcOf(e);
+      // an unpriced model has nothing to compare against — skip rather than
+      // score it as a 100% overstatement
+      if (calc != null) {
+        rec.compared += 1;
+        rec.recorded += e.costUSD;
+        rec.calculated += calc;
+        const d = recByDay.get(e.dateKey);
+        if (d) {
+          d.recorded += e.costUSD;
+          d.calculated += calc;
+          d.entries += 1;
+        } else {
+          recByDay.set(e.dateKey, { recorded: e.costUSD, calculated: calc, entries: 1 });
+        }
+        const m = recByModel.get(e.model);
+        if (m) {
+          m.recorded += e.costUSD;
+          m.calculated += calc;
+          m.entries += 1;
+        } else {
+          recByModel.set(e.model, { recorded: e.costUSD, calculated: calc, entries: 1 });
+        }
+      }
+    }
     totals.cost += cost;
     totals.in += e.in;
     totals.out += e.out;
@@ -685,9 +746,9 @@ export function buildSnapshot(
     }
 
     if (e.ts >= heatCutoff) {
-      const dt = new Date(e.ts);
-      const wd = (dt.getDay() + 6) % 7; // Monday-first
-      const hr = dt.getHours();
+      // the rhythm heatmap is a WALL-CLOCK view, so it follows the same zone as
+      // the day buckets — otherwise "your quiet hour" would be someone else's
+      const { weekday: wd, hour: hr } = zonedParts(e.ts, zone);
       hourly[wd][hr] += e.in + e.out;
       hourlyCost[wd][hr] += cost;
     }
@@ -872,6 +933,7 @@ export function buildSnapshot(
     now,
     tokenLimit: settings.tokenLimit !== undefined ? settings.tokenLimit : 'max',
     costOf: costOfMemo,
+    blockHours: settings.blockHours ?? null,
   });
   const block = blockInfo.active;
   if (block) block.usageLimitResetTs = resetTs && resetTs > now ? resetTs : null;
@@ -912,7 +974,31 @@ export function buildSnapshot(
 
   // per-account spend covers EVERY login (scope-independent), so it runs over
   // the full set when main supplies it; otherwise it mirrors the scoped pass
-  const accountSpendMap = accountSpend(accountEntries ?? entries, { pricing, costMode, now });
+  const reconcile: CostReconciliation = {
+    compared: rec.compared,
+    total: entries.length,
+    coverage: entries.length ? rec.compared / entries.length : 0,
+    recorded: rec.recorded,
+    calculated: rec.calculated,
+    drift: rec.calculated - rec.recorded,
+    driftPct: rec.recorded ? (rec.calculated - rec.recorded) / rec.recorded : 0,
+    byDay: [...recByDay.entries()]
+      .map(([key, v]) => ({ key, ...v }))
+      .sort((a2, b2) => (a2.key < b2.key ? -1 : 1)),
+    byModel: [...recByModel.entries()]
+      .map(([key, v]) => ({ key, ...v }))
+      .sort(
+        (a2, b2) =>
+          Math.abs(b2.calculated - b2.recorded) - Math.abs(a2.calculated - a2.recorded),
+      ),
+  };
+
+  const accountSpendMap = accountSpend(accountEntries ?? entries, {
+    pricing,
+    costMode,
+    now,
+    timezone: zone,
+  });
 
   // tool_result volume re-fed as context (estimate; chars/4, not billed)
   let toolResultChars = 0;
@@ -992,6 +1078,7 @@ export function buildSnapshot(
     compactions: (compactions || []).length,
     compactionReread,
     toolResults: toolResultsRollup,
+    reconcile,
     records,
     recentEvents: entries.slice(-FEED_SEED).map((e) => toFeedEvent(e, costOfMemo(e))),
     accountSpend: accountSpendMap,

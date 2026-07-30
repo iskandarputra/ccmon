@@ -61,6 +61,13 @@ export interface AppState {
   allSourceDirs: string[];
   snapshot: Snapshot | null;
   configPath: string;
+  /**
+   * Display-only alias maps from `~/.config/ccmon/config.json`. Delivered with
+   * app state rather than the snapshot: they are hand-edited config, read once
+   * at startup like `claudeDirs`, and re-sending them on every recompute would
+   * be pure overhead.
+   */
+  aliases: { models: Record<string, string>; projects: Record<string, string> };
   settings: AppSettings | null;
   pricingMeta: PricingMeta | null;
   accounts: AccountsMap;

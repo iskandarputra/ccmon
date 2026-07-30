@@ -11,6 +11,7 @@
     "dev": "tsx scripts/dev.ts",
     "icon": "tsx scripts/gen-icon.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "cli": "tsx cli/index.ts",
     "test": "vitest run",
     "parity": "tsx scripts/parity.ts",
     "test:watch": "vitest",
@@ -25,7 +26,8 @@
     "dist": "npm run icon && npm run build && electron-builder --publish never",
     "dist:linux": "npm run icon && npm run build && electron-builder --linux --publish never",
     "dist:win": "npm run icon && npm run build && electron-builder --win --publish never",
-    "dist:dir": "npm run icon && npm run build && electron-builder --dir --publish never"
+    "dist:dir": "npm run icon && npm run build && electron-builder --dir --publish never",
+    "build:cli": "tsx scripts/build-electron.ts --cli-only"
   },
   "dependencies": {
     "chokidar": "^3.6.0"
@@ -55,5 +57,8 @@
     "vitest": "^4.1.8",
     "ws": "^8.21.0",
     "zustand": "^4.5.5"
+  },
+  "bin": {
+    "ccmon": "dist-cli/index.cjs"
   }
 }

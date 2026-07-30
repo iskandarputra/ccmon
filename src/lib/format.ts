@@ -14,6 +14,8 @@ type Numeric = number | null | undefined;
 // settings.currency or the hourly rates change, then re-emits the snapshot
 // so subscribers re-render with the new formatters.
 
+import { aliasFor, type AliasMap } from '../../shared/aliases';
+
 /** Crypto display symbols — these codes can't go through Intl currency style. */
 export const CRYPTO_SYMBOLS: Record<string, string> = {
   BTC: '₿',
@@ -81,13 +83,38 @@ export const currencyCode = (): string => curCode;
 /** Bare symbol for metric labels ('$ / mtok out') — no trailing space. */
 export const currencySymbol = (): string => curSym.trim() || curCode;
 
+// ---- privacy mode ----------------------------------------------------------
+// Blanks every MONEY figure at format time for screenshots, streams and
+// shoulder-surfing. Token counts, model names and timings stay visible: the
+// point is to hide spend, not to make the app useless. Nothing stored or
+// computed changes, so toggling it back reveals the real numbers instantly.
+//
+// Masked at the formatter rather than per-component so a new panel cannot
+// accidentally leak a dollar figure by forgetting to check a flag.
+
+let privacy = false;
+/** Placeholder wide enough to keep table columns from jumping. */
+const MASK = '•••';
+
+/** Turn masking on/off. Returns true when the value actually changed. */
+export function configurePrivacy(on: boolean): boolean {
+  if (privacy === on) return false;
+  privacy = on;
+  return true;
+}
+
+/** Whether money is currently masked — for a UI affordance saying so. */
+export const isPrivate = (): boolean => privacy;
+
 export const fmtUSD = (v: Numeric): string => {
+  if (privacy) return curSym + MASK;
   const n = (v || 0) * curRate;
   if (curCrypto) return curSym + SIG5.format(n);
   return (n >= 1000 ? cur0 : cur2).format(n);
 };
 
 export const fmtUSDPrecise = (v: Numeric): string => {
+  if (privacy) return curSym + MASK;
   const n = (v || 0) * curRate;
   if (curCrypto) return curSym + SIG5.format(n);
   if (n > 0 && n < 0.01) return curSym + n.toFixed(4);
@@ -96,6 +123,7 @@ export const fmtUSDPrecise = (v: Numeric): string => {
 
 /** Compact money for chart axis ticks: $14 · $1.2k · ₿0.013 */
 export const axisUSD = (v: number): string => {
+  if (privacy) return curSym + MASK;
   const n = (v || 0) * curRate;
   if (curCrypto) return n >= 1000 ? `${curSym}${SIG3.format(n / 1000)}k` : curSym + SIG3.format(n);
   if (n >= 1000) return `${curSym}${Math.round(n / 100) / 10}k`;
@@ -185,6 +213,35 @@ export const projectName = (p = ''): string => p.split('/').filter(Boolean).pop(
 
 /** Shorten /home/<user>/… to ~/… for display. */
 export const tildify = (p = ''): string => p.replace(/^\/(home|Users)\/[^/]+/, '~');
+
+// ---- display aliases -------------------------------------------------------
+// Configured once from the user config at bootstrap, same shape as
+// configureCurrency above: alias maps are hand-edited config read at startup,
+// so threading them through every component as props would be noise. DISPLAY
+// ONLY — see shared/aliases.ts for why they never reach pricing or grouping.
+
+let modelAliases: AliasMap = {};
+let projectAliases: AliasMap = {};
+
+/** Install the user's alias maps. Returns true when anything actually changed. */
+export function configureAliases(models: AliasMap, projects: AliasMap): boolean {
+  if (modelAliases === models && projectAliases === projects) return false;
+  modelAliases = models || {};
+  projectAliases = projects || {};
+  return true;
+}
+
+/** The user's label for a model id, or null when they haven't set one. */
+export function modelAlias(id: string): string | null {
+  const a = aliasFor(id, modelAliases);
+  return a === id ? null : a;
+}
+
+/** The user's label for a project path, or null when they haven't set one. */
+export function projectAlias(path: string): string | null {
+  const a = aliasFor(path, projectAliases);
+  return a === path ? null : a;
+}
 
 /** Account label for a source root: '~/.claude-work/projects' → 'claude-work' */
 export const sourceLabel = (dir = ''): string => {

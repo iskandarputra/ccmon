@@ -5,7 +5,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { BLOCK_MS, computeBlocks } from '../blocks';
+import {
+  BLOCK_MS,
+  MAX_BLOCK_HOURS,
+  MIN_BLOCK_HOURS,
+  blockMsFor,
+  computeBlocks,
+} from '../blocks';
 import { HOUR, MIN, makeEntry } from './helpers';
 
 const T0 = Date.parse('2026-06-01T10:20:00Z'); // floors to 10:00
@@ -108,5 +114,61 @@ describe('computeBlocks — active block, burn, projection, limit', () => {
   it('reports no active block once the window lapses', () => {
     const { active } = computeBlocks([e1, e2], { now: T0 + 6 * HOUR });
     expect(active).toBeNull();
+  });
+});
+
+describe('computeBlocks — configurable window length', () => {
+  it('defaults to Anthropic\'s 5 hours', () => {
+    expect(blockMsFor(null)).toBe(BLOCK_MS);
+    expect(blockMsFor(undefined)).toBe(BLOCK_MS);
+    expect(blockMsFor(5)).toBe(BLOCK_MS);
+  });
+
+  it('clamps to a usable 1-24h and ignores nonsense', () => {
+    expect(blockMsFor(0)).toBe(BLOCK_MS); // falsy → default, not a zero window
+    expect(blockMsFor(-3)).toBe(MIN_BLOCK_HOURS * 3600 * 1000);
+    expect(blockMsFor(999)).toBe(MAX_BLOCK_HOURS * 3600 * 1000);
+    expect(blockMsFor(Number.NaN)).toBe(BLOCK_MS);
+    expect(blockMsFor(2.4)).toBe(2 * 3600 * 1000); // rounded
+  });
+
+  it('splits one span into more blocks as the window shrinks', () => {
+    const t0 = Date.parse('2026-06-10T00:00:00Z');
+    // one entry per hour for 9 hours
+    const entries = Array.from({ length: 9 }, (_, i) =>
+      makeEntry({ ts: t0 + i * HOUR, in: 10, out: 5, costUSD: 1 }),
+    );
+    const at = (h: number | null) =>
+      computeBlocks(entries, { now: t0 + 9 * HOUR, blockHours: h }).count;
+
+    expect(at(null)).toBe(2); // 5h default: 0-5, 5-9
+    expect(at(3)).toBeGreaterThan(at(null)); // shorter window → more blocks
+    expect(at(24)).toBe(1); // one long window swallows the lot
+  });
+
+  it('keeps the whole span accounted for at every window length', () => {
+    const t0 = Date.parse('2026-06-10T00:00:00Z');
+    const entries = Array.from({ length: 9 }, (_, i) =>
+      makeEntry({ ts: t0 + i * HOUR, in: 10, out: 5, costUSD: 1 }),
+    );
+    for (const h of [1, 2, 5, 12, 24]) {
+      const r = computeBlocks(entries, { now: t0 + 9 * HOUR, blockHours: h });
+      const usage = r.blocks.filter((b) => !b.isGap);
+      // every entry lands in exactly one usage block, whatever the window
+      expect(usage.reduce((n, b) => n + b.entries, 0)).toBe(9);
+    }
+  });
+
+  it('treats a longer gap as a gap under a shorter window', () => {
+    const t0 = Date.parse('2026-06-10T00:00:00Z');
+    const entries = [
+      makeEntry({ ts: t0, in: 10, out: 5, costUSD: 1 }),
+      makeEntry({ ts: t0 + 4 * HOUR, in: 10, out: 5, costUSD: 1 }),
+    ];
+    // 4h apart: inside a 5h window, but a gap once the window is 2h
+    expect(computeBlocks(entries, { now: t0 + 4 * HOUR, blockHours: 5 }).count).toBe(1);
+    const short = computeBlocks(entries, { now: t0 + 4 * HOUR, blockHours: 2 });
+    expect(short.count).toBe(2);
+    expect(short.blocks.some((b) => b.isGap)).toBe(true);
   });
 });

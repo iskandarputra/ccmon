@@ -44,6 +44,8 @@ export interface UsageState {
   feed: FeedEvent[];
   lastEventTs: number | null;
   version: string;
+  /** display-only alias maps from the user config (see shared/aliases.ts) */
+  aliases: { models: Record<string, string>; projects: Record<string, string> };
   /** the accounts ccmon shows — discovered dirs minus hidden ones */
   sourceDirs: string[];
   /** every discovered dir, hidden included — the shell-wrapper controls use it */
@@ -88,6 +90,7 @@ export const useUsageStore = create<UsageState>((set) => ({
   feed: [],
   lastEventTs: null,
   version: '',
+  aliases: { models: {}, projects: {} },
   sourceDirs: [],
   allSourceDirs: [],
   view: 'overview',

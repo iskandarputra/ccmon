@@ -367,6 +367,34 @@
   margin-bottom: 8px;
 }
 
+/*
+ * Inline warning row. Used by the pricing-refresh failure and the cost-mode
+ * mismatch. Was referenced by SettingsView with no rule at all, so those
+ * messages rendered as bare unstyled text — this makes them read as warnings.
+ * --amber is the palette's caution token; alpha via color-mix per convention.
+ */
+.set-err {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--amber);
+  background: color-mix(in oklab, var(--amber) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--amber) 28%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.set-err-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
 .set-note {
   font-family: var(--mono);
   font-size: 10px;

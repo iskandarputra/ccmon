@@ -16,13 +16,17 @@ import type { AppSettings } from '../../shared/types';
 export const DEFAULTS: AppSettings = {
   theme: 'nord',
   costMode: 'auto', //        auto | calculate | display
+  timezone: '', //            '' = system zone; else an IANA name
   pricingOffline: false, //   true → never hit the network for pricing
   startOfWeek: 'monday', //   weeks start monday — the sunday option is retired
   tokenLimit: 'max', //       'max' | tokens-per-block number | null (off)
+  blockHours: null, //        null = 5h, Anthropic's real billing window
   compactNumbers: true,
+  privacyMode: false, //      true = blank every money figure (display only)
   currency: 'USD', //         display currency (ISO code) — internals stay USD
   sources: null, //           null (primary account) | array of project dirs
   notifyNearCap: false, //    opt-in OS notifications when an account nears a cap
+  closeToTray: false, //      opt-in: close hides to tray instead of quitting
   aiModel: 'claude-sonnet-4-6', // advisor model (reuses the Claude Code login)
   accountWrapperPrefs: {}, // per-root shell-wrapper rename/untrack overrides
 };

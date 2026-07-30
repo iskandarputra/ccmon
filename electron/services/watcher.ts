@@ -9,7 +9,9 @@ import path from 'path';
 import { EventEmitter } from 'events';
 import { StringDecoder } from 'string_decoder';
 import chokidar, { type FSWatcher } from 'chokidar';
-import { localDateKey, parseLine } from './parser';
+import { dayKeyFor } from '../../shared/daykey';
+import { claudeAdapter } from './adapters/claude';
+import type { SourceAdapter, SourceRoot } from './adapters/types';
 import type { CompactMarker, ToolResultByDay, UsageEntry } from '../../shared/types';
 import type { ScanProgress } from '../../shared/ipc';
 
@@ -34,8 +36,31 @@ interface WatcherEvents {
 }
 
 export interface UsageWatcherOptions {
-  dirs: string[];
+  /**
+   * Data roots to index. A bare string[] is shorthand for "all Claude Code
+   * roots" and keeps every existing caller working; pass {@link SourceRoot}s to
+   * mix formats.
+   */
+  dirs: string[] | SourceRoot[];
   watch?: boolean;
+  /**
+   * Skip transcript files not modified since this epoch-ms. Off by default —
+   * the app always wants the full history, and a windowed index would silently
+   * understate lifetime totals.
+   *
+   * Exists for latency-bound one-shot readers (the CLI's statusline, which must
+   * answer inside a shell prompt): today's spend and the active 5-hour block
+   * can only live in recently-touched files, so most of the corpus is provably
+   * irrelevant to them. A long-running session's total IS truncated by this, so
+   * only set it when that trade is acceptable and disclosed.
+   */
+  sinceMs?: number | null;
+  /**
+   * IANA zone for day bucketing, or null/'' for the system zone. Only affects
+   * `entry.dateKey`; changing it does NOT require a rescan, because main
+   * re-derives the keys on the existing entries in one pass.
+   */
+  timezone?: string | null;
 }
 
 /* typed EventEmitter surface — same runtime class, precise payloads */
@@ -58,6 +83,9 @@ export interface UsageWatcher {
  * recomputes see the upgraded counts without re-sorting.
  */
 export class UsageWatcher extends EventEmitter {
+  /** roots paired with the adapter that understands each one */
+  readonly roots: SourceRoot[];
+  /** the root paths alone — what main, the CLI and parity already speak */
   readonly dirs: string[];
   private readonly watchEnabled: boolean;
   private readonly offsets = new Map<string, number>(); //    file → bytes consumed
@@ -81,11 +109,29 @@ export class UsageWatcher extends EventEmitter {
   private readonly busy = new Map<string, Promise<void>>(); // file → tail promise chain
   private watchers: FSWatcher[] = [];
   private rescanning = false;
+  /** mtime floor for discovery; null = index everything (see the option doc) */
+  private readonly sinceMs: number | null;
+  /** day-bucketing zone handed to the parser; null = system */
+  private timezone: string | null;
 
-  constructor({ dirs, watch = true }: UsageWatcherOptions) {
+  constructor({ dirs, watch = true, sinceMs = null, timezone = null }: UsageWatcherOptions) {
     super();
-    this.dirs = dirs;
+    this.roots = dirs.map((d) =>
+      typeof d === 'string' ? { dir: d, adapter: claudeAdapter } : d,
+    );
+    this.dirs = this.roots.map((r) => r.dir);
     this.watchEnabled = watch;
+    this.sinceMs = sinceMs;
+    this.timezone = timezone;
+  }
+
+  /**
+   * Switch the bucketing zone for lines parsed from now on. Entries already
+   * indexed keep their old keys — main re-derives those separately, so the two
+   * halves of a zone change stay in step.
+   */
+  setTimezone(zone: string | null): void {
+    this.timezone = zone;
   }
 
   /**
@@ -117,6 +163,16 @@ export class UsageWatcher extends EventEmitter {
     stored.tools = cand.tools ?? stored.tools;
     stored.stop = cand.stop ?? stored.stop;
     return true;
+  }
+
+  /**
+   * Which adapter owns a transcript, resolved through its root. Falls back to
+   * Claude Code so a file that somehow escapes the root mapping still parses
+   * the way it always did.
+   */
+  adapterOf(file: string): SourceAdapter {
+    const src = this.sourceOf(file);
+    return this.roots.find((r) => r.dir === src)?.adapter ?? claudeAdapter;
   }
 
   /** Which configured root dir a transcript belongs to (memoized per file). */
@@ -179,6 +235,7 @@ export class UsageWatcher extends EventEmitter {
   // real billable usage.
   async listFiles(): Promise<string[]> {
     const files: string[] = [];
+    let owns: (file: string) => boolean = claudeAdapter.owns;
     const walk = async (dir: string, depth: number): Promise<void> => {
       if (depth > MAX_TREE_DEPTH) return;
       let ents;
@@ -190,10 +247,24 @@ export class UsageWatcher extends EventEmitter {
       for (const d of ents) {
         const p = path.join(dir, d.name);
         if (d.isDirectory()) await walk(p, depth + 1);
-        else if (d.isFile() && d.name.endsWith('.jsonl')) files.push(p);
+        else if (d.isFile() && owns(p)) {
+          // one stat per candidate is orders of magnitude cheaper than reading
+          // it, so the filter pays for itself the moment anything is skipped
+          if (this.sinceMs != null) {
+            try {
+              if ((await fsp.stat(p)).mtimeMs < this.sinceMs) continue;
+            } catch {
+              continue; // vanished between readdir and stat
+            }
+          }
+          files.push(p);
+        }
       }
     };
-    for (const dir of this.dirs) await walk(dir, 0);
+    for (const root of this.roots) {
+      owns = (f) => root.adapter.owns(f);
+      await walk(root.dir, 0);
+    }
     return files;
   }
 
@@ -215,6 +286,7 @@ export class UsageWatcher extends EventEmitter {
 
     const out: UsageEntry[] = [];
     let merged = 0;
+    const adapter = this.adapterOf(file);
     const fh = await fsp.open(file, 'r');
     try {
       const decoder = new StringDecoder('utf8');
@@ -233,7 +305,7 @@ export class UsageWatcher extends EventEmitter {
           const lineNo = (this.lineNos.get(file) || 0) + 1;
           this.lineNos.set(file, lineNo);
           if (!line) continue;
-          const parsed = parseLine(line, file, lineNo);
+          const parsed = adapter.parseLine(line, file, lineNo, this.timezone);
           if (!parsed) continue;
           if (parsed.kind === 'reset') {
             if (!this.resetTs || parsed.resetTs > this.resetTs) this.resetTs = parsed.resetTs;
@@ -246,7 +318,7 @@ export class UsageWatcher extends EventEmitter {
           }
           if (parsed.kind === 'toolresult') {
             const src = this.sourceOf(file) ?? '';
-            const day = localDateKey(parsed.ts);
+            const day = dayKeyFor(parsed.ts, this.timezone);
             let byDay = this.toolResultBuckets.get(src);
             if (!byDay) this.toolResultBuckets.set(src, (byDay = new Map()));
             const b = byDay.get(day);
@@ -260,6 +332,7 @@ export class UsageWatcher extends EventEmitter {
             continue;
           }
           parsed.source = this.sourceOf(file);
+          parsed.agent = adapter.id; // which coding CLI produced this usage
           const verdict = this.accept(parsed);
           if (verdict === 'new') out.push(parsed);
           else if (verdict === 'merged') merged += 1;

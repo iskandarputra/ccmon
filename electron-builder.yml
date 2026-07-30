@@ -12,6 +12,21 @@ files:
   - build/icon.png
   - package.json
 
+# The headless CLI ships as a resource, NOT inside the asar: it has a shebang
+# and needs to be directly executable, which an asar-packed file is not.
+# It lands at <install>/resources/cli/index.cjs.
+#
+# Deliberately NOT symlinked onto PATH by an install hook: that needs a
+# root-run postinstall on deb, has no clean equivalent for AppImage (a
+# self-contained mount) and needs a shim plus a PATH edit on Windows. Shipping
+# an untested root-run script is worse than asking for one command — see the
+# README/docs for the one-liner.
+extraResources:
+  - from: dist-cli
+    to: cli
+    filter:
+      - '**/*.cjs'
+
 asar: true
 compression: normal
 npmRebuild: false

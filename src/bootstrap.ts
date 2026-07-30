@@ -8,21 +8,27 @@ import { useEffect } from 'react';
 import { useUsageStore } from './store/useUsageStore';
 import { applyTheme } from './theme/applyTheme';
 import { DEFAULT_THEME_ID } from './theme/themes';
-import { configureCurrency } from './lib/format';
+import { configureAliases, configureCurrency, configurePrivacy } from './lib/format';
 import type { AppSettings } from '../shared/types';
 
 /**
- * Point the money formatters at settings.currency using the latest rates
- * (docs/v2-spec.md §5). On change, re-emit the snapshot and feed (cloned) so
+ * Point the money formatters at settings.currency using the latest rates, and
+ * at settings.privacyMode (docs/v2-spec.md §5). Both live inside the
+ * formatters, so one re-emit covers a change to either.
+ *
+ * On change, re-emit the snapshot and feed (cloned) so
  * every subscriber re-renders with the new formatting — components call
  * fmtUSD directly and have no other way to notice. Unknown code or missing
  * rate falls back to USD.
  */
-function applyCurrency(): void {
+function applyFormatting(): void {
   const st = useUsageStore.getState();
   const code = st.settings?.currency || 'USD';
   const rate = code === 'USD' ? 1 : st.currency?.rates?.[code];
-  const changed = configureCurrency(rate ? code : 'USD', rate || 1);
+  // both live in the formatters, so one re-emit covers a change to either
+  const changed =
+    configureCurrency(rate ? code : 'USD', rate || 1) ||
+    configurePrivacy(!!st.settings?.privacyMode);
   if (changed) {
     useUsageStore.setState({
       snapshot: st.snapshot ? { ...st.snapshot } : null,
@@ -46,6 +52,7 @@ export function useBootstrap(): void {
       if (!alive) return;
       useUsageStore.setState({
         version: s.version,
+        aliases: s.aliases || { models: {}, projects: {} },
         sourceDirs: s.sourceDirs,
         allSourceDirs: s.allSourceDirs || s.sourceDirs,
         progress: s.progress,
@@ -57,8 +64,9 @@ export function useBootstrap(): void {
         deepseek: s.deepseek || null,
         deepseekAuth: s.deepseekAuth || null,
       });
+      configureAliases(s.aliases?.models || {}, s.aliases?.projects || {});
       applyTheme(s.settings?.theme || DEFAULT_THEME_ID);
-      applyCurrency();
+      applyFormatting();
       if (s.snapshot) useUsageStore.getState().setSnapshot(s.snapshot);
       else useUsageStore.setState({ status: s.status === 'error' ? 'error' : 'scanning' });
     });
@@ -71,13 +79,13 @@ export function useBootstrap(): void {
       api.onSettings((settings) => {
         useUsageStore.getState().setSettings(settings);
         applyTheme(settings?.theme || DEFAULT_THEME_ID);
-        applyCurrency();
+        applyFormatting();
       }),
       api.onPricingMeta?.((meta) => useUsageStore.setState({ pricingMeta: meta })),
       api.onLimits?.((limits) => useUsageStore.getState().setLimits(limits)),
       api.onCurrency?.((rates) => {
         useUsageStore.setState({ currency: rates || null });
-        applyCurrency();
+        applyFormatting();
       }),
       api.onDeepseek?.((result) => useUsageStore.setState({ deepseek: result || null })),
       api.onDeepseekAuth?.((auth) => useUsageStore.setState({ deepseekAuth: auth || null })),

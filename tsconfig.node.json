@@ -18,5 +18,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["electron/**/*.ts", "scripts/**/*.ts", "shared/**/*.ts"]
+  "include": ["cli/**/*.ts", "electron/**/*.ts", "scripts/**/*.ts", "shared/**/*.ts"]
 }

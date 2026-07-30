@@ -405,6 +405,10 @@ function WeekdayTip({ active, payload }: WeekdayTipProps) {
 
 export function InsightsView() {
   const snapshot = useUsageStore((s) => s.snapshot);
+  // Gated on `compared > 0`: current Claude Code does not write a per-message
+  // cost, so on most installs there is nothing to reconcile. An always-empty
+  // panel would be worse than no panel — it would imply a clean bill.
+  const recon = snapshot?.reconcile ?? null;
   const accounts = useUsageStore((s) => s.accounts);
   const settings = useUsageStore((s) => s.settings);
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
@@ -966,6 +970,62 @@ export function InsightsView() {
           </div>
         </Panel>
       </div>
+      {recon && recon.compared > 0 && (
+        <div className="g5">
+          <Panel
+            title={
+              <>
+                cost reconciliation{' '}
+                <Hint label="what is this?">
+                  Compares the cost Claude Code recorded on each message against
+                  ccmon&apos;s own token-based calculation, always calculating fresh
+                  regardless of your cost mode (otherwise the two would be the same
+                  number by definition). Only messages that carry a recorded cost can
+                  be compared, and models with no known price are skipped rather than
+                  scored as a total mismatch — so treat this as a check on the
+                  overlap, not on your whole bill.
+                </Hint>
+              </>
+            }
+            right={
+              <span className="panel-note">
+                {fmtPct(recon.coverage)} of {fmtInt(recon.total)} msgs
+              </span>
+            }
+          >
+            <div className="set-kv">
+              <div>
+                <span>recorded</span>
+                <b>{fmtUSD(recon.recorded)}</b>
+              </div>
+              <div>
+                <span>ccmon calculates</span>
+                <b>{fmtUSD(recon.calculated)}</b>
+              </div>
+              <div>
+                <span>drift</span>
+                <b>
+                  {recon.drift >= 0 ? '+' : '−'}
+                  {fmtUSD(Math.abs(recon.drift))} ({fmtPct(Math.abs(recon.driftPct))})
+                </b>
+              </div>
+            </div>
+            {recon.byModel.length > 0 && (
+              <ul className="ins-records">
+                {recon.byModel.slice(0, 5).map((m) => (
+                  <li key={m.key}>
+                    <span>{m.key}</span>
+                    <b>
+                      {m.calculated - m.recorded >= 0 ? '+' : '−'}
+                      {fmtUSD(Math.abs(m.calculated - m.recorded))}
+                    </b>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        </div>
+      )}
       <div className="g5">
         <Panel title={<>records <Hint label="what is this?">Your all-time highs and averages across all tracked sessions.</Hint></>} right={<span className="panel-note">all-time</span>}>
           <ul className="ins-records">

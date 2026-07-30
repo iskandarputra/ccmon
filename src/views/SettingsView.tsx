@@ -13,6 +13,7 @@ import { fmtInt, fmtTok, relTime, tildify, sourceLabel, primarySource } from '..
 import { CRYPTO_SYMBOLS } from '../lib/format';
 import { THEMES } from '../theme/themes';
 import { ADVISOR_MODELS } from '../../shared/types';
+import { dayKeyFor, systemZone } from '../../shared/daykey';
 import type { CostMode, ExportKind, PricingMeta, PricingSource } from '../../shared/types';
 import './settings.css';
 
@@ -31,6 +32,24 @@ const COST_MODES: Array<{ value: CostMode; label: string; note: string }> = [
   { value: 'calculate', label: 'calculate', note: 'always recompute from tokens × pricing' },
   { value: 'display', label: 'display', note: 'only costs recorded by the cli' },
 ];
+
+/**
+ * Cost-mode notes, corrected for what the transcripts actually contain.
+ *
+ * Current Claude Code records no per-message cost, so with zero recorded costs
+ * `display` shows $0.00 for everything and `auto` is identical to `calculate`.
+ * Presenting three neutral-sounding options in that state is a footgun — the
+ * notes say what each one will really do instead of what it would do in theory.
+ * `coverage` comes from the same reconciliation pass, so this tracks reality
+ * rather than a hardcoded assumption.
+ */
+function costModeNote(value: CostMode, hasRecorded: boolean): string {
+  const base = COST_MODES.find((m) => m.value === value)?.note ?? '';
+  if (hasRecorded) return base;
+  if (value === 'display') return 'your transcripts record no costs — this shows $0.00';
+  if (value === 'auto') return 'no recorded costs found, so identical to calculate';
+  return base;
+}
 
 type LimitMode = 'max' | 'custom' | 'off';
 
@@ -159,6 +178,30 @@ function ExportPanel() {
   );
 }
 
+/**
+ * Every IANA zone this runtime knows, grouped by region for a usable select.
+ * `supportedValuesOf` is Chromium-native; the fallback keeps the control usable
+ * on a runtime that lacks it rather than shipping an empty dropdown.
+ */
+const ZONE_GROUPS: Array<[string, string[]]> = (() => {
+  let zones: string[] = [];
+  try {
+    zones = Intl.supportedValuesOf('timeZone');
+  } catch {
+    zones = ['UTC'];
+  }
+  const groups = new Map<string, string[]>();
+  for (const z of zones) {
+    const region = z.includes('/') ? z.slice(0, z.indexOf('/')) : 'other';
+    const list = groups.get(region);
+    if (list) list.push(z);
+    else groups.set(region, [z]);
+  }
+  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+})();
+
+const SYSTEM_ZONE = systemZone();
+
 export function SettingsView() {
   const settings = useUsageStore((s) => s.settings);
   const pricingMeta = useUsageStore((s) => s.pricingMeta);
@@ -167,6 +210,9 @@ export function SettingsView() {
   const currency = useUsageStore((s) => s.currency);
   const version = useUsageStore((s) => s.version);
   const maxBlockTokens = useUsageStore((s) => s.snapshot?.records?.maxBlockTokens) || 0;
+  // whether ANY message carries a cost recorded by the CLI — drives the honest
+  // cost-mode notes and the warning below
+  const hasRecordedCosts = useUsageStore((s) => (s.snapshot?.reconcile?.compared ?? 0) > 0);
   const now = useNow(30000);
 
   const [refreshing, setRefreshing] = useState(false);
@@ -330,6 +376,12 @@ export function SettingsView() {
 
       <div className="set-col">
         <Panel title="cost mode">
+          {!hasRecordedCosts && settings.costMode === 'display' && (
+            <div className="set-err">
+              Every figure reads $0.00: this mode shows only costs recorded by the
+              CLI, and your transcripts contain none. Switch to calculate.
+            </div>
+          )}
           <div className="set-radios">
             {COST_MODES.map((m) => (
               <Radio
@@ -339,7 +391,7 @@ export function SettingsView() {
                 current={settings.costMode}
                 onSelect={(v) => updateSettings({ costMode: v })}
                 label={m.label}
-                note={m.note}
+                note={costModeNote(m.value, hasRecordedCosts)}
               />
             ))}
           </div>
@@ -406,6 +458,20 @@ export function SettingsView() {
           />
           <div className="set-divider" />
           <Toggle
+            checked={settings.closeToTray}
+            onChange={(v) => updateSettings({ closeToTray: v })}
+            label="close to tray"
+            note="closing the window keeps ccmon running in the tray — quit from the tray menu. Ignored if your desktop has no tray."
+          />
+          <div className="set-divider" />
+          <Toggle
+            checked={settings.privacyMode}
+            onChange={(v) => updateSettings({ privacyMode: v })}
+            label="privacy mode"
+            note="blank every money figure — for screenshots, streams and shared screens. Tokens and models stay visible; nothing stored changes."
+          />
+          <div className="set-divider" />
+          <Toggle
             checked={settings.notifyNearCap}
             onChange={(v) => updateSettings({ notifyNearCap: v })}
             label="near-cap notifications"
@@ -460,6 +526,67 @@ export function SettingsView() {
             label="offline"
             note="skips the daily background refetch"
           />
+        </Panel>
+
+        <Panel title="block length">
+          <div className="set-kv">
+            <div>
+              <span>window</span>
+              <select
+                className="set-input set-currency"
+                value={String(settings.blockHours ?? 5)}
+                onChange={(e) =>
+                  updateSettings({
+                    blockHours: Number(e.target.value) === 5 ? null : Number(e.target.value),
+                  })
+                }
+              >
+                {[1, 2, 3, 4, 5, 6, 8, 12, 24].map((h) => (
+                  <option key={h} value={h}>
+                    {h}h{h === 5 ? ' · billing default' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="set-note">
+            Only 5h matches Anthropic's real billing window — the value blocks,
+            burn rate and token-limit projections are built on. Any other length
+            reframes them as your own work sessions, which is useful for pacing
+            but no longer comparable to your plan's limits.
+          </div>
+        </Panel>
+
+        <Panel title="timezone">
+          <div className="set-kv">
+            <div>
+              <span>day bucketing</span>
+              <select
+                className="set-input set-currency"
+                value={settings.timezone || ''}
+                onChange={(e) => updateSettings({ timezone: e.target.value })}
+              >
+                <option value="">system · {SYSTEM_ZONE}</option>
+                {ZONE_GROUPS.map(([region, zones]) => (
+                  <optgroup key={region} label={region}>
+                    {zones.map((z) => (
+                      <option key={z} value={z}>{z}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <div>
+              <span>today is</span>
+              <b>{dayKeyFor(now, settings.timezone || null)}</b>
+            </div>
+          </div>
+          <div className="set-note">
+            Which calendar day each message counts against — days, weeks, months,
+            the rhythm heatmap and every range preset. Changing it re-buckets
+            history immediately, without re-reading transcripts. Blocks are
+            5-hour windows anchored to real time, so they are unaffected.
+          </div>
         </Panel>
 
         <Panel title="display currency">

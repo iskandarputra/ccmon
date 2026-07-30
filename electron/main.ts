@@ -13,11 +13,12 @@ import {
   Notification,
   dialog,
   safeStorage,
+  Tray,
+  nativeImage,
 } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import { detectProjectDirs } from './services/paths';
-import { localDateKey } from './services/parser';
+import { detectSourceRoots } from './services/adapters';
 import { loadConfig, CONFIG_PATH } from './services/config';
 import { Settings } from './services/settings';
 import { createPricingEngine, costForMode, type PricingEngine } from './services/pricing';
@@ -50,6 +51,7 @@ import { fetchBalance } from './services/deepseek';
 import { DeepseekHistory } from './services/deepseek-history';
 import { DeepseekKeyStore, envKey, looksLikeKey, type KeyCrypto } from './services/deepseek-key';
 import { loadState, trackState } from './services/window-state';
+import { trayText } from './services/status-text';
 import { isDeepseekModel } from '../shared/providers';
 import type {
   AccountSpec,
@@ -77,6 +79,7 @@ import type {
   UsageEntry,
 } from '../shared/types';
 import { resolveRange } from '../shared/range';
+import { dayKeyFor } from '../shared/daykey';
 import type { AppState, AppStatus, ScanProgress } from '../shared/ipc';
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
@@ -103,6 +106,10 @@ if (!app.requestSingleInstanceLock()) {
 
 interface MainState {
   win: BrowserWindow | null;
+  /** ambient tray indicator; null when the platform has no usable tray */
+  tray: Tray | null;
+  /** true once a real quit is underway — lets the close handler stop hiding */
+  quitting: boolean;
   watcher: UsageWatcher | null;
   settings: Settings | null;
   pricing: PricingEngine | null;
@@ -151,6 +158,8 @@ interface MainState {
 
 const state: MainState = {
   win: null,
+  tray: null,
+  quitting: false,
   watcher: null,
   settings: null, // Settings instance, created on ready
   pricing: null, //  pricing engine, created on ready
@@ -218,7 +227,7 @@ function applyVisibility(): boolean {
 /** Re-detect roots from disk and re-apply the hide prefs on top. */
 function refreshSourceDirs(): void {
   const cfg = loadConfig();
-  state.allSourceDirs = detectProjectDirs(cfg.claudeDirs || []);
+  state.allSourceDirs = detectSourceRoots(cfg.claudeDirs || []).map((r) => r.dir);
   applyVisibility();
   state.accounts = accountsFor(state.sourceDirs);
 }
@@ -311,11 +320,13 @@ function recomputeSig(now: number): string {
   return [
     state.entries.length,
     last?.key ?? '',
-    s ? `${s.costMode}|${s.startOfWeek}|${s.tokenLimit}|${(s.sources || []).join(',')}` : '',
+    s
+      ? `${s.costMode}|${s.startOfWeek}|${s.tokenLimit}|${s.timezone || ''}|${s.blockHours ?? ''}|${(s.sources || []).join(',')}`
+      : '',
     state.pricingMeta?.fetchedAt ?? 0,
     state.pricingMeta?.source ?? '',
     state.watcher?.resetTs ?? 0,
-    localDateKey(now),
+    dayKeyFor(now, s?.timezone || null),
     active ? Math.floor(now / 60_000) : 'idle',
     `${state.range.preset}|${state.range.customStart ?? ''}|${state.range.customEnd ?? ''}`,
   ].join('§');
@@ -350,9 +361,10 @@ function recompute(force = false): void {
     // limits — but a hidden account is out of the app, not merely out of scope
     accountEntries: visibleEntries(),
     // global analytics range scopes the historical body (not account spend)
-    range: resolveRange(state.range, now),
+    range: resolveRange(state.range, now, state.settings?.get().timezone || null),
   });
   send('usage:snapshot', state.snapshot);
+  refreshTray();
 }
 
 function pushPricingMeta(): void {
@@ -506,6 +518,7 @@ async function refreshLimits(force = false): Promise<void> {
     });
     state.limits = limits;
     send('limits:data', limits);
+    refreshTray();
   } finally {
     state.limitsBusy = false;
   }
@@ -646,7 +659,10 @@ function startWatcher(): void {
   // watch EVERY discovered dir, hidden included: hiding is a view preference,
   // so unhiding has to bring the account back live rather than needing a
   // relaunch to start watching it again
-  const watcher = new UsageWatcher({ dirs: state.allSourceDirs });
+  const watcher = new UsageWatcher({
+    dirs: state.allSourceDirs,
+    timezone: state.settings?.get().timezone || null,
+  });
   state.watcher = watcher;
 
   watcher.on('progress', (p) => {
@@ -731,6 +747,19 @@ function createWindow(): void {
 
   if (saved.maximized) win.maximize();
   win.once('ready-to-show', () => win.show());
+
+  // Close → hide, only when the user opted in AND there is a tray to restore
+  // from. Without that second condition the app would become unreachable on a
+  // desktop with no tray host. `state.quitting` distinguishes a real quit
+  // (tray menu, Cmd-Q, SIGTERM) from a close, so Quit is never swallowed.
+  win.on('close', (e) => {
+    if (state.quitting) return;
+    if (!state.settings?.get().closeToTray) return;
+    if (!state.tray || state.tray.isDestroyed()) return;
+    e.preventDefault();
+    win.hide();
+    notifyClosedToTray();
+  });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   trackState(win, stateFile);
 
@@ -747,6 +776,102 @@ function createWindow(): void {
   });
 }
 
+// ---- tray ---------------------------------------------------------------
+
+/** Bring the window back, creating it if it was closed. */
+function showWindow(): void {
+  if (!state.win || state.win.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (state.win.isMinimized()) state.win.restore();
+  if (!state.win.isVisible()) state.win.show();
+  state.win.focus();
+}
+
+/**
+ * Tell the user, ONCE per run, where the window went. A window that vanishes
+ * with no feedback reads as a crash; this is the one moment the behaviour needs
+ * explaining, and repeating it every close would be nagging.
+ */
+let closedToTrayHintShown = false;
+function notifyClosedToTray(): void {
+  if (closedToTrayHintShown || !Notification.isSupported()) return;
+  closedToTrayHintShown = true;
+  new Notification({
+    title: 'ccmon is still running',
+    body: 'Closing the window hides it to the tray. Use the tray icon to reopen, or its Quit item to exit.',
+  }).show();
+}
+
+/**
+ * Create the tray icon, or do nothing if the platform has no usable tray (some
+ * minimal Linux desktops ship no StatusNotifier host). A missing tray must never
+ * be fatal — it is an ambient extra, not a requirement.
+ */
+function createTray(): void {
+  const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
+  try {
+    // The source icon is 1024px; a tray wants ~16-22px, and passing the full
+    // image gives an enormous or blank indicator depending on the platform.
+    const image = nativeImage.createFromPath(iconPath).resize({ width: 22, height: 22 });
+    if (image.isEmpty()) {
+      console.warn(`[ccmon] tray disabled: could not load ${iconPath}`);
+      return;
+    }
+    state.tray = new Tray(image);
+    state.tray.on('click', showWindow);      // Windows/macOS
+    state.tray.on('double-click', showWindow);
+    refreshTray();
+    console.log('[ccmon] tray ready');
+  } catch (err) {
+    // Logged, never thrown: a desktop with no StatusNotifier host is a normal
+    // environment, and the app is fully usable without an indicator.
+    console.warn(`[ccmon] tray unavailable: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Push the current numbers into the tray. Cheap and idempotent, so it can be
+ * called from every path that changes what the tray shows (recompute, limits
+ * poll) without any coordination.
+ *
+ * On Linux the menu is the ONLY readable surface — `setTitle` is macOS-only and
+ * tooltips are unreliable across desktops — so the numbers go in as disabled
+ * menu rows rather than living only in the tooltip.
+ */
+function refreshTray(): void {
+  const tray = state.tray;
+  if (!tray || tray.isDestroyed()) return;
+  const { tooltip, lines, title } = trayText(
+    state.snapshot,
+    state.limits,
+    accountLabel,
+    Date.now(),
+    !!state.settings?.get().privacyMode,
+  );
+
+  tray.setToolTip(tooltip);
+  if (process.platform === 'darwin') tray.setTitle(title);
+
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      ...lines.map((label) => ({ label, enabled: false })),
+      { type: 'separator' as const },
+      { label: 'Open ccmon', click: showWindow },
+      { label: 'Refresh now', click: () => void refreshLimits(true) },
+      { type: 'separator' as const },
+      {
+        label: 'Quit',
+        click: () => {
+          state.quitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+}
+
 // ---- IPC ----------------------------------------------------------------
 
 ipcMain.handle('app:getState', (): AppState => ({
@@ -757,6 +882,10 @@ ipcMain.handle('app:getState', (): AppState => ({
   allSourceDirs: state.allSourceDirs,
   snapshot: state.snapshot,
   configPath: CONFIG_PATH,
+  aliases: (() => {
+    const cfg = loadConfig();
+    return { models: cfg.modelAliases || {}, projects: cfg.projectAliases || {} };
+  })(),
   settings: state.settings ? state.settings.get() : null,
   pricingMeta: state.pricingMeta,
   accounts: state.accounts,
@@ -784,11 +913,27 @@ ipcMain.handle('settings:set', (_e, partial: Partial<AppSettings>) => {
     send('accounts:data', { sourceDirs: state.sourceDirs, allSourceDirs: state.allSourceDirs, accounts: state.accounts });
     void refreshLimits(true);
   }
+  // A zone change re-buckets which day every message counts against. Entries
+  // carry their dateKey (so pricing/aggregation never re-derive it per pass), so
+  // re-stamp them in ONE pass rather than rescanning ~100k lines from disk.
+  // privacy is display-only, so no recompute — but the tray renders money and
+  // must follow immediately or the toggle appears not to work
+  if (before.privacyMode !== next.privacyMode) refreshTray();
+  const zoneChanged = (before.timezone || '') !== (next.timezone || '');
+  if (zoneChanged) {
+    const zone = next.timezone || null;
+    for (const e of state.entries) e.dateKey = dayKeyFor(e.ts, zone);
+    state.watcher?.setTimezone(zone); // lines parsed from here on match
+    state.dataEpoch += 1; //            invalidate scopedData's memo
+    console.log(`[ccmon] timezone → ${next.timezone || 'system'}, re-stamped ${state.entries.length} entries`);
+  }
   // Analytics semantics changed → rebuild the snapshot from the same entries.
   if (
     before.costMode !== next.costMode ||
     before.startOfWeek !== next.startOfWeek ||
     before.tokenLimit !== next.tokenLimit ||
+    (before.blockHours ?? null) !== (next.blockHours ?? null) ||
+    zoneChanged ||
     sourcesChanged ||
     visibilityChanged
   ) {
@@ -960,6 +1105,7 @@ ipcMain.handle('insights:dayBreakdown', (_e, dateKey: string): DayBreakdown | nu
   if (typeof dateKey !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
   const { entries, compactions } = scopedData();
   return dayBreakdown(entries, dateKey, {
+    timezone: state.settings?.get().timezone || null,
     pricing: state.pricing,
     costMode: state.settings ? state.settings.get().costMode : 'auto',
     compactions,
@@ -1103,6 +1249,7 @@ void app.whenReady().then(async () => {
     path.join(app.getPath('userData'), 'deepseek-history.json'),
   );
   createWindow();
+  createTray();
 
   const cfg = loadConfig();
   state.pricing = await createPricingEngine({
@@ -1134,6 +1281,16 @@ void app.whenReady().then(async () => {
   });
 });
 
+// With closeToTray on, the window is HIDDEN rather than destroyed, so this
+// never fires in that mode — it stays the quit path for the default behaviour
+// and for the case where the tray vanished and the close went through.
 app.on('window-all-closed', () => {
+  state.quitting = true;
   app.quit();
+});
+
+// `before-quit` covers the quit paths that don't go through the tray menu —
+// Cmd-Q, the dock, a session logout, SIGTERM — so the close handler yields.
+app.on('before-quit', () => {
+  state.quitting = true;
 });
