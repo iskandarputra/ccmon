@@ -33,6 +33,26 @@ Everything inside `electron/services/` is pure Node with zero Electron
 imports. That single rule is what makes the whole pipeline runnable headless
 (`npm run smoke`) and unit-testable (`npm test`).
 
+It also buys a second product surface for almost nothing. `cli/` is a separate
+esbuild bundle (`dist-cli/index.cjs`, no Electron linked) that drives the same
+services:
+
+```mermaid
+flowchart LR
+  SV["electron/services/<br/>(pure Node)"] --> E["electron/main.ts<br/>desktop app"]
+  SV --> C["cli/index.ts<br/>ccmon json · csv · statusline"]
+  SV --> S["scripts/smoke.ts<br/>scripts/parity.ts"]
+```
+
+The CLI is strictly read-only and never polls: settings come from the app's
+stored `settings.json` with flags overriding, plan limits come from the
+persisted limits history rather than the OAuth endpoint (so the CLI can never
+touch or rotate the Claude Code login), and the only possible network call is a
+pricing refresh that `--offline` disables. `statusline` additionally windows
+discovery by file mtime (`UsageWatcher.sinceMs`) to answer inside a shell
+prompt; `json` and `csv` never do, because a windowed index would silently
+understate lifetime totals.
+
 ## Data flow
 
 ```mermaid
@@ -60,7 +80,11 @@ sequenceDiagram
 Step by step:
 
 1. **Discover.** `paths.ts` resolves data roots (`CLAUDE_CONFIG_DIR`,
-   `~/.claude`, `~/.config/claude`, plus config extras). Discovery is
+   `~/.claude`, sibling `~/.claude*` roots, `~/.config/claude`, plus config
+   extras). `CLAUDE_CONFIG_DIR` may be a comma-separated list — Claude Code
+   accepts one, so a user can combine a live profile with an archive — and a
+   leading `~` is expanded in every path, because shells don't expand it
+   inside quotes. Discovery is
    recursive because transcripts live at several depths:
    `projects/<proj>/<session>.jsonl`, `<session-id>/subagents/agent-*.jsonl`,
    and `<session-id>/subagents/workflows/wf_*/agent-*.jsonl`.
