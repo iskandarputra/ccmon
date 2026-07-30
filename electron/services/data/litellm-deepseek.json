@@ -1,16 +1,75 @@
 {
  "deepseek-v4-flash": {
-  "cache_creation_input_token_cost": 1.4e-07,
-  "cache_read_input_token_cost": 2.8e-09,
-  "input_cost_per_token": 1.4e-07,
+  "cache_creation_input_token_cost": 1.4e-7,
+  "cache_read_input_token_cost": 2.8e-9,
+  "input_cost_per_token": 1.4e-7,
   "max_input_tokens": 1000000,
-  "output_cost_per_token": 2.8e-07
+  "output_cost_per_token": 2.8e-7
  },
  "deepseek-v4-pro": {
-  "cache_creation_input_token_cost": 4.35e-07,
-  "cache_read_input_token_cost": 3.625e-09,
-  "input_cost_per_token": 4.35e-07,
+  "cache_creation_input_token_cost": 4.35e-7,
+  "cache_read_input_token_cost": 3.625e-9,
+  "input_cost_per_token": 4.35e-7,
   "max_input_tokens": 1000000,
-  "output_cost_per_token": 8.7e-07
+  "output_cost_per_token": 8.7e-7
+ },
+ "deepseek.v3-v1:0": {
+  "input_cost_per_token": 5.8e-7,
+  "max_input_tokens": 163840,
+  "output_cost_per_token": 0.00000168
+ },
+ "deepseek.v3.2": {
+  "input_cost_per_token": 6.2e-7,
+  "max_input_tokens": 163840,
+  "output_cost_per_token": 0.00000185
+ },
+ "deepseek/deepseek-chat": {
+  "cache_creation_input_token_cost": 0,
+  "cache_read_input_token_cost": 2.8e-8,
+  "input_cost_per_token": 2.8e-7,
+  "max_input_tokens": 131072,
+  "output_cost_per_token": 4.2e-7
+ },
+ "deepseek/deepseek-coder": {
+  "input_cost_per_token": 1.4e-7,
+  "max_input_tokens": 128000,
+  "output_cost_per_token": 2.8e-7
+ },
+ "deepseek/deepseek-r1": {
+  "input_cost_per_token": 5.5e-7,
+  "max_input_tokens": 65536,
+  "output_cost_per_token": 0.00000219
+ },
+ "deepseek/deepseek-reasoner": {
+  "cache_read_input_token_cost": 2.8e-8,
+  "input_cost_per_token": 2.8e-7,
+  "max_input_tokens": 131072,
+  "output_cost_per_token": 4.2e-7
+ },
+ "deepseek/deepseek-v3": {
+  "cache_creation_input_token_cost": 0,
+  "cache_read_input_token_cost": 7e-8,
+  "input_cost_per_token": 2.7e-7,
+  "max_input_tokens": 65536,
+  "output_cost_per_token": 0.0000011
+ },
+ "deepseek/deepseek-v3.2": {
+  "input_cost_per_token": 2.8e-7,
+  "max_input_tokens": 163840,
+  "output_cost_per_token": 4e-7
+ },
+ "deepseek/deepseek-v4-flash": {
+  "cache_creation_input_token_cost": 0,
+  "cache_read_input_token_cost": 2.8e-9,
+  "input_cost_per_token": 1.4e-7,
+  "max_input_tokens": 1000000,
+  "output_cost_per_token": 2.8e-7
+ },
+ "deepseek/deepseek-v4-pro": {
+  "cache_creation_input_token_cost": 0,
+  "cache_read_input_token_cost": 3.625e-9,
+  "input_cost_per_token": 4.35e-7,
+  "max_input_tokens": 1000000,
+  "output_cost_per_token": 8.7e-7
  }
 }

@@ -15,7 +15,12 @@
  *   electron/services/data/modelsdev-deepseek.json    deepseek provider →
  *     same format
  *
- * Usage: npm run pricing:update
+ * Snapshots are MERGED, not replaced: entries the upstream no longer publishes
+ * are retained (see mergeRetaining). Both catalogs prune retired models, and
+ * dropping a retired model's price only un-prices transcripts a user chose to
+ * keep. Pass `--prune` to overwrite instead, when a committed entry is wrong.
+ *
+ * Usage: npm run pricing:update [-- --prune]
  */
 
 import fs from 'fs';
@@ -110,7 +115,54 @@ function filterLitellm(
   return out;
 }
 
+/** Parse an existing committed snapshot, or {} when absent/corrupt. */
+function readSnapshot(file: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Merge a freshly fetched catalog over the committed one, RETAINING keys the
+ * upstream no longer publishes.
+ *
+ * Both catalogs prune retired models: models.dev dropped the whole Claude 3.5
+ * family, and LiteLLM never carried `claude-3-5-*` under the bare prefix. A
+ * plain overwrite therefore un-prices transcripts that a user deliberately
+ * kept (`cleanupPeriodDays` is theirs to raise), turning history into
+ * `unknownModels`. A retired model's price is a frozen fact — dropping it only
+ * ever loses information, and the pricing archive already handles the case
+ * where a live model's rate changes. Fresh entries always win on conflict.
+ *
+ * `--prune` opts out, for when a committed entry is actively wrong.
+ */
+export function mergeRetaining<T>(
+  existing: Record<string, T>,
+  fresh: Record<string, T>,
+  prune = false,
+): { merged: Record<string, T>; retained: string[] } {
+  if (prune) return { merged: fresh, retained: [] };
+  const retained = Object.keys(existing).filter((k) => !(k in fresh));
+  return { merged: { ...existing, ...fresh }, retained };
+}
+
+/** `n models (+r retained)`, listing the retained keys when there are few. */
+function report(file: string, count: number, retained: string[]): void {
+  let line = `${file.padEnd(28)} ${count} models`;
+  if (retained.length) line += ` (+${retained.length} retained)`;
+  console.log(line);
+  if (retained.length && retained.length <= 15) {
+    console.log(`${' '.repeat(30)}retained: ${retained.join(', ')}`);
+  }
+}
+
 async function main(): Promise<void> {
+  const prune = process.argv.includes('--prune');
+  if (prune) console.log('--prune: dropping entries the upstreams no longer publish\n');
+
   const [litellmRaw, modelsdevRaw] = await Promise.all([
     fetchJson(LITELLM_URL),
     fetchJson(MODELSDEV_URL),
@@ -118,26 +170,30 @@ async function main(): Promise<void> {
 
   // LiteLLM splits
   for (const split of LITELLM_SPLITS) {
+    const file = path.join(DATA_DIR, split.file);
     const filtered = filterLitellm(litellmRaw as Record<string, unknown>, split.prefixes);
     const compacted = compactLitellm(filtered);
     if (!Object.keys(compacted).length) {
       console.warn(`WARNING: LiteLLM ${split.file} yielded 0 models — skipping (keeping existing)`);
       continue;
     }
-    writeSnapshot(path.join(DATA_DIR, split.file), compacted);
-    console.log(`${split.file.padEnd(28)} ${Object.keys(compacted).length} models`);
+    const { merged, retained } = mergeRetaining(readSnapshot(file), compacted, prune);
+    writeSnapshot(file, merged);
+    report(split.file, Object.keys(merged).length, retained);
   }
 
   // models.dev splits
   const api = modelsdevRaw as ModelsDevApi;
   for (const split of MODELSDEV_SPLITS) {
+    const file = path.join(DATA_DIR, split.file);
     const compacted = compactModelsDev(api, split.provider);
     if (!Object.keys(compacted).length) {
       console.warn(`WARNING: models.dev ${split.file} yielded 0 models — skipping (keeping existing)`);
       continue;
     }
-    writeSnapshot(path.join(DATA_DIR, split.file), compacted);
-    console.log(`${split.file.padEnd(28)} ${Object.keys(compacted).length} models`);
+    const { merged, retained } = mergeRetaining(readSnapshot(file), compacted, prune);
+    writeSnapshot(file, merged);
+    report(split.file, Object.keys(merged).length, retained);
   }
 }
 
