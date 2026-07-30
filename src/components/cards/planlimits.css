@@ -1,203 +1,193 @@
-/* live plan limits — the Overview view's summary card (.plim- prefix) */
+/* ── Live Plan Limits (.plim- prefix) ───────────────────────────────────────── */
 
 .plim-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 18px 32px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
 }
 
 .plim-account {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 14px;
   min-width: 0;
+  padding: 18px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.2s ease;
+}
+
+.plim-account:hover {
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .plim-head {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   font-family: var(--mono);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .plim-name {
-  font-size: 12px;
-  letter-spacing: 0.04em;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--text);
 }
 
-/* plan + tier badge — the headline fact of the account, so it gets size,
-   a slow gradient sheen, and a breathing glow. Colored per plan/tier via
-   --pc (src/lib/plans.ts#planBadgeColor), set inline per account. */
+/* plan + tier badge */
 .plim-plan {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--pc);
-  border-radius: 6px;
-  padding: 2.5px 10px;
+  border-radius: 5px;
+  padding: 3px 10px;
   white-space: nowrap;
-  background: linear-gradient(
-    110deg,
-    color-mix(in srgb, var(--pc) 8%, var(--bg1)) 25%,
-    color-mix(in srgb, var(--pc) 22%, var(--bg1)) 50%,
-    color-mix(in srgb, var(--pc) 8%, var(--bg1)) 75%
-  );
-  background-size: 220% 100%;
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--pc) 50%, transparent);
-  animation:
-    plim-badge-sheen 3.4s ease-in-out infinite,
-    plim-badge-glow 3.4s ease-in-out infinite;
+  background: color-mix(in srgb, var(--pc) 12%, var(--bg1));
+  border: 1px solid color-mix(in srgb, var(--pc) 35%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pc) 15%, transparent);
 }
 
-@keyframes plim-badge-sheen {
-  0%, 100% { background-position: 0% 0; }
-  50%      { background-position: 100% 0; }
-}
-
-@keyframes plim-badge-glow {
-  0%, 100% {
-    box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--pc) 50%, transparent);
-  }
-  50% {
-    box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--pc) 50%, transparent),
-      0 0 12px 1px color-mix(in srgb, var(--pc) 30%, transparent);
-  }
-}
-
-/* manual retry — bypasses the failure backoff in main */
+/* manual retry button */
 .plim-refresh {
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-dim);
-  padding: 2px 9px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  padding: 4px 10px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
   border-radius: 6px;
-  transition: all var(--dur-1) ease;
+  transition: all 0.15s ease;
 }
 .plim-refresh:hover {
   color: var(--text);
+  border-color: var(--text-dim);
 }
 .plim-refresh:disabled {
-  opacity: 0.55;
-  cursor: default;
-  box-shadow: var(--neu-inset);
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .plim-err {
   margin-left: auto;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--rose);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* serving retained data after a failed refresh — say so, verbosely */
 .plim-stale {
   font-family: var(--mono);
-  font-size: 10px;
-  color: color-mix(in srgb, var(--warn) 75%, var(--text-dim));
-  margin-top: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--amber) 85%, var(--text-dim));
+  margin-top: 6px;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
-/* one tile per limit window — bars equal length by construction */
+/* one tile per limit window */
 .plim-wins {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
 }
 
 .plim-win {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 10px 12px 9px;
+  gap: 8px;
+  padding: 12px 14px;
   background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  border-radius: 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
   min-width: 0;
-  transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .plim-win:hover {
-  transform: translateY(-2px);
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--bg1) 90%, var(--bg2));
 }
 
 .plim-win-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .plim-win-label {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.07em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* headline utilization — display numerals, colored by severity */
+/* utilization metric pill */
 .plim-win-pct {
-  font-family: var(--sans);
-  font-size: 17px;
-  font-weight: 600;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  display: inline-block; /* Required for transform scale */
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
 }
 
-/* Heartbeat pulse when cap is hit */
 .plim-win-pct.is-capped {
   animation: plim-heartbeat 2s ease-in-out infinite;
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--bad) 65%, transparent));
+  border-color: color-mix(in srgb, var(--rose) 50%, transparent);
 }
 
 @keyframes plim-heartbeat {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  15% { transform: scale(1.15); opacity: 1; }
-  30% { transform: scale(1); opacity: 1; }
-  45% { transform: scale(1.15); opacity: 1; }
-  60% { transform: scale(1); opacity: 1; }
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.08); }
+  30% { transform: scale(1); }
 }
 
 .plim-win-track {
   height: 6px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
   border-radius: 3px;
   overflow: hidden;
 }
 .plim-win-track i {
   display: block;
   height: 100%;
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.6s ease;
 }
 
 .plim-win-meta,
 .plim-win-eta {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;
+  word-break: break-word;
 }
 .plim-win-eta {
   color: var(--text-faint);
-  margin-top: -3px;
 }
 .plim-win-eta.is-warn {
-  color: var(--warn);
+  color: var(--amber);
+  font-weight: 500;
 }
 
 /* footer: 7-day trail + reset/cap retrospective */
@@ -205,21 +195,24 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px 24px;
+  gap: 12px 20px;
   flex-wrap: wrap;
-  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
 }
 
 .plim-caps {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;
+  word-break: break-word;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: var(--bg1);
+  border: 1px solid var(--line-soft);
 }
 
-/* weekly-utilization trail — add a label so new users understand what it is */
 .plim-spark-wrap {
   display: flex;
   align-items: center;
@@ -227,21 +220,22 @@
 }
 
 .plim-spark-label {
-  font-family: var(--sans);
-  font-size: 11.5px;
-  font-weight: 500;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--text-faint);
-  letter-spacing: 0.02em;
 }
 
 .plim-spark svg {
   display: block;
-  width: 132px;
+  width: 120px;
   height: 18px;
 }
 .plim-spark path {
   fill: none;
-  stroke: color-mix(in srgb, var(--chart-2) 80%, transparent);
-  stroke-width: 1.2;
+  stroke: var(--amber);
+  stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }

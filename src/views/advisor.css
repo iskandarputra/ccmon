@@ -1,39 +1,39 @@
-/* AI usage advisor chat (.adv- prefix) */
+/* ── AI Usage Advisor Chat (.adv- prefix) ─────────────────────────────────── */
 
-/* ── header meta: new-chat, account picker, model note ────────────────────── */
 .adv-meta {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
+
 .adv-newchat {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-dim);
   padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  border-radius: 6px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
   cursor: pointer;
-  transition:
-    color var(--dur-1) var(--ease-out),
-    box-shadow var(--dur-1) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .adv-newchat:hover:not(:disabled) {
   color: var(--text);
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  border-color: var(--text-dim);
+  background: var(--bg1);
 }
 .adv-newchat:disabled {
   opacity: 0.5;
-  cursor: default;
+  cursor: not-allowed;
 }
 .adv-newchat-icon {
   width: 13px;
   height: 13px;
 }
+
 .adv-account {
   display: inline-flex;
   align-items: center;
@@ -43,33 +43,31 @@
   font-family: var(--mono);
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: var(--text-faint);
 }
 .adv-account select {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text);
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
-  border-radius: var(--radius-sm);
-  padding: 3px 6px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
   cursor: pointer;
-  transition: box-shadow var(--dur-2) var(--ease-out);
+  outline: none;
+  transition: all 0.15s ease;
 }
 .adv-account select:hover:not(:disabled) {
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
+  border-color: var(--text-dim);
 }
 .adv-account select:disabled {
   opacity: 0.5;
-  cursor: default;
+  cursor: not-allowed;
 }
 
-/* ── shell: fill the content area exactly; only the thread scrolls ────────── *
- * The whole chain flexes to the height the layout gives us (titlebar +
- * statusbar + padding are handled by the grid layout, not magic vh math), so
- * the composer is always pinned just inside the panel — never colliding with
- * the statusbar and never floating mid-panel. */
+/* ── Shell & Scroll ─────────────────────────────────────────────────────── */
+
 .view-anim:has(.adv-grid) {
   height: 100%;
 }
@@ -93,7 +91,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding-top: 8px;
+  padding-top: 10px;
 }
 .adv-shell {
   display: flex;
@@ -107,7 +105,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 4px 4px 10px;
+  padding: 8px 8px 14px;
 }
 
 .adv-wait {
@@ -128,14 +126,15 @@
   animation: adv-pulse 1.4s ease-in-out infinite;
 }
 
-/* ── empty / intro hero ───────────────────────────────────────────────────── */
+/* ── Intro Hero & Quick Suggestion Chips ───────────────────────────────────── */
+
 .adv-intro {
   margin: auto;
   width: 100%;
-  max-width: 560px;
+  max-width: 580px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 24px;
   padding: 24px 0;
 }
 .adv-hero {
@@ -146,29 +145,31 @@
   gap: 10px;
 }
 .adv-hero-icon {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   color: var(--amber);
-  padding: 11px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--amber) 12%, var(--bg1));
-  box-shadow: var(--neu-raised);
+  padding: 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--amber) 14%, var(--bg1));
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   box-sizing: content-box;
 }
 .adv-hero-title {
   font-family: var(--sans);
-  font-size: 19px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--text);
   margin: 4px 0 0;
 }
 .adv-hero-sub {
   font-family: var(--sans);
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.55;
   color: var(--text-dim);
   margin: 0;
-  max-width: 420px;
+  max-width: 440px;
 }
 .adv-suggest {
   display: grid;
@@ -181,23 +182,22 @@
   gap: 10px;
   text-align: left;
   font-family: var(--sans);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.4;
   color: var(--text-dim);
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
   cursor: pointer;
-  transition:
-    color var(--dur-1) var(--ease-out),
-    box-shadow var(--dur-1) var(--ease-out),
-    transform var(--dur-1) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .adv-chip:hover {
   color: var(--text);
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
-  transform: translateY(-1px);
+  border-color: var(--amber);
+  background: var(--bg2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 .adv-chip-icon {
   flex: none;
@@ -206,18 +206,19 @@
   color: var(--amber);
 }
 
-/* ── thread + bubbles ─────────────────────────────────────────────────────── */
+/* ── Thread & Message Bubbles ────────────────────────────────────────────── */
+
 .adv-thread {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   width: 100%;
 }
 .adv-turn {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  max-width: 84%;
+  max-width: 86%;
 }
 .adv-assistant {
   align-self: flex-start;
@@ -227,14 +228,14 @@
 }
 .adv-avatar {
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 8px;
   color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 14%, var(--bg1));
-  box-shadow: var(--neu-raised-sm);
+  background: color-mix(in srgb, var(--amber) 14%, var(--bg0));
+  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
   margin-top: 1px;
 }
 .adv-avatar-icon {
@@ -247,30 +248,29 @@
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
-  padding: 11px 15px;
-  border-radius: 14px;
+  padding: 12px 16px;
+  border-radius: 12px;
 }
-/* the assistant reply reads as pressed INTO the panel (received, settled);
-   your own message reads as raised OUT (sent, active) */
 .adv-assistant .adv-bubble {
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line);
   color: var(--text);
-  border-top-left-radius: 5px;
+  border-top-left-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 .adv-user .adv-bubble {
   background: color-mix(in srgb, var(--amber) 12%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
   color: var(--text);
-  border-top-right-radius: 5px;
+  border-top-right-radius: 4px;
 }
 .adv-turn.is-error .adv-bubble {
   color: var(--rose);
-  background: color-mix(in srgb, var(--rose) 8%, var(--bg1));
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--rose) 35%, transparent);
+  background: color-mix(in srgb, var(--rose) 10%, var(--bg0));
+  border: 1px solid color-mix(in srgb, var(--rose) 35%, transparent);
 }
 
-/* typing indicator — three bouncing dots */
+/* typing indicator */
 .adv-thinking {
   display: inline-flex;
   align-items: center;
@@ -291,9 +291,7 @@
   animation-delay: 0.36s;
 }
 @keyframes adv-bounce {
-  0%,
-  60%,
-  100% {
+  0%, 60%, 100% {
     opacity: 0.35;
     transform: translateY(0);
   }
@@ -303,16 +301,12 @@
   }
 }
 @keyframes adv-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 1;
-  }
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
-/* ── composer ─────────────────────────────────────────────────────────────── */
+/* ── Composer Input ──────────────────────────────────────────────────────── */
+
 .adv-composer {
   display: flex;
   align-items: flex-end;
@@ -328,48 +322,47 @@
   line-height: 1.5;
   color: var(--text);
   padding: 11px 15px;
-  border-radius: 16px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  border-radius: 10px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
   resize: none;
   max-height: 160px;
-  transition: box-shadow var(--dur-1) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .adv-field::placeholder {
   color: var(--text-faint);
 }
 .adv-field:focus {
   outline: none;
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent);
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
 }
 .adv-field:disabled {
   opacity: 0.6;
 }
 .adv-send {
   flex: none;
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  color: var(--bg0);
+  border-radius: 8px;
+  color: #000000;
   background: var(--amber);
-  box-shadow: var(--neu-dist-sm) var(--neu-dist-sm) var(--neu-blur-sm) color-mix(in srgb, black 30%, var(--amber)),
-    calc(var(--neu-dist-sm) * -1) calc(var(--neu-dist-sm) * -1) var(--neu-blur-sm) color-mix(in srgb, white 25%, var(--amber));
+  border: none;
   cursor: pointer;
-  transition:
-    transform var(--dur-1) var(--ease-out),
-    opacity var(--dur-1) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .adv-send:hover:not(:disabled) {
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--amber) 30%, transparent);
 }
 .adv-send:disabled {
   opacity: 0.4;
-  cursor: default;
+  cursor: not-allowed;
   color: var(--text-faint);
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line);
 }
 .adv-send-icon {
   width: 18px;

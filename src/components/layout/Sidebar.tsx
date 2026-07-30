@@ -91,16 +91,21 @@ export const VIEWS: ViewDef[] = [
   { id: 'overview', label: 'overview' },
   { id: 'activity', label: 'activity' },
   { id: 'insights', label: 'insights' },
-  { id: 'spatial', label: '3d' },
+  { id: 'spatial', label: '3d canvas' },
   { id: 'sessions', label: 'sessions' },
   { id: 'blocks', label: 'blocks' },
   { id: 'models', label: 'models' },
   { id: 'projects', label: 'projects' },
   { id: 'accounts', label: 'accounts' },
-  { id: 'advisor', label: 'advisor' },
-  { id: 'links', label: 'links' },
+  { id: 'advisor', label: 'ai advisor' },
+  { id: 'links', label: 'resources' },
   { id: 'settings', label: 'settings' },
 ];
+
+export interface NavGroup {
+  name: string;
+  items: ViewDef[];
+}
 
 interface NavItemProps {
   view: ViewDef;
@@ -129,7 +134,7 @@ function NavItem({ view, index, active, onSelect }: NavItemProps) {
         {ICONS[view.id]}
       </svg>
       <span className="nav-label">{view.label}</span>
-      <span className="nav-key">{index + 1}</span>
+      <span className="nav-key">{index + 1 <= 9 ? index + 1 : index === 9 ? '0' : index === 10 ? '-' : '='}</span>
     </button>
   );
 }
@@ -138,21 +143,42 @@ export function Sidebar() {
   const view = useUsageStore((s) => s.view);
   const setView = useUsageStore((s) => s.setView);
 
-  const main = VIEWS.slice(0, -1);
-  const settings = VIEWS[VIEWS.length - 1];
+  const groups: NavGroup[] = [
+    { name: 'Dashboard', items: VIEWS.slice(0, 4) },
+    { name: 'Analytics', items: VIEWS.slice(4, 8) },
+    { name: 'Account & AI', items: VIEWS.slice(8, 11) },
+  ];
+
+  const systemView = VIEWS[11];
 
   return (
     <nav className="sidebar">
-      {main.map((v, i) => (
-        <NavItem key={v.id} view={v} index={i} active={view === v.id} onSelect={setView} />
+      {groups.map((group) => (
+        <div key={group.name} className="nav-group">
+          <div className="nav-group-title">{group.name}</div>
+          {group.items.map((v) => {
+            const index = VIEWS.findIndex((item) => item.id === v.id);
+            return (
+              <NavItem
+                key={v.id}
+                view={v}
+                index={index}
+                active={view === v.id}
+                onSelect={setView}
+              />
+            );
+          })}
+        </div>
       ))}
       <div className="nav-spacer" />
-      <NavItem
-        view={settings}
-        index={VIEWS.length - 1}
-        active={view === settings.id}
-        onSelect={setView}
-      />
+      <div className="nav-group nav-group-system">
+        <NavItem
+          view={systemView}
+          index={11}
+          active={view === systemView.id}
+          onSelect={setView}
+        />
+      </div>
     </nav>
   );
 }

@@ -848,8 +848,13 @@ export function AccountsView() {
         </div>
       )}
 
+      <div className="g12 acc-section-label">
+        <span className="acc-sec-title">connected claude code logins</span>
+        <span className="acc-sec-rule" />
+      </div>
+
       {sourceDirs.map((dir, i) => (
-        <div className="g6" key={dir}>
+        <div className={sourceDirs.length === 1 ? 'g12' : 'g6'} key={dir}>
           <AccountCard
             dir={dir}
             acct={accounts[dir]}
@@ -864,10 +869,15 @@ export function AccountsView() {
       ))}
 
       {showDeepseek && (
-        <div className="g6">
+        <div className={sourceDirs.length % 2 === 1 ? 'g6' : 'g12'}>
           <DeepseekCard />
         </div>
       )}
+
+      <div className="g12 acc-section-label">
+        <span className="acc-sec-title">multi-account setup &amp; shell integration</span>
+        <span className="acc-sec-rule" />
+      </div>
 
       <div className="g12">
         <SetupWizard />

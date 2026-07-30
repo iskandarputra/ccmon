@@ -323,7 +323,7 @@ export function ActivityView() {
                     minTickGap={26}
                   />
                   <YAxis
-                    width={46}
+                    width={56}
                     tick={AXIS_TICK}
                     axisLine={false}
                     tickLine={false}
@@ -376,7 +376,7 @@ export function ActivityView() {
                   minTickGap={26}
                 />
                 <YAxis
-                  width={46}
+                  width={56}
                   tick={AXIS_TICK}
                   axisLine={false}
                   tickLine={false}
@@ -423,7 +423,7 @@ export function ActivityView() {
                   minTickGap={18}
                 />
                 <YAxis
-                  width={46}
+                  width={56}
                   tick={AXIS_TICK}
                   axisLine={false}
                   tickLine={false}
@@ -470,7 +470,7 @@ export function ActivityView() {
                   minTickGap={18}
                 />
                 <YAxis
-                  width={46}
+                  width={56}
                   tick={AXIS_TICK}
                   axisLine={false}
                   tickLine={false}

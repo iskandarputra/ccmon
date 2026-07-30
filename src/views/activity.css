@@ -15,7 +15,7 @@
   font-family: var(--mono);
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--text-faint);
   margin-right: 2px;
 }
@@ -29,17 +29,16 @@
   letter-spacing: 0.04em;
   color: var(--text-dim);
   padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  transition:
-    color var(--dur-1) var(--ease-out),
-    box-shadow var(--dur-1) var(--ease-out);
+  border-radius: 6px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  transition: all 0.15s ease;
 }
 
 .act-legend-item:hover {
   color: var(--text);
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  border-color: var(--line);
+  background: var(--bg1);
 }
 
 .act-swatch {
@@ -97,18 +96,18 @@
   align-items: center;
   column-gap: 12px;
   row-gap: 4px;
-  padding: 14px 16px 13px;
+  padding: 16px 18px;
   background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
   min-width: 0;
-  transition:
-    transform var(--dur-1) var(--ease-out),
-    box-shadow var(--dur-1) var(--ease-out);
+  transition: all 0.2s ease;
 }
 .act-stat:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
 }
 
 .act-stat-icon {
@@ -129,9 +128,9 @@
 
 .act-stat-label {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--text-faint);
   align-self: end;
 }
@@ -157,7 +156,7 @@
 .act-stat-sub {
   grid-column: 1 / -1;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-dim);
   margin-top: 2px;
 }

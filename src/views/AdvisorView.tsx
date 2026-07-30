@@ -9,6 +9,7 @@ import './advisor.css';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Panel } from '../components/ui/Panel';
 import { Hint } from '../components/ui/Hint';
+import { Markdown } from '../components/ui/Markdown';
 import { useUsageStore } from '../store/useUsageStore';
 import { sourceLabel } from '../lib/format';
 import type { AdvisorMessage } from '../../shared/types';
@@ -267,7 +268,13 @@ export function AdvisorView() {
                         className={`adv-turn adv-${t.role}${t.error ? ' is-error' : ''}`}
                       >
                         {t.role === 'assistant' && AVATAR}
-                        <div className="adv-bubble">{t.content}</div>
+                        <div className="adv-bubble">
+                          {t.role === 'assistant' && !t.error ? (
+                            <Markdown content={t.content} />
+                          ) : (
+                            t.content
+                          )}
+                        </div>
                       </div>
                     ))}
                     {busy && (

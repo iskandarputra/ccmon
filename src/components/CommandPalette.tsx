@@ -8,6 +8,7 @@ import './commandpalette.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUsageStore } from '../store/useUsageStore';
 import { VIEWS } from './layout/Sidebar';
+import { updateSettings } from '../bootstrap';
 
 interface Command {
   id: string;
@@ -43,7 +44,17 @@ export function CommandPalette() {
       hint: 'view',
       run: () => setView(v.id),
     }));
+    const privacy = useUsageStore.getState().settings?.privacyMode;
     const actions: Command[] = [
+      {
+        id: 'privacy',
+        title: privacy ? 'Disable Privacy Mode (show dollars)' : 'Enable Privacy Mode (hide dollars as $•••)',
+        hint: 'privacy',
+        run: () => {
+          const st = useUsageStore.getState().settings;
+          updateSettings({ privacyMode: !st?.privacyMode });
+        },
+      },
       { id: 'rescan', title: 'Rescan transcripts', hint: 'action', run: () => void window.ccmon?.rescan() },
       { id: 'limits', title: 'Refresh plan limits', hint: 'action', run: () => void window.ccmon?.refreshLimits() },
       { id: 'pricing', title: 'Refresh pricing', hint: 'action', run: () => void window.ccmon?.refreshPricing() },
@@ -62,7 +73,7 @@ export function CommandPalette() {
     [commands, query],
   );
 
-  // global Cmd/Ctrl-K toggles the palette
+  // global Cmd/Ctrl-K or custom open event toggles the palette
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -70,8 +81,13 @@ export function CommandPalette() {
         setOpen((o) => !o);
       }
     };
+    const onCustomOpen = () => setOpen(true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('open-cmdk', onCustomOpen);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('open-cmdk', onCustomOpen);
+    };
   }, []);
 
   // reset + focus when opening

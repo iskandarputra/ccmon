@@ -8,7 +8,7 @@
   justify-content: center;
   flex: 1;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .ins-cache-row {
@@ -87,8 +87,8 @@
 
 .ins-facts span {
   color: var(--text-faint);
-  font-size: 10.5px;
-  letter-spacing: 0.02em;
+  font-size: 11px;
+  letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -100,7 +100,7 @@
   font-variant-numeric: tabular-nums;
   font-size: 16px;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.2;
 }
 
 /* fact tiles opening a panel (no chart above them) — drop the divider */
@@ -136,7 +136,7 @@
 }
 .ins-hero-label {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -146,7 +146,7 @@
   font-variant-numeric: tabular-nums;
   font-size: 30px;
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.2;
   color: var(--text);
 }
 .ins-hero-sub {
@@ -238,7 +238,7 @@
 }
 .ins-empty-lead {
   font-family: var(--sans);
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--text-dim);
 }
 .ins-empty-sub {
@@ -272,7 +272,7 @@
   gap: 6px;
   flex: 1;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .ins-records li {

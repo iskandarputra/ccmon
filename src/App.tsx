@@ -5,7 +5,7 @@
  */
 
 import { lazy, Suspense, useEffect, useRef, type ComponentType } from 'react';
-import { useBootstrap } from './bootstrap';
+import { useBootstrap, updateSettings } from './bootstrap';
 import { useUsageStore, type ViewId } from './store/useUsageStore';
 import { TitleBar } from './components/layout/TitleBar';
 import { StatusBar } from './components/layout/StatusBar';
@@ -83,9 +83,24 @@ function useViewHotkeys(): void {
   }, [setView]);
 }
 
+function usePrivacyHotkey(): void {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        const st = useUsageStore.getState().settings;
+        updateSettings({ privacyMode: !st?.privacyMode });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+}
+
 export default function App() {
   useBootstrap();
   useViewHotkeys();
+  usePrivacyHotkey();
   useSpotlight();
   const status = useUsageStore((s) => s.status);
   const hasData = useUsageStore((s) => (s.snapshot?.entryCount ?? 0) > 0);

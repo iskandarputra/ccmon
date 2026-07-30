@@ -1,33 +1,33 @@
-/*
- * @file accounts.css
- * @brief Styles for the per-account dashboard (cross-account headroom, account cards, setup wizard).
- * @author Iskandar Putra <www.iskandarputra.com>
- */
-
-/* ===== cross-account headroom hero ====================================== */
+/* ===== Cross-Account Headroom Hero ======================================= */
 .acc-headroom {
-  border-color: color-mix(in oklab, var(--amber) 28%, var(--line));
-  background:
-    radial-gradient(130% 90% at 50% -20%, color-mix(in oklab, var(--amber) 7%, transparent), transparent 62%),
-    linear-gradient(180deg, color-mix(in srgb, var(--text) 2.5%, var(--bg1)) 0%, var(--bg1) 52%);
+  border: 1px solid var(--line);
+  background: var(--bg1);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
 }
-/* calm state: always-on manual switch, no looming cap — drop the amber alarm */
 .acc-headroom.is-calm {
   border-color: var(--line);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 2.5%, var(--bg1)) 0%, var(--bg1) 52%);
+  background: var(--bg1);
 }
 
 .hr-title {
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 .hr-live {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: var(--ok);
+  font-family: var(--mono);
+  font-size: 11px;
 }
 
 .hr-flow {
@@ -54,7 +54,7 @@
   font-family: var(--mono);
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 .hr-cap {
   color: var(--bad);
@@ -70,7 +70,7 @@
   color: var(--text-faint);
 }
 
-/* ranked list of accounts with room, most headroom first */
+/* Ranked list of accounts with room */
 .hr-targets {
   flex: 1;
   min-width: 240px;
@@ -88,7 +88,7 @@
 }
 .hr-target + .hr-target {
   padding-top: 14px;
-  border-top: 1px solid color-mix(in srgb, var(--line-soft) 70%, transparent);
+  border-top: 1px solid var(--line-soft);
 }
 .hr-target .acc-ring {
   flex: none;
@@ -122,7 +122,7 @@
   margin-top: 0;
 }
 
-/* donut gauge */
+/* Donut gauge */
 .acc-ring {
   position: relative;
   width: 62px;
@@ -134,7 +134,7 @@
 }
 .acc-ring-track {
   fill: none;
-  stroke: var(--bg2);
+  stroke: var(--bg0);
   stroke-width: 6;
 }
 .acc-ring-arc {
@@ -145,7 +145,7 @@
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
   transition: stroke-dashoffset var(--dur-3) var(--ease-out);
-  filter: drop-shadow(0 0 5px color-mix(in oklab, var(--ring) 45%, transparent));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ring) 45%, transparent));
 }
 .acc-ring-num {
   position: absolute;
@@ -156,30 +156,31 @@
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
 }
 .acc-ring-num i {
-  font-size: 9px;
+  font-size: 10px;
   font-style: normal;
   color: var(--text-faint);
   margin-left: 1px;
 }
 
-/* the resume command */
+/* Resume command terminal card */
 .hr-cmd {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 14px;
   padding: 9px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
-  transition: box-shadow var(--dur-2) var(--ease-out);
+  border-radius: 8px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  transition: all 0.15s ease;
 }
 .hr-cmd:hover {
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
 }
 .hr-prompt {
   font-family: var(--mono);
@@ -202,7 +203,7 @@
   color: var(--text-faint);
 }
 
-/* ===== account toolbar ================================================== */
+/* ===== Account Toolbar ==================================================== */
 .acc-toolbar {
   display: flex;
   align-items: center;
@@ -214,19 +215,27 @@
   color: var(--text-faint);
 }
 
-/* the restore bar for hidden accounts — the only route back from "hide", so
-   it stays visible whenever anything is hidden rather than living in a menu */
 .acc-hidden-bar {
   flex-wrap: wrap;
   justify-content: flex-start;
   gap: 8px;
 }
 
-/* ===== account card ===================================================== */
+/* ===== Account Cards ====================================================== */
 .acc-card {
   position: relative;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
 }
-/* left accent bar, per-account colour via --acc */
+.acc-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
 .acc-card::before {
   content: '';
   position: absolute;
@@ -236,10 +245,11 @@
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--acc, var(--line));
-  opacity: 0.7;
+  opacity: 0.8;
 }
 .acc-card.is-scoped {
-  box-shadow: var(--neu-raised), 0 0 0 1px color-mix(in oklab, var(--amber) 42%, transparent);
+  border-color: var(--amber);
+  box-shadow: 0 0 0 1px var(--amber), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .acc-card.is-scoped::before {
   background: var(--amber);
@@ -257,17 +267,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 25px;
-  height: 25px;
+  width: 26px;
+  height: 26px;
   flex: none;
-  border-radius: 8px;
+  border-radius: 7px;
   font-family: var(--sans);
   font-size: 12px;
   font-weight: 700;
   color: var(--acc, var(--text));
-  background: color-mix(in oklab, var(--acc, var(--text)) 15%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), 0 0 0 1px color-mix(in oklab, var(--acc, var(--line)) 35%, transparent);
-  transition: transform var(--dur-2) var(--ease-out);
+  background: color-mix(in srgb, var(--acc, var(--text)) 15%, var(--bg0));
+  border: 1px solid color-mix(in srgb, var(--acc, var(--line)) 35%, transparent);
+  transition: transform 0.15s ease;
 }
 .acc-card:hover .acc-avatar {
   transform: scale(1.08);
@@ -282,24 +292,25 @@
 }
 .acc-plan {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   text-transform: none;
   letter-spacing: 0;
   color: var(--pc);
-  padding: 1px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--pc) 14%, var(--bg2));
-  border: 1px solid color-mix(in oklab, var(--pc) 35%, var(--line-soft));
+  background: color-mix(in srgb, var(--pc) 14%, var(--bg0));
+  border: 1px solid color-mix(in srgb, var(--pc) 35%, var(--line-soft));
 }
 .acc-scoped-badge {
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.05em;
+  font-size: 10px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--amber);
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--amber) 14%, transparent);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
 }
 
 .acc-id {
@@ -334,37 +345,37 @@
 }
 .acc-wrapper-name {
   color: var(--text);
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 6px;
   padding: 3px 8px;
 }
 .acc-wrapper-name.is-disabled {
   color: var(--text-faint);
-  box-shadow: var(--neu-inset);
 }
 .acc-wrapper-input {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text);
-  background: var(--bg1);
-  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--amber);
+  border-radius: 6px;
   padding: 3px 8px;
   width: 160px;
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
 }
 .acc-wrapper-input:focus {
   outline: none;
 }
 .acc-wrapper-err {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--rose);
   flex-basis: 100%;
 }
 .acc-wrapper-note {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--sage);
   flex-basis: 100%;
 }
@@ -387,22 +398,21 @@
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
 }
 .acc-meter-track {
   margin-top: 5px;
   height: 6px;
   border-radius: 3px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
   overflow: hidden;
 }
 .acc-meter-track i {
   display: block;
   height: 100%;
   border-radius: 3px;
-  background: linear-gradient(90deg, color-mix(in oklab, var(--mc) 65%, transparent), var(--mc));
-  box-shadow: 0 0 6px color-mix(in srgb, var(--mc) 55%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--mc) 70%, transparent), var(--mc));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--mc) 50%, transparent);
   transition: width var(--dur-2) var(--ease-out);
 }
 
@@ -413,10 +423,10 @@
   align-items: center;
   text-align: center;
   margin-top: 16px;
-  padding: 26px 16px;
-  border-radius: 14px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  padding: 24px 16px;
+  border-radius: 10px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
   font-family: var(--mono);
   font-size: 12px;
   color: var(--text-faint);
@@ -434,7 +444,7 @@
   color: var(--text-dim);
 }
 
-/* per-account spend rollup — lifetime hero + tile grid, from local transcripts */
+/* Per-account spend rollup */
 .acc-spend {
   margin-top: 16px;
   display: flex;
@@ -449,17 +459,18 @@
 .acc-spend-label {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--text-faint);
   order: -1;
 }
 .acc-spend-total {
   font-family: var(--sans);
-  font-size: 30px;
-  line-height: 1.05;
-  font-weight: 600;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--text);
 }
 .acc-spend-since {
@@ -476,21 +487,21 @@
   flex-direction: column;
   gap: 6px;
   padding: 10px 12px;
-  border-radius: 14px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  transition: box-shadow var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+  border-radius: 10px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  transition: all 0.15s ease;
 }
 .acc-spend-cell:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 30%, transparent);
+  transform: translateY(-2px);
+  border-color: var(--amber);
 }
 .acc-spend-cap {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--text-faint);
 }
@@ -503,7 +514,7 @@
 .acc-spend-cell b {
   font-family: var(--sans);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
@@ -551,44 +562,63 @@
   }
 }
 
-/* ===== buttons ========================================================== */
+/* ===== Buttons & Controls ================================================= */
 .acc-copy,
 .acc-scope-btn,
 .acc-viewall {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-dim);
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  border-radius: var(--radius-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 6px;
   padding: 5px 11px;
   cursor: pointer;
   white-space: nowrap;
-  transition:
-    color var(--dur-1) var(--ease-out),
-    box-shadow var(--dur-1) var(--ease-out),
-    transform var(--dur-1) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .acc-copy:hover,
 .acc-scope-btn:hover:not(:disabled),
 .acc-viewall:hover:not(:disabled) {
   color: var(--text);
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
+  border-color: var(--text-dim);
+  background: var(--bg2);
 }
-.acc-copy:active,
-.acc-scope-btn:active:not(:disabled),
-.acc-viewall:active:not(:disabled) {
-  box-shadow: var(--neu-inset);
-  transform: none;
+.acc-viewall.is-active {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, var(--bg0));
 }
 .acc-scope-btn:disabled,
 .acc-viewall:disabled {
   color: var(--text-faint);
-  cursor: default;
-  box-shadow: var(--neu-inset);
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
-/* ===== setup wizard ===================================================== */
+/* ===== Section Divider =================================================== */
+.acc-section-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 4px;
+}
+.acc-sec-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.acc-sec-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+}
+
+/* ===== Setup Wizard ====================================================== */
 .wiz-columns {
   display: flex;
   gap: 28px;
@@ -638,15 +668,15 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
-  padding: 8px 12px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  border-radius: var(--radius-sm);
-  transition: box-shadow var(--dur-2) ease, transform var(--dur-2) ease;
+  padding: 10px 14px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: all 0.15s ease;
 }
 .wiz-acct:focus-within {
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
-  transform: translateY(-1px);
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
 }
 .wiz-name,
 .wiz-suffix {
@@ -655,10 +685,10 @@
   font-weight: 600;
   color: var(--text);
   background: var(--bg1);
-  border-radius: var(--radius-sm);
-  padding: 6px 9px;
-  transition: box-shadow var(--dur-2) var(--ease-out);
-  box-shadow: var(--neu-inset);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 10px;
+  transition: all 0.15s ease;
 }
 .wiz-name {
   width: 170px;
@@ -666,7 +696,8 @@
 .wiz-name:focus,
 .wiz-suffix:focus {
   outline: none;
-  box-shadow: var(--neu-inset), inset 0 0 0 1px var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
 }
 .wiz-arrow {
   color: var(--text-faint);
@@ -683,10 +714,10 @@
   align-items: center;
   gap: 8px;
   margin-top: 12px;
-  padding: 10px 12px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
-  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 .wiz-add-pre {
   font-family: var(--mono);
@@ -705,30 +736,29 @@
 .wiz-shells {
   display: flex;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 10px;
 }
 .wiz-shell {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   text-align: left;
-  padding: 9px 13px;
-  min-width: 148px;
-  border-radius: var(--radius-sm);
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  padding: 10px 14px;
+  min-width: 156px;
+  border-radius: 8px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
   cursor: pointer;
-  transition:
-    box-shadow var(--dur-2) var(--ease-out),
-    transform var(--dur-2) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .wiz-shell:hover {
-  transform: translateY(-2px);
+  border-color: var(--text-dim);
+  background: var(--bg2);
+  transform: translateY(-1px);
 }
 .wiz-shell.is-picked {
-  /* pressed in — the chosen shell reads as "selected" */
-  background: color-mix(in oklab, var(--amber) 8%, var(--bg1));
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent);
+  background: color-mix(in srgb, var(--amber) 10%, var(--bg1));
+  border-color: var(--amber);
   transform: none;
 }
 .wiz-shell-name {
@@ -740,7 +770,7 @@
   content: ' · login';
   color: var(--amber);
   font-weight: 400;
-  font-size: 10px;
+  font-size: 11px;
 }
 .wiz-shell-rc {
   font-family: var(--mono);
@@ -749,7 +779,7 @@
 }
 .wiz-shell-note {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
 }
 
@@ -765,8 +795,8 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line);
   transition: all 0.15s ease;
   position: relative;
 }
@@ -784,7 +814,7 @@
 }
 
 .wiz-shell.is-picked .wiz-shell-radio {
-  box-shadow: var(--neu-inset), inset 0 0 0 1px var(--amber);
+  border-color: var(--amber);
   background: color-mix(in srgb, var(--amber) 15%, var(--bg1));
 }
 .wiz-shell.is-picked .wiz-shell-radio::after {
@@ -799,13 +829,13 @@
   margin-top: 15px;
   cursor: pointer;
   padding: 10px 14px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  border-radius: var(--radius-sm);
-  transition: box-shadow var(--dur-2) ease;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: all 0.15s ease;
 }
 .wiz-toggle:hover {
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px var(--neu-edge);
+  border-color: var(--text-dim);
 }
 .wiz-toggle input {
   position: absolute;
@@ -820,8 +850,8 @@
   height: 18px;
   margin-top: 1px;
   border-radius: 10px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line);
   transition: background 0.15s ease;
 }
 .wiz-toggle-track::after {
@@ -833,11 +863,11 @@
   height: 12px;
   border-radius: 50%;
   background: var(--text-faint);
-  box-shadow: var(--neu-raised-sm);
   transition: transform 0.15s ease, background 0.15s ease;
 }
 .wiz-toggle input:checked + .wiz-toggle-track {
-  background: color-mix(in srgb, var(--amber) 18%, var(--bg1));
+  background: color-mix(in srgb, var(--amber) 20%, var(--bg0));
+  border-color: var(--amber);
 }
 .wiz-toggle input:checked + .wiz-toggle-track::after {
   transform: translateX(14px);
@@ -850,23 +880,23 @@
 
 .wiz-toggle-text {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.5;
   color: var(--text-dim);
 }
 .wiz-toggle-text code {
   color: var(--text);
   background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  border: 1px solid var(--line-soft);
   padding: 2px 5px;
   border-radius: 4px;
 }
 .wiz-os-note {
   margin-top: 13px;
-  padding: 9px 11px;
-  border-radius: var(--radius-sm);
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.55;
@@ -885,29 +915,23 @@
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 600;
-  color: var(--bg0);
+  color: #000000;
   background: var(--amber);
-  border-radius: var(--radius-sm);
-  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 18px;
   cursor: pointer;
-  /* extruded FROM amber material, not a neutral chip with a colored glow */
-  box-shadow: var(--neu-dist-sm) var(--neu-dist-sm) var(--neu-blur-sm) color-mix(in srgb, black 30%, var(--amber)),
-    calc(var(--neu-dist-sm) * -1) calc(var(--neu-dist-sm) * -1) var(--neu-blur-sm) color-mix(in srgb, white 25%, var(--amber));
-  transition: box-shadow var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .wiz-apply:hover:not(:disabled) {
   transform: translateY(-1px);
-}
-.wiz-apply:active:not(:disabled) {
-  transform: none;
-  box-shadow: inset var(--neu-dist-sm) var(--neu-dist-sm) var(--neu-blur-sm) color-mix(in srgb, black 30%, var(--amber)),
-    inset calc(var(--neu-dist-sm) * -1) calc(var(--neu-dist-sm) * -1) var(--neu-blur-sm) color-mix(in srgb, white 25%, var(--amber));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--amber) 30%, transparent);
 }
 .wiz-apply:disabled {
   color: var(--text-faint);
-  background: var(--bg1);
-  cursor: default;
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  cursor: not-allowed;
 }
 
 .wiz-preview {
@@ -919,28 +943,30 @@
   color: var(--text-dim);
   margin: 14px 0 0;
   padding: 8px 12px;
-  background: var(--bg1);
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .wiz-dim {
   color: var(--text-faint);
-  font-size: 10px;
+  font-size: 11px;
 }
 .wiz-pre {
   margin: 0;
   padding: 12px 14px;
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  background: var(--bg1);
+  border-radius: 0 0 8px 8px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.6;
   color: var(--text);
   white-space: pre;
   overflow-x: auto;
-  box-shadow: var(--neu-inset-deep);
 }
 
 .wiz-report {
@@ -1005,7 +1031,7 @@
 .wiz-conflict-tag {
   flex: none;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   width: 92px;
   color: var(--amber);
 }
@@ -1073,7 +1099,7 @@
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 .wiz-step-line {
@@ -1105,7 +1131,7 @@
   gap: 6px;
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: var(--text-faint);
   margin-bottom: 8px;
 }

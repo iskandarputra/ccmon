@@ -115,7 +115,7 @@ export function DailyChart() {
             minTickGap={26}
           />
           <YAxis
-            width={46}
+            width={56}
             tick={AXIS_TICK}
             axisLine={false}
             tickLine={false}

@@ -99,20 +99,20 @@
 .dd-vs {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 .dd-vs.is-high { color: var(--warn); }
 .dd-vs.is-low { color: var(--sage); }
 .dd-median {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
 }
 .dd-stats {
   display: flex;
   gap: 18px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
 }
 .dd-stats b {
@@ -183,7 +183,7 @@
 }
 .dd-chip {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-dim);
   padding: 4px 10px;
   border-radius: 20px;

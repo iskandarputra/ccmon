@@ -33,7 +33,7 @@
   font-family: var(--mono);
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   color: var(--text-faint);
 }
 
@@ -50,7 +50,7 @@
   font-size: 32px;
   font-weight: 600;
   letter-spacing: -0.015em;
-  line-height: 1.05;
+  line-height: 1.3;
   color: var(--text);
 }
 
@@ -86,7 +86,7 @@
 
 .blk-chip {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--text-dim);
   background: var(--bg1);
@@ -112,7 +112,7 @@
   align-items: center;
   gap: 6px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--blk-burn, var(--ok));
   background: color-mix(in srgb, var(--blk-burn, var(--ok)) 8%, var(--bg1));
@@ -149,7 +149,7 @@
 
 .blk-progress-time {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
   flex: none;
 }
@@ -207,7 +207,7 @@
 .blk-token-label {
   color: var(--text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -312,9 +312,9 @@
   justify-content: space-between;
   margin-top: 5px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 
 .blk-limit-status {
@@ -421,8 +421,8 @@
 }
 
 .blk-live-tag {
-  font-size: 9px;
-  letter-spacing: 0.1em;
+  font-size: 10px;
+  letter-spacing: 0.08em;
   color: var(--amber);
   background: var(--bg1);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent);
@@ -515,9 +515,9 @@
 
 .blk-gap-text {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
@@ -607,7 +607,7 @@
 .blk-hist-facts span {
   color: var(--text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   font-size: 10px;
 }
 .blk-hist-facts b {

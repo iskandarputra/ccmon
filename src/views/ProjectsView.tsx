@@ -81,8 +81,8 @@ function Sparkline({ daily }: { daily?: SparkPoint[] }) {
     return <div className="prj-spark-empty">no recent activity</div>;
   }
   return (
-    <ResponsiveContainer width="100%" height={36}>
-      <AreaChart data={daily} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+    <ResponsiveContainer width="100%" height={44}>
+      <AreaChart data={daily} margin={{ top: 4, right: 6, bottom: 4, left: 6 }}>
         <Tooltip
           cursor={{ stroke: 'var(--line)', strokeDasharray: '3 3' }}
           content={<SparkTip />}

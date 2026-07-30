@@ -572,7 +572,7 @@ export function InsightsView() {
                 minTickGap={26}
               />
               <YAxis
-                width={46}
+                width={56}
                 tick={AXIS_TICK}
                 axisLine={false}
                 tickLine={false}
@@ -623,7 +623,7 @@ export function InsightsView() {
                 tickLine={false}
               />
               <YAxis
-                width={42}
+                width={56}
                 tick={AXIS_TICK}
                 axisLine={false}
                 tickLine={false}
@@ -666,7 +666,7 @@ export function InsightsView() {
                 minTickGap={22}
               />
               <YAxis
-                width={46}
+                width={56}
                 tick={AXIS_TICK}
                 axisLine={false}
                 tickLine={false}

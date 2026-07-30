@@ -12,6 +12,7 @@ import './spatial.css';
 import { Panel } from '../components/ui/Panel';
 import { useUsageStore } from '../store/useUsageStore';
 import { tokenColor } from '../lib/themeColors';
+import { getTheme } from '../theme/themes';
 import {
   clockTime,
   dayLabel,
@@ -132,12 +133,13 @@ interface Palette {
   /** chart-1..6 — one accent per row in the models/projects fields */
   chart: THREE.Color[];
   accentLight: string;
+  isDark: boolean;
 }
 
-function resolvePalette(): Palette {
+function resolvePalette(isDark: boolean): Palette {
   return {
     bg: tokenColor('bg0'), // darker than the panel — the stage reads as inset depth
-    base: new THREE.Color(tokenColor('bg2')),
+    base: new THREE.Color(tokenColor(isDark ? 'bg2' : 'line-soft')),
     grid: tokenColor('line-soft'),
     gridSection: tokenColor('line'),
     amber: new THREE.Color(tokenColor('amber')),
@@ -146,6 +148,7 @@ function resolvePalette(): Palette {
     rose: new THREE.Color(tokenColor('rose')),
     chart: [1, 2, 3, 4, 5, 6].map((i) => new THREE.Color(tokenColor(`chart-${i}`))),
     accentLight: tokenColor('amber'),
+    isDark,
   };
 }
 
@@ -952,15 +955,18 @@ function FrameThrottle({ active, fps = 30 }: { active: boolean; fps?: number }) 
   return null;
 }
 
+
+
 function Scene({ palette, mode, plot, autoRotate, cells, hover, setHover, motion }: SceneProps) {
+  const isDark = palette.isDark;
   return (
     <>
       <color attach="background" args={[palette.bg]} />
       <fog attach="fog" args={[palette.bg, 16, 38]} />
-      {/* moody lighting — the diffuse ramp carries the data, not the lamps */}
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[7, 11, 5]} intensity={0.6} />
-      <pointLight position={[-7, 6, -6]} intensity={16} color={palette.accentLight} />
+      {/* theme-adaptive lighting — brighter diffuse fill in light mode */}
+      <ambientLight intensity={isDark ? 0.45 : 0.85} />
+      <directionalLight position={[7, 11, 5]} intensity={isDark ? 0.6 : 0.9} />
+      <pointLight position={[-7, 6, -6]} intensity={isDark ? 16 : 8} color={palette.accentLight} />
       {plot === 'surface' ? (
         <SurfaceField
           key={`${mode}:surface`}
@@ -998,12 +1004,12 @@ function Scene({ palette, mode, plot, autoRotate, cells, hover, setHover, motion
       )}
       <ContactShadows
         position={[0, 0, 0]}
-        opacity={0.3}
+        opacity={isDark ? 0.3 : 0.15}
         scale={26}
         blur={2.6}
         far={4.5}
         resolution={512}
-        color="#000000"
+        color={isDark ? '#000000' : '#475569'}
       />
       <Grid
         position={[0, -0.01, 0]}
@@ -1041,7 +1047,8 @@ export function SpatialView() {
   const setHover = (updater: (h: Hover | null) => Hover | null) => setHoverState(updater);
 
   // Materials can't read var(--token) — resolve concrete colors per theme.
-  const palette = useMemo(() => resolvePalette(), [themeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const theme = useMemo(() => getTheme(themeId), [themeId]);
+  const palette = useMemo(() => resolvePalette(theme.dark), [themeId, theme.dark]);
 
   // orbit, ripple entrance, shimmer, pulses — all decoration; drop them all
   // for reduced-motion users (the data itself never moves)
@@ -1170,46 +1177,55 @@ export function SpatialView() {
               />
             </Canvas>
 
-            {/* tool rail — viewport controls live on the stage, editor-style */}
-            <div className="spa-rail">
-              <div className="spa-rail-label">data</div>
-              {MODES.map((m) => (
+            {/* Top Floating Control Bar */}
+            <div className="spa-control-bar">
+              <div className="spa-mode-group">
+                {MODES.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`spa-mode-btn ${mode === m ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setMode(m);
+                      if (m !== 'terrain' && plot === 'stacked') setPlot('bars');
+                      setHoverState(null);
+                    }}
+                  >
+                    {MODE_LABELS[m] ?? m}
+                  </button>
+                ))}
+              </div>
+
+              <div className="spa-view-group">
+                <div className="spa-plot-pills">
+                  {PLOTS.filter((pl) => pl !== 'stacked' || mode === 'terrain').map((pl) => (
+                    <button
+                      key={pl}
+                      type="button"
+                      className={`spa-plot-btn ${plot === pl ? 'is-active' : ''}`}
+                      onClick={() => {
+                        setPlot(pl);
+                        setHoverState(null);
+                      }}
+                    >
+                      {pl}
+                    </button>
+                  ))}
+                </div>
+
                 <button
-                  key={m}
-                  className={`spa-rail-btn ${mode === m ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setMode(m);
-                    // stacked is a terrain-only view — fall back when leaving
-                    if (m !== 'terrain' && plot === 'stacked') setPlot('bars');
-                    setHoverState(null);
-                  }}
+                  type="button"
+                  className="spa-orbit-btn"
+                  onClick={() => setOrbiting((o) => !o)}
+                  title="Toggle 3D camera auto-orbit"
                 >
-                  {MODE_LABELS[m] ?? m}
+                  <i className={`spa-orbit-dot ${orbiting ? 'is-on' : ''}`} aria-hidden />
+                  <span>orbit</span>
                 </button>
-              ))}
-              <div className="spa-rail-label">view</div>
-              {PLOTS.filter((pl) => pl !== 'stacked' || mode === 'terrain').map((pl) => (
-                <button
-                  key={pl}
-                  className={`spa-rail-btn ${plot === pl ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setPlot(pl);
-                    setHoverState(null);
-                  }}
-                >
-                  {pl}
-                </button>
-              ))}
-              <button
-                className="spa-rail-btn spa-rail-orbit"
-                onClick={() => setOrbiting((o) => !o)}
-                title="toggle the automatic camera orbit"
-              >
-                <i className={`spa-orbit-dot ${orbiting ? 'is-on' : ''}`} aria-hidden />
-                orbit {orbiting ? 'on' : 'off'}
-              </button>
+              </div>
             </div>
 
+            {/* Hover Telemetry Card */}
             <div className={`spa-hud ${hover ? 'is-on' : ''}`}>
               {hover ? (
                 <>
@@ -1222,7 +1238,7 @@ export function SpatialView() {
                   ))}
                 </>
               ) : (
-                <div className="spa-hud-hint">hover the field</div>
+                <div className="spa-hud-hint">Hover over 3D nodes to inspect telemetry</div>
               )}
             </div>
           </div>
@@ -1233,7 +1249,7 @@ export function SpatialView() {
               {plot === 'trail' && mode === 'terrain' ? ' · trail: height = cumulative spend' : ''}
               {plot === 'stacked' ? ' · stacked: segments = model split per day' : ''}
             </span>
-            <span className="spa-hint">drag to orbit · scroll to zoom</span>
+            <span className="spa-hint">drag to rotate · scroll to zoom · right-click to pan</span>
           </div>
         </Panel>
       </div>

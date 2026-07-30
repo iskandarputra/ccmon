@@ -61,7 +61,7 @@
 .cfd-cancel,
 .cfd-confirm {
   font-family: var(--sans);
-  font-size: 12.5px;
+  font-size: 13px;
   padding: 7px 14px;
   border-radius: 8px;
   cursor: pointer;
