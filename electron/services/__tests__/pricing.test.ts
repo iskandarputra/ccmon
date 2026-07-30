@@ -46,6 +46,97 @@ describe('pricing — overrides and the cost formula', () => {
   });
 });
 
+const tiered = await createPricingEngine({
+  offline: true,
+  overrides: {
+    // full tier spec + explicit context window + explicit fast multiplier
+    '^proxy-full$': {
+      in: 10,
+      out: 20,
+      tier: { in: 30, out: 60, w5m: 40, read: 3 },
+      contextLimit: 1_000_000,
+      fast: 6,
+    },
+    // tier.in only — the other tier rates must derive from it
+    '^proxy-thin$': { in: 10, out: 20, tier: { in: 30 } },
+    // fast: 1 prices the -fast variant absolutely (no multiple)
+    '^proxy-flat$': { in: 10, out: 20, fast: 1 },
+    // no tier at all — must never switch rates, however large the context
+    '^proxy-untiered$': { in: 10, out: 20 },
+  },
+});
+
+describe('pricing — overrides reach tier rates, contextLimit and fast', () => {
+  const overThreshold = { in: 300_000 };
+  const underThreshold = { in: 100_000 };
+
+  it('applies base rates under the threshold and tier rates above it', () => {
+    expect(tiered.cost('proxy-full', underThreshold)).toBeCloseTo(1, 6); // 0.1M × $10
+    expect(tiered.cost('proxy-full', overThreshold)).toBeCloseTo(9, 6); // 0.3M × $30
+  });
+
+  it('uses each explicit tier rate', () => {
+    // 0.25M out + 0.05M w5m + 0.05M read, with 0.3M in pushing past the tier
+    const usd = tiered.cost('proxy-full', {
+      in: 300_000,
+      out: 250_000,
+      w5m: 50_000,
+      read: 50_000,
+    })!;
+    // in 0.3×30 + out 0.25×60 + w5m 0.05×40 + read 0.05×3
+    expect(usd).toBeCloseTo(9 + 15 + 2 + 0.15, 6);
+  });
+
+  it('derives unset tier rates from tier.in exactly as the LiteLLM layer does', () => {
+    // w5m = tier.in × 1.25 = $37.5, read = tier.in × 0.1 = $3, out falls back to base $20
+    const usd = tiered.cost('proxy-thin', {
+      in: 300_000,
+      out: 100_000,
+      w5m: 100_000,
+      read: 100_000,
+    })!;
+    expect(usd).toBeCloseTo(0.3 * 30 + 0.1 * 20 + 0.1 * 37.5 + 0.1 * 3, 6);
+  });
+
+  it('never switches rates for an override with no tier block', () => {
+    const small = tiered.cost('proxy-untiered', underThreshold)!;
+    const large = tiered.cost('proxy-untiered', overThreshold)!;
+    expect(large / small).toBeCloseTo(3, 6); // purely proportional to tokens
+  });
+
+  it('exposes an overridden context limit to the session gauge', () => {
+    expect(tiered.contextLimit('proxy-full')).toBe(1_000_000);
+  });
+
+  it('falls back to the default context limit when the override omits one', () => {
+    expect(tiered.contextLimit('proxy-thin')).toBe(200_000);
+  });
+
+  it('uses the override fast multiplier instead of the default 2×', () => {
+    const base = tiered.cost('proxy-full', { in: 1e6 })!;
+    expect(tiered.cost('proxy-full-fast', { in: 1e6 })).toBeCloseTo(base * 6, 6);
+  });
+
+  it('scales tier rates by the fast multiplier too', () => {
+    expect(tiered.cost('proxy-full-fast', overThreshold)).toBeCloseTo(9 * 6, 6);
+  });
+
+  it('treats fast: 1 as absolute pricing for the -fast variant', () => {
+    const base = tiered.cost('proxy-flat', { in: 1e6 })!;
+    expect(tiered.cost('proxy-flat-fast', { in: 1e6 })).toBeCloseTo(base, 6);
+  });
+
+  it('multiplies a -fast variant whose base name matches a prefix pattern', () => {
+    // The regression: a pattern without `$` used to match `<model>-fast`
+    // directly, so the multiplier was silently skipped and fast turns billed
+    // at base rate. Resolution now strips `-fast` before matching.
+    expect(tiered.cost('proxy-full-fast', { in: 1e6 })).not.toBeCloseTo(
+      tiered.cost('proxy-full', { in: 1e6 })!,
+      6,
+    );
+  });
+});
+
 describe('pricing — bundled-catalog resolution', () => {
   const catalog = bundled as Record<string, LitellmEntry>;
 

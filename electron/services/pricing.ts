@@ -195,19 +195,37 @@ function normalizeModelsDev(e: ModelsDevEntry): RateRow | null {
   };
 }
 
-/** User override row (per-MTok like v1) → internal per-token row. */
+/**
+ * User override row (per-MTok like v1) → internal per-token row.
+ *
+ * Overrides reach every field the engine consumes, not just the five base
+ * rates: a private deployment or proxy can be tiered, can have its own context
+ * window, and can bill fast turns at its own multiplier. Unset tier fields
+ * derive from `tier.in` the same way the LiteLLM layer derives them, so a
+ * one-line `tier: { in: N }` is enough for the common case.
+ */
 function overrideRow(rate: PricingOverride): RateRow {
   const input = (rate.in || 0) / 1e6;
+  const output = (rate.out || 0) / 1e6;
+  const tier = rate.tier;
+  const ti = tier?.in != null ? tier.in / 1e6 : input;
   return {
     source: 'override',
     input,
-    output: (rate.out || 0) / 1e6,
+    output,
     cacheCreate: rate.w5m != null ? rate.w5m / 1e6 : input * 1.25,
     cacheRead: rate.read != null ? rate.read / 1e6 : input * 0.1,
     cacheCreate1h: rate.w1h != null ? rate.w1h / 1e6 : null,
-    tiered: null,
-    contextLimit: null,
-    fast: null,
+    tiered: tier
+      ? {
+          input: ti,
+          output: tier.out != null ? tier.out / 1e6 : output,
+          cacheCreate: tier.w5m != null ? tier.w5m / 1e6 : ti * 1.25,
+          cacheRead: tier.read != null ? tier.read / 1e6 : ti * 0.1,
+        }
+      : null,
+    contextLimit: rate.contextLimit ?? null,
+    fast: rate.fast || null,
     fastApplied: 1,
   };
 }
@@ -335,12 +353,18 @@ export class PricingEngine {
   }
 
   /**
-   * max_input_tokens (LiteLLM) / limit.context (models.dev) for the model,
-   * or 200000. Resolved against data layers only — overrides carry no
-   * limits — with the `-fast` suffix ignored.
+   * `contextLimit` override / max_input_tokens (LiteLLM) / limit.context
+   * (models.dev) for the model, or 200000. The `-fast` suffix is ignored —
+   * a fast variant has the same window as its base.
+   *
+   * An override wins here as it does for rates, but ONLY when it sets
+   * `contextLimit`: a rates-only override must not shrink a model's window to
+   * the default, so it falls through to the data layers.
    */
   contextLimit(model: string): number {
     const base = model.endsWith('-fast') ? model.slice(0, -5) : model;
+    const override = this.matchOverride(base)?.contextLimit;
+    if (override) return override;
     const row = this.lookupData(base);
     return row?.contextLimit || DEFAULT_CONTEXT_LIMIT;
   }
@@ -408,6 +432,12 @@ export class PricingEngine {
     this.resolveMemo.clear();
     this.dataMemo.clear();
     // today's layer may have been replaced by the fresh table — drop memos
+    // Archive layers are dated in the SYSTEM zone, deliberately not the user's
+    // display timezone: a layer records "these were the live rates when we
+    // fetched them", and re-dating history every time the setting changes would
+    // rewrite the past. The cost is that `costAt` can pick the neighbouring
+    // day's layer for entries near a zone boundary — bounded to one day, and
+    // only visible if rates also changed that day (see docs/v2-spec.md §2).
     if (this.archive?.record(localDateKey(this.fetchedAtMs), models)) this.archiveMemo.clear();
     if (!this.cacheDir) return;
     try {
@@ -421,17 +451,29 @@ export class PricingEngine {
     }
   }
 
+  /**
+   * Override lookup for one model name; first match wins (insertion order).
+   *
+   * A `-fast` variant resolves against the BASE name and then takes the
+   * multiplier, mirroring the data path — otherwise an overridden model's fast
+   * turns would silently bill at the base rate. Set `fast: 1` on the override
+   * to price a fast variant absolutely instead.
+   */
+  private matchOverride(model: string): RateRow | null {
+    const isFast = model.endsWith('-fast');
+    const name = isFast ? model.slice(0, -5) : model;
+    for (const o of this.overrides) {
+      if (!o.re.test(name)) continue;
+      return isFast ? applyFast(o.row, o.row.fast || DEFAULT_FAST_MULTIPLIER) : o.row;
+    }
+    return null;
+  }
+
   /** Full resolution: overrides → `-fast` base × multiplier → data layers. */
   private resolve(model: string): RateRow | null {
     const memo = this.resolveMemo.get(model);
     if (memo !== undefined) return memo;
-    let row: RateRow | null = null;
-    for (const o of this.overrides) {
-      if (o.re.test(model)) {
-        row = o.row;
-        break;
-      }
-    }
+    let row: RateRow | null = this.matchOverride(model);
     if (!row) {
       if (model.endsWith('-fast')) {
         const base = this.resolve(model.slice(0, -5));
@@ -454,13 +496,7 @@ export class PricingEngine {
     if (!memo) this.archiveMemo.set(layerIdx, (memo = new Map()));
     const hit = memo.get(model);
     if (hit !== undefined) return hit;
-    let row: RateRow | null = null;
-    for (const o of this.overrides) {
-      if (o.re.test(model)) {
-        row = o.row;
-        break;
-      }
-    }
+    let row: RateRow | null = this.matchOverride(model);
     if (!row) {
       if (model.endsWith('-fast')) {
         const base = this.resolveInLayer(model.slice(0, -5), layerIdx, models);

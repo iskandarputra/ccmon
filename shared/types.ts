@@ -164,6 +164,26 @@ export interface PricingOverride {
   w5m?: number;
   w1h?: number;
   read?: number;
+  /**
+   * Above-threshold rates, per-MTok, any subset. Unset fields derive from
+   * `tier.in` exactly as the LiteLLM layer derives them (w5m = in × 1.25,
+   * read = in × 0.1), and `tier.out` falls back to the base `out`. Omit the
+   * whole object for a model that isn't tiered.
+   */
+  tier?: {
+    in?: number;
+    out?: number;
+    w5m?: number;
+    read?: number;
+  };
+  /** context window in tokens — drives the per-session context gauge */
+  contextLimit?: number;
+  /**
+   * Multiplier applied to every rate for this model's `-fast` variant.
+   * Without it an overridden model's fast turns bill at the base rate, since
+   * overrides are matched before the `-fast` fallback path.
+   */
+  fast?: number;
 }
 
 // ---- settings (§5) ---------------------------------------------------------
