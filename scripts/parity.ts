@@ -7,11 +7,20 @@
  *
  * Scans the real ~/.claude data through ccmon's pipeline, runs
  * `npx ccusage@latest claude daily --json --offline` over the same files,
- * and compares GRAND TOKEN TOTALS for claude-* models. Tokens are the right
- * surface: they are independent of pricing versions, cost modes, and (at the
- * grand-total level) timezone bucketing — any drift means the dedupe or
- * parsing diverged. Manual / CI-optional: needs npx + network for the first
- * download. Exit 0 on parity, 1 on drift or unexpected output.
+ * and compares GRAND TOKEN TOTALS. Tokens are the right surface: they are
+ * independent of pricing versions, cost modes, and (at the grand-total level)
+ * timezone bucketing — any drift means the dedupe or parsing diverged.
+ * Manual / CI-optional: needs npx + network for the first download. Exit 0 on
+ * parity, 1 on drift or unexpected output.
+ *
+ * EVERY model counts on both sides. `ccusage claude daily` reads exactly the
+ * corpus ccmon scans, so anything in it belongs to both totals — including
+ * non-Anthropic models run through Claude Code via a base-URL override (this
+ * repo's own transcripts contain DeepSeek). Filtering one side to `claude-*`
+ * silently compared different corpora: it reported ~47% input drift while the
+ * two agreed per-day and per-model, and it hid behind an exact cache-write
+ * match because DeepSeek bills no cache writes. Don't reintroduce a
+ * model filter here.
  */
 
 import { execFileSync } from 'child_process';
@@ -19,26 +28,29 @@ import { detectProjectDirs } from '../electron/services/paths';
 import { loadConfig } from '../electron/services/config';
 import { UsageWatcher } from '../electron/services/watcher';
 
-interface CcusageBreakdown {
-  modelName?: string;
+interface CcusageTokens {
   inputTokens?: number;
   outputTokens?: number;
   cacheCreationTokens?: number;
   cacheReadTokens?: number;
 }
 
-interface CcusageDailyRow {
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheCreationTokens?: number;
-  cacheReadTokens?: number;
-  modelBreakdowns?: CcusageBreakdown[];
+interface CcusageDailyRow extends CcusageTokens {
+  date?: string;
 }
 
 type Totals = { in: number; out: number; write: number; read: number };
 
 const fmt = (t: Totals) =>
   `in ${t.in} · out ${t.out} · write ${t.write} · read ${t.read}`;
+
+/** One ccusage row/totals object → our shape. */
+const tokensOf = (t: CcusageTokens): Totals => ({
+  in: t.inputTokens || 0,
+  out: t.outputTokens || 0,
+  write: t.cacheCreationTokens || 0,
+  read: t.cacheReadTokens || 0,
+});
 
 async function main(): Promise<void> {
   // only the roots ccusage also reads — extra ccmon roots (multi-account
@@ -56,11 +68,18 @@ async function main(): Promise<void> {
   const watcher = new UsageWatcher({ dirs, watch: false });
   const entries = await watcher.start();
   const mine: Totals = { in: 0, out: 0, write: 0, read: 0 };
+  const mineDay = new Map<string, Totals>();
   for (const e of entries) {
     mine.in += e.in;
     mine.out += e.out;
     mine.read += e.read;
     mine.write += e.w5m + e.w1h;
+    let d = mineDay.get(e.dateKey);
+    if (!d) mineDay.set(e.dateKey, (d = { in: 0, out: 0, write: 0, read: 0 }));
+    d.in += e.in;
+    d.out += e.out;
+    d.read += e.read;
+    d.write += e.w5m + e.w1h;
   }
   console.log(`ccmon   : ${entries.length} entries · ${fmt(mine)}`);
 
@@ -77,21 +96,27 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const theirs: Totals = { in: 0, out: 0, write: 0, read: 0 };
-  for (const row of rows) {
-    const claude = (row.modelBreakdowns || []).filter((b) =>
-      (b.modelName || '').includes('claude'),
-    );
-    // prefer the per-model split (excludes any non-claude rows), else the row
-    const parts: CcusageBreakdown[] = claude.length ? claude : [row];
-    for (const p of parts) {
-      theirs.in += p.inputTokens || 0;
-      theirs.out += p.outputTokens || 0;
-      theirs.write += p.cacheCreationTokens || 0;
-      theirs.read += p.cacheReadTokens || 0;
-    }
-  }
-  console.log(`ccusage : ${rows.length} day rows · ${fmt(theirs)}`);
+  // ccusage publishes its own grand totals; prefer them over re-summing, and
+  // fall back to the day rows if a future version drops the object.
+  const totalsObj = parsed.totals as CcusageTokens | undefined;
+  const theirs: Totals = totalsObj
+    ? tokensOf(totalsObj)
+    : rows.reduce<Totals>((acc, row) => {
+        const t = tokensOf(row);
+        return {
+          in: acc.in + t.in,
+          out: acc.out + t.out,
+          write: acc.write + t.write,
+          read: acc.read + t.read,
+        };
+      }, { in: 0, out: 0, write: 0, read: 0 });
+  console.log(
+    `ccusage : ${rows.length} day rows · ${fmt(theirs)}` +
+      `${totalsObj ? '' : '  (summed from rows — no totals object)'}`,
+  );
+
+  const theirDay = new Map<string, Totals>();
+  for (const row of rows) if (row.date) theirDay.set(row.date, tokensOf(row));
 
   const drift = (a: number, b: number) => (b === 0 ? (a === 0 ? 0 : 1) : Math.abs(a - b) / b);
   const checks: Array<[string, number, number]> = [
@@ -106,6 +131,36 @@ async function main(): Promise<void> {
     const ok = d < 0.001; // 0.1% — boundary-day bucketing noise at most
     if (!ok) failed = true;
     console.log(`${ok ? 'OK  ' : 'FAIL'} ${label.padEnd(12)} ccmon ${a} vs ccusage ${b} (drift ${(d * 100).toFixed(3)}%)`);
+  }
+
+  // Localize on failure. Grand totals say "something diverged"; the per-day
+  // table says WHERE, and distinguishes the two benign shapes from real drift:
+  //   - adjacent days with mirror-image deltas → a midnight-boundary bucketing
+  //     difference (ccmon buckets in local time), which cancels in the totals
+  //   - a delta on today only → lines appended between the two scans
+  // Anything else is genuine dedupe or parsing divergence.
+  if (failed) {
+    console.log('\nper-day deltas (ccmon minus ccusage), non-zero only:');
+    const days = [...new Set([...mineDay.keys(), ...theirDay.keys()])].sort();
+    const empty: Totals = { in: 0, out: 0, write: 0, read: 0 };
+    console.log('  day           Δin        Δout       Δwrite     Δread');
+    for (const day of days) {
+      const a = mineDay.get(day) ?? empty;
+      const b = theirDay.get(day) ?? empty;
+      const d: Totals = {
+        in: a.in - b.in,
+        out: a.out - b.out,
+        write: a.write - b.write,
+        read: a.read - b.read,
+      };
+      if (!d.in && !d.out && !d.write && !d.read) continue;
+      const col = (n: number) => String(n).padStart(10);
+      console.log(`  ${day}  ${col(d.in)} ${col(d.out)} ${col(d.write)} ${col(d.read)}`);
+    }
+    console.log(
+      '\nIf every listed day pairs off with an adjacent mirror image, the totals\n' +
+        'should still match — check the drift lines above rather than this table.',
+    );
   }
   process.exit(failed ? 1 : 0);
 }
