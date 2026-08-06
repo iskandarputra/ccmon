@@ -4,7 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Panel } from '../ui/Panel';
 import { Hint } from '../ui/Hint';
 import { useUsageStore } from '../../store/useUsageStore';
@@ -78,6 +78,8 @@ export function SetupWizard() {
   /** raw `KEY=value` text per root, and which rows have the editor open */
   const [envText, setEnvText] = useState<Record<string, string>>({});
   const [envOpen, setEnvOpen] = useState<Set<string>>(new Set());
+  /** roots whose editor state has been seeded once — see the effect below */
+  const seeded = useRef<Set<string>>(new Set());
 
   // detect OS + shells once; pre-pick the login shell (and anything linked).
   // A lone candidate is pre-picked too: when detection falls back to the
@@ -123,11 +125,15 @@ export function SetupWizard() {
       }
       return next;
     });
-    setEnvOpen((prev) => {
-      const next = new Set(prev);
-      for (const root of roots) if (Object.keys(prefs[root]?.env ?? {}).length) next.add(root);
-      return next;
-    });
+    // reveal the editor for accounts that already have env — but only the FIRST
+    // time each root is seen, or applying (which updates prefs) would re-open a
+    // box the user just collapsed
+    const fresh = roots.filter((root) => !seeded.current.has(root));
+    if (fresh.length) {
+      fresh.forEach((root) => seeded.current.add(root));
+      const withEnv = fresh.filter((root) => Object.keys(prefs[root]?.env ?? {}).length);
+      if (withEnv.length) setEnvOpen((prev) => new Set([...prev, ...withEnv]));
+    }
   }, [roots, prefs]);
 
   const envByRoot = useMemo(() => {

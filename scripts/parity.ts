@@ -24,6 +24,7 @@
  */
 
 import { execFileSync } from 'child_process';
+import path from 'path';
 import { detectProjectDirs } from '../electron/services/paths';
 import { loadConfig } from '../electron/services/config';
 import { UsageWatcher } from '../electron/services/watcher';
@@ -83,11 +84,28 @@ async function main(): Promise<void> {
   }
   console.log(`ccmon   : ${entries.length} entries · ${fmt(mine)}`);
 
+  // Pin ccusage to EXACTLY the roots we just restricted ourselves to.
+  //
+  // ccusage does its own discovery and honours `CLAUDE_CONFIG_DIR`, which it
+  // inherits from this process. Run parity from a shell where that variable
+  // points at a non-default account (any `claude-<name>` wrapper session, and
+  // ccmon's own setup wizard generates those) and the two sides silently read
+  // DIFFERENT accounts: ccmon the standard root above, ccusage whatever the
+  // environment named. The run still prints tidy percentages, so the failure
+  // reads as a token-math regression rather than a harness bug. Setting it
+  // explicitly makes the comparison independent of the shell it runs in.
+  const ccusageRoots = dirs.map((d) => path.dirname(d)).join(',');
   console.log('running ccusage (npx, may download on first run)…');
+  console.log('  CLAUDE_CONFIG_DIR pinned to:', ccusageRoots);
   const raw = execFileSync(
     'npx',
     ['-y', 'ccusage@latest', 'claude', 'daily', '--json', '--offline'],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 300_000 },
+    {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      timeout: 300_000,
+      env: { ...process.env, CLAUDE_CONFIG_DIR: ccusageRoots },
+    },
   );
   const parsed = JSON.parse(raw) as Record<string, unknown>;
   const rows = (parsed.daily ?? parsed.data) as CcusageDailyRow[] | undefined;

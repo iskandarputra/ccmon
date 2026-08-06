@@ -40,9 +40,9 @@ import {
   applySetup,
   createAccountDir,
   detectShells,
-  resolveEnvSecrets,
   planSetup,
   renameAccountDir,
+  resolveEnvSecrets,
   visibleAccountDirs,
   writeWrapperAccounts,
 } from './services/account-setup';

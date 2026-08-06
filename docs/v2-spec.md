@@ -761,7 +761,7 @@ Keep changes scoped to one area per PR where possible:
 | analytics | `electron/services/parser.ts`, `blocks.ts`, `aggregate.ts` | `npm test` + `npm run smoke`; `npm run parity` when parsing/dedupe changes |
 | themes | `src/theme/themes.ts` | `npm run typecheck` (the `Theme` type enforces every token) |
 | views | one `src/views/<X>View.tsx` + its co-located css | `npm run typecheck` |
-| accounts | `electron/services/accounts.ts`, `cross-account.ts`, `account-setup.ts`, `src/lib/crossAccount.ts`, `src/views/AccountsView.tsx`, `src/components/accounts/` | `npm test` + `npm run smoke` |
+| accounts | `electron/services/accounts.ts`, `keychain.ts`, `auth.ts`, `cross-account.ts`, `account-setup.ts`, `shared/providerPresets.ts`, `src/lib/crossAccount.ts`, `src/views/AccountsView.tsx`, `src/components/accounts/` | `npm test` + `npm run smoke` |
 | deepseek | `electron/services/deepseek.ts`, `deepseek-history.ts`, `deepseek-key.ts`, `src/lib/deepseek.ts`, `src/components/deepseek/` | `npm test` |
 | cli | `cli/` (`args.ts`, `statusline.ts`, `userdata.ts`, `index.ts`) | `npm test` + `npm run build:cli` then run `dist-cli/index.cjs` |
 | ambient text | `electron/services/status-text.ts` (tray + CLI statusline strings) | `npm test` |

@@ -68,6 +68,3 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     },
   },
 ];
-
-export const presetById = (id: string): ProviderPreset | undefined =>
-  PROVIDER_PRESETS.find((p) => p.id === id);

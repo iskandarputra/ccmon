@@ -45,7 +45,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
   isn't a single-implementation abstraction.
 - `electron/services/` — pure Node, **never** import Electron here (this is
   what keeps smoke and the unit tests possible; type-only electron imports
-  erase, so they're fine). Twenty-two services: paths, config, settings,
+  erase, so they're fine). Twenty-three services: paths, config, settings,
   watcher, parser, aggregate, blocks, pricing, pricing-archive, accounts,
   auth, keychain, advisor, export, cross-account, account-setup,
   limits-history, currency, deepseek, deepseek-history, deepseek-key,
@@ -145,6 +145,13 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
   later chunk — see `watcher.accept`/`merge`. Verified by `npm run parity`
   at **0.000% drift** (exact integer match on all four token fields) against
   ccusage v20.0.19.
+- `parity.ts` PINS `CLAUDE_CONFIG_DIR` for the ccusage subprocess to the same
+  roots it restricted ccmon to. ccusage does its own discovery and inherits
+  that variable, so running parity from a `claude-<name>` wrapper shell — the
+  wrappers ccmon itself generates — made the two sides read DIFFERENT accounts
+  and reported it as ~9990% token drift. Never drop the pin: the harness has
+  to be independent of the shell it runs in, or a green/red result says
+  nothing about the token math.
 - Parity counts EVERY model on both sides. `ccusage claude daily` reads
   exactly the corpus ccmon scans, so anything in it belongs to both totals —
   including non-Anthropic models run through Claude Code via a base-URL

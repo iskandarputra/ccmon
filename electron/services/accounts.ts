@@ -103,23 +103,11 @@ function accountConfig(projectDir: string): ClaudeConfig | null {
 }
 
 /**
- * Where this root's login actually came from. The file always wins: it is
- * per-root and authoritative wherever it exists. The Keychain is the macOS
- * fallback for the default account, whose credentials are simply not on disk
- * there (see keychain.ts) — without it, every limits-driven surface is dark on
- * a Mac.
+ * This root's stored login. The file always wins: it is per-root and
+ * authoritative wherever it exists. The Keychain is the macOS fallback for the
+ * default account, whose credentials are simply not on disk there (see
+ * keychain.ts) — without it, every limits-driven surface is dark on a Mac.
  */
-export function credentialsSource(projectDir: string): 'file' | 'keychain' | null {
-  if (readJson<CredentialsFile>(credentialsPath(projectDir))?.claudeAiOauth) return 'file';
-  const secret = readKeychainSecret(rootOf(projectDir));
-  if (!secret) return null;
-  try {
-    return (JSON.parse(secret) as CredentialsFile).claudeAiOauth ? 'keychain' : null;
-  } catch {
-    return null;
-  }
-}
-
 function credentials(projectDir: string): OauthCredentials | null {
   const creds = readJson<CredentialsFile>(credentialsPath(projectDir));
   if (creds?.claudeAiOauth) return creds.claudeAiOauth;

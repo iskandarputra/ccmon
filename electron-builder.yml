@@ -68,10 +68,12 @@ mac:
       arch: [arm64, x64]
     - target: zip
       arch: [arm64, x64]
-  # Unsigned and un-notarised on purpose (no paid Developer ID): a downloaded
-  # build carries the quarantine bit, so Gatekeeper refuses it until the user
-  # clears it — the README documents the xattr one-liner. Ad-hoc signing keeps
-  # the arm64 build launchable at all; arm64 binaries MUST carry a signature.
-  identity: null
+  # No `identity:` on purpose. Setting it to null makes electron-builder log
+  # "skipped macOS code signing" and never sign — even on a machine that DOES
+  # have a Developer ID in its keychain. Left unset, it signs when a cert is
+  # available and skips when one isn't, which is the behaviour that improves by
+  # itself the day a certificate exists. Releases are therefore unsigned and
+  # un-notarised today, so a downloaded build carries the quarantine bit and
+  # Gatekeeper refuses it; the README documents the xattr one-liner.
 
 artifactName: ${name}-${version}-${os}-${arch}.${ext}

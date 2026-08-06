@@ -659,7 +659,11 @@ export function renderManagedScript(
           `${psLiteral('CLAUDE_CONFIG_DIR')} = ${psConfigDir(p.to.root, home)}`,
           ...psEnvSets(p.to.env),
         ];
+        // `$args[0]` is $null when called with no session id, and the helper's
+        // Mandatory parameter would then prompt interactively for it — a
+        // confusing hang. Say what is wrong and stop.
         const call =
+          `if ($args.Count -lt 1) { Write-Error "usage: ${p.name} <session-id>"; return }; ` +
           `& ${PS_HELPER_REF} ${psConfigDir(p.from.root, home)} ${psConfigDir(p.to.root, home)} $args[0]`;
         lines.push(`function ${p.name} {`, psScopedBody(sets, call), '}', '');
       }

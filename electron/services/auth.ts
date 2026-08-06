@@ -150,9 +150,20 @@ function persistTokens(projectDir: string, tok: TokenResponse): number {
   const out: CredentialsFile = { ...store, claudeAiOauth: next };
   const payload = `${JSON.stringify(out, null, 2)}\n`;
 
+  // Keychain only when the file is not this root's store. A FAILED keychain
+  // write must never end the attempt: losing a rotated refresh token is what
+  // logs the user out of Claude Code, so we fall through and write the file
+  // rather than propagate. A stale keychain item is recoverable (log in
+  // again); a dropped rotation is not.
   const toKeychain = !readFile(projectDir)?.claudeAiOauth;
-  if (toKeychain && writeKeychainSecret(rootOf(projectDir), payload)) {
-    return next.expiresAt ?? Date.now();
+  if (toKeychain) {
+    try {
+      if (writeKeychainSecret(rootOf(projectDir), payload)) return next.expiresAt ?? Date.now();
+    } catch (e) {
+      console.warn(
+        `[ccmon] keychain write failed (${(e as Error).message}) — writing .credentials.json instead`,
+      );
+    }
   }
 
   const target = credentialsPath(projectDir);
