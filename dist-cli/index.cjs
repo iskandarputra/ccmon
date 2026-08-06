@@ -90,7 +90,7 @@ function loadConfig() {
 var import_fs3 = __toESM(require("fs"));
 var import_path3 = __toESM(require("path"));
 var DEFAULTS = {
-  theme: "nord",
+  theme: "dracula",
   costMode: "auto",
   //        auto | calculate | display
   timezone: "",
@@ -3389,7 +3389,7 @@ function userDataDir(platform = process.platform, env = process.env, home = impo
 var package_default = {
   name: "ccmon",
   productName: "ccmon",
-  version: "1.11.0",
+  version: "1.12.0",
   description: "Real-time Claude Code usage monitor \u2014 local, private, lofi.",
   homepage: "https://github.com/iskandarputra/ccmon",
   author: "Iskandar Putra <iskandarputra1995@gmail.com>",

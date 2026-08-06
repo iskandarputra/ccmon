@@ -154,7 +154,7 @@ with Linux, Windows and macOS artifacts attached
 (`.github/workflows/build.yml`):
 
 ```bash
-git tag v1.11.0 && git push origin v1.11.0
+git tag v1.12.0 && git push origin v1.12.0
 ```
 
 ### The `ccmon` command line
