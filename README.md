@@ -12,7 +12,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/ccmon-hero.gif" alt="ccmon, a live Claude Code usage dashboard" width="900">
+  <!-- ?v= is a cache-buster: GitHub proxies README images and serves the old
+       bytes from cache long after the file changes. Bump it whenever the gif
+       is re-recorded, or the page keeps showing the previous build. -->
+  <img src="docs/media/ccmon-hero.gif?v=1.12.0" alt="ccmon, a live Claude Code usage dashboard" width="900">
 </p>
 
 <p align="center"><i>A scripted tour across a synthetic multi-account dataset, recorded with <code>npm run promo</code>.</i></p>
