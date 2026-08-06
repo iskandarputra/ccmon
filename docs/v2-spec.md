@@ -352,7 +352,7 @@ exact split. Raw tool names are kept verbatim (`mcp__server__tool`).
 ### 5.1 Settings
 
 ```js
-{ theme: 'nord', costMode: 'auto'|'calculate'|'display',
+{ theme: 'dracula', costMode: 'auto'|'calculate'|'display',
   pricingOffline: false,
   startOfWeek: 'monday',  // forced — the sunday option is retired; the type
                           // keeps the union for old settings files, which

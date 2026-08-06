@@ -19,6 +19,7 @@
  */
 
 import { spawn, spawnSync, type ChildProcess } from 'child_process';
+import { THEMES } from '../../src/theme/themes';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -36,8 +37,11 @@ const TAKE_DIR = path.join(REPO, 'promo', 'take');
 const FRAMES_DIR = path.join(TAKE_DIR, 'frames');
 const CDP_PORT = 9223; // not 9222 — keep clear of the dev-session convention
 const WIN = { width: 1600, height: 1000 };
-const HERO_THEME = 'nord'; // the app default — the ad opens and closes on it
-const THEME_TOUR = ['tokyo night', 'catppuccin', 'synthwave', HERO_THEME];
+const HERO_THEME = 'dracula'; // the app default — the ad opens and closes on it
+// theme IDS, resolved to card names via THEMES — the previous list held display
+// names used as both selector and id, so 'synthwave' (a theme that does not
+// exist) matched nothing and the fallback set an invalid id: two silent no-ops.
+const THEME_TOUR = ['tokyo-night', 'catppuccin', 'cyber-neon', HERO_THEME];
 /** 3D finale: every data mode, bars view only ('rhythm $' mirrors rhythm). */
 const SPATIAL_MODES = ['rhythm', 'models', 'projects', 'blocks', 'sessions', 'tools', 'what-if'];
 
@@ -270,23 +274,25 @@ async function main(): Promise<void> {
       }
     };
     const clickTheme = async (id: string): Promise<void> => {
+      const theme = THEMES.find((t) => t.id === id);
+      if (!theme) throw new Error(`[record] no such theme id: ${id}`); // fail loudly, not silently
       const ok = await evaluate<boolean>(`(() => {
         const cards = [...document.querySelectorAll('.set-theme-card')];
         const card = cards.find((el) =>
-          ((el.querySelector('.set-theme-name')?.textContent) || '').trim().toLowerCase().startsWith(${JSON.stringify(id.toLowerCase())}));
+          ((el.querySelector('.set-theme-name')?.textContent) || '').trim().toLowerCase().startsWith(${JSON.stringify(theme.name.toLowerCase())}));
         if (!card) return false;
         card.scrollIntoView({ block: 'center', behavior: 'smooth' });
         card.click();
         return true;
       })()`);
       if (!ok) {
-        console.warn(`[record] theme card "${id}" not found — using settings API`);
+        console.warn(`[record] theme card "${theme.name}" not found — using settings API`);
         await evaluate(`window.ccmon?.setSettings({ theme: ${JSON.stringify(id)} })`);
       }
     };
     const clickRail = async (label: string): Promise<void> => {
       const ok = await evaluate<boolean>(`(() => {
-        const btn = [...document.querySelectorAll('.spa-rail-btn')]
+        const btn = [...document.querySelectorAll('.spa-mode-btn')]
           .find((el) => (el.textContent || '').trim() === ${JSON.stringify(label)});
         if (!btn) return false;
         btn.click();
@@ -435,10 +441,11 @@ async function main(): Promise<void> {
     beat('themes');
     await sleep(500);
     // reveal the full theme collection — the newer themes live past the first 8
+    // the button is labelled "all themes · N" (it used to say "reveal all", and
+    // matching on that copy silently stopped expanding the list) — go by class
     await evaluate(`(() => {
-      const btn = [...document.querySelectorAll('button')]
-        .find((el) => ((el.textContent) || '').trim().toLowerCase().startsWith('reveal all'));
-      if (btn) btn.click();
+      const btn = document.querySelector('.set-reveal');
+      if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
     })()`);
     await sleep(450);
     await evaluate(

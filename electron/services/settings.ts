@@ -14,7 +14,7 @@ import type { AppSettings } from '../../shared/types';
  * (extra data dirs, pricing table patches); this file is owned by the UI.
  */
 export const DEFAULTS: AppSettings = {
-  theme: 'nord',
+  theme: 'dracula',
   costMode: 'auto', //        auto | calculate | display
   timezone: '', //            '' = system zone; else an IANA name
   pricingOffline: false, //   true → never hit the network for pricing

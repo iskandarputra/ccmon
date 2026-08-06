@@ -152,6 +152,14 @@ function main(): void {
     if (size <= 9.5 * 1024 * 1024) break;
   }
   console.log(`[encode] ${heroGif}  ${mb(heroGif)}  ${probeDuration(heroGif).toFixed(1)}s`);
+
+  // promo/ is gitignored, but the README embeds docs/media/ccmon-hero.gif —
+  // so publish the hero there too. Copying by hand was an undocumented last
+  // step, and forgetting it left the README showing an old build indefinitely.
+  const published = path.join(REPO, 'docs', 'media', 'ccmon-hero.gif');
+  fs.mkdirSync(path.dirname(published), { recursive: true });
+  fs.copyFileSync(heroGif, published);
+  console.log(`[encode] published → ${published} (the README's hero)`);
   console.log('[encode] done — assets in promo/');
 }
 

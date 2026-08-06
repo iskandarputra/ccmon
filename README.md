@@ -31,8 +31,10 @@ npm install
 npm run dev
 ```
 
-That's it. ccmon finds `~/.claude` on its own, indexes your history in a few
-seconds, then follows along. New responses appear within a second.
+That's it. ccmon finds `~/.claude` on its own — plus any sibling
+`~/.claude-<name>` roots from a multi-account setup — indexes your history,
+then follows along. New responses appear within a second. First index is a few
+seconds for a normal history; allow a minute if you have thousands of sessions.
 
 ## What it knows
 
@@ -70,16 +72,18 @@ calendar. It's mostly there for fun, and that's fine.
 
 Also: twelve views — keys `1` to `9` jump to the first nine, and a `⌘`/`Ctrl`+`K`
 command palette jumps anywhere, including a links page of official Claude
-and Anthropic channels and status pages. Twenty-nine themes, and your costs
-in any of 160+ currencies, including the top ten crypto. Rates refresh hourly.
+and Anthropic channels and status pages. Seventeen themes (dracula pro by
+default), and your costs in any of 160+ currencies, including the top ten
+crypto. Rates refresh hourly.
 
 ## Can I trust the numbers?
 
 Yes, and you can check. An automated parity test (`npm run parity`)
 cross-checks the token math against [ccusage](https://github.com/ccusage/ccusage)
 (MIT), the established CLI for Claude Code usage reports; current drift is
-under 0.005 percent. 151 unit tests cover the parsing, pricing, block, and
-forecast math, and CI runs them on every push.
+**0.000 percent** — an exact integer match on all four token fields across
+22,981 entries. 455 unit tests cover the parsing, pricing, block, forecast and
+shell-integration logic, and CI runs them on every push.
 
 Costs are API list prices. On a Pro or Max subscription, read them as
 API-equivalent value rather than an invoice. Where a number is a heuristic,
@@ -145,7 +149,13 @@ Model ids move. If DeepSeek renames one, edit the env box — it is plain
 ```
 
 Artifacts land in `release/`. Install the deb with
-`sudo apt install ./release/ccmon-*.deb`.
+`sudo apt install ./release/ccmon-*.deb`. Tagged pushes cut a GitHub release
+with Linux, Windows and macOS artifacts attached
+(`.github/workflows/build.yml`):
+
+```bash
+git tag v1.11.0 && git push origin v1.11.0
+```
 
 ### The `ccmon` command line
 
@@ -220,13 +230,6 @@ identifying a `CLAUDE_CONFIG_DIR`, so it is only used for the default
 `~/.claude` account — a second account root on macOS needs its own
 `.credentials.json`, and ccmon says so instead of guessing.
 
-Tagged pushes cut a GitHub release with Linux, Windows and macOS artifacts
-attached (`.github/workflows/build.yml`):
-
-```bash
-git tag v1.10.0 && git push origin v1.10.0
-```
-
 ## Configuration
 
 Optional, at `~/.config/ccmon/config.json`:
@@ -242,7 +245,20 @@ Optional, at `~/.config/ccmon/config.json`:
 
 `claudeDirs` adds data roots beyond `~/.claude` and `~/.config/claude`
 (multi-account setups get per-account scoping in settings). `pricing` takes
-per-MTok overrides; keys are case-insensitive regexes and always win.
+per-MTok overrides; keys are case-insensitive regexes and always win, and they
+reach every field the engine uses — tier rates above 200k, the context window
+and the `-fast` multiplier, not just the five base rates.
+
+`modelAliases` and `projectAliases` rename model ids and project paths for
+display only:
+
+```json
+{ "modelAliases": { "claude-opus-5": "opus" },
+  "projectAliases": { "/home/me/work/api-v2": "api" } }
+```
+
+They are applied at format time, never before pricing or grouping — aliasing
+two ids to one label would merge distinct models.
 
 ## Under the hood
 
@@ -262,8 +278,10 @@ live in [docs/v2-spec.md](docs/v2-spec.md), and what's planned next in
 npm run dev        # hot-reload dev build
 npm test           # unit tests (vitest)
 npm run smoke      # full pipeline against your real data
-npm run parity     # token parity vs ccusage
+npm run parity     # token parity vs ccusage (npx + network)
 npm run typecheck  # strict tsc, both processes
+npm run cli -- json --range 30d   # the headless CLI, straight from source
+npm run promo      # re-record the tour; publishes docs/media/ccmon-hero.gif
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
