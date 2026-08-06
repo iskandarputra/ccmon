@@ -6,6 +6,7 @@
  */
 
 import { isDeepseekModel } from '../../shared/providers';
+import { suggestWrapperName } from './crossAccount';
 import type { CurrencyRates, DayRow, DeepseekResult } from '../../shared/types';
 
 /**
@@ -120,4 +121,28 @@ export const DRIFT_ALERT = 0.1;
 export function driftLabel(ratio: number): string {
   const pct = ratio * 100;
   return `${pct >= 0 ? '+' : '−'}${Math.abs(pct).toFixed(0)}%`;
+}
+
+/**
+ * The wrapper command that runs Claude Code on DeepSeek, if one is set up —
+ * i.e. an account whose generated wrapper exports a DeepSeek base URL.
+ *
+ * Connecting a key and running Claude Code on DeepSeek are two independent
+ * things (one reads the balance, the other routes inference), and the UI has
+ * to be able to say which of them is done. Keyed on the base URL rather than
+ * the account name because the name is the user's to choose.
+ */
+export function deepseekWrapperName(
+  prefs: Record<string, { name?: string; disabled?: boolean; env?: Record<string, string> }>,
+): string | null {
+  for (const [root, p] of Object.entries(prefs ?? {})) {
+    if (p?.disabled) continue;
+    const base = p?.env?.ANTHROPIC_BASE_URL ?? '';
+    if (base.toLowerCase().includes('deepseek')) {
+      // same derivation the wizard shows for an unrenamed account, not a
+      // second copy of it — hand-rolling this produced `claude-claude-deepseek`
+      return p.name || suggestWrapperName(root);
+    }
+  }
+  return null;
 }

@@ -242,6 +242,13 @@ export function SetupWizard() {
         {/* Step 1 Column */}
         <div className="wiz-col">
           <div className="wiz-step-label">1 · accounts → wrapper command</div>
+          {/* the `+ env` control is the only way to reach the provider presets,
+              and nothing else on this screen says they exist — the DeepSeek card
+              that would is hidden until you already use DeepSeek */}
+          <div className="wiz-step-note">
+            each wrapper sets <code>CLAUDE_CONFIG_DIR</code>; <code>+ env</code> adds provider
+            settings — that is how an account runs on DeepSeek instead of Anthropic
+          </div>
           <div className="wiz-accts-list">
             {roots.map((root) => {
               const envCount = Object.keys(envByRoot[root] ?? {}).length;
@@ -310,7 +317,9 @@ export function SetupWizard() {
                     <textarea
                       className="wiz-env"
                       spellCheck={false}
-                      rows={3}
+                      // grows with the content: a provider preset is ~11 lines,
+                      // and a 3-row box hides all but the first two of them
+                      rows={Math.min(12, Math.max(3, (envText[root] ?? '').split('\n').length))}
                       placeholder={'ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic\nANTHROPIC_AUTH_TOKEN=sk-…'}
                       value={envText[root] ?? ''}
                       onChange={(e) => {

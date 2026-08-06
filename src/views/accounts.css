@@ -657,6 +657,18 @@
   color: var(--text-faint);
   margin-bottom: 11px;
 }
+.wiz-step-note {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.65;
+  color: var(--text-faint);
+  margin: -5px 0 11px;
+}
+.wiz-step-note code {
+  font-family: var(--mono);
+  color: var(--text-dim);
+}
+
 .wiz-os {
   color: var(--amber);
   text-transform: none;

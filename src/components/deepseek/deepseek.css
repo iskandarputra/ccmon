@@ -204,6 +204,32 @@
   margin-top: 14px;
 }
 
+/* ---- run-on-deepseek pointer -------------------------------------------- */
+/* the balance is only half of what DeepSeek can be here; this row is what
+   makes the other half (the wrapper that routes Claude Code) discoverable */
+
+.ds-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.ds-run-state {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.ds-run-state.is-on {
+  color: var(--text-dim);
+}
+.ds-run-state code {
+  font-family: var(--mono);
+  color: var(--amber);
+}
+
 /* ---- connect control ---------------------------------------------------- */
 
 .ds-connect {

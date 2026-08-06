@@ -15,6 +15,7 @@ import { useNow } from '../../hooks/useNow';
 import { fmtUSD, fmtUSDPrecise, relTime } from '../../lib/format';
 import {
   DRIFT_ALERT,
+  deepseekWrapperName,
   deriveRunway,
   driftLabel,
   fmtNative,
@@ -23,6 +24,52 @@ import {
   runwayLabel,
 } from '../../lib/deepseek';
 import type { DeepseekSample } from '../../../shared/types';
+
+/**
+ * Connecting a key and RUNNING Claude Code on DeepSeek are separate things, and
+ * the card only ever did the first. Someone who lands here with a balance and
+ * no idea Claude Code can be pointed at DeepSeek has no way to discover the
+ * wrapper — the setup panel that builds it is directly below this one, so say
+ * so, and report whether it is already done rather than repeating the pitch.
+ */
+function RunOnDeepseek() {
+  const prefs = useUsageStore((s) => s.settings?.accountWrapperPrefs) ?? {};
+  const wrapper = deepseekWrapperName(prefs);
+  return (
+    <div className="ds-run">
+      <span className={`ds-run-state${wrapper ? ' is-on' : ''}`}>
+        {wrapper ? (
+          <>
+            run it with <code>{wrapper}</code>
+          </>
+        ) : (
+          <>no wrapper yet — build one in multi-account setup, below</>
+        )}
+      </span>
+      <Hint label="run claude code on deepseek">
+        A key here only reads your <b>balance</b>. To send work to DeepSeek, Claude Code needs a
+        launcher that points it at DeepSeek's Anthropic-compatible endpoint — that is what the
+        multi-account setup panel below generates:
+        <br />
+        <br />
+        <b>1.</b> create an account dir named <code>deepseek</code> (its own dir is what keeps this
+        spend separately attributed — a transcript records no account identity, so sessions written
+        into <code>~/.claude</code> are indistinguishable from your subscription work).
+        <br />
+        <b>2.</b> on that row, <code>+ env → DeepSeek</code>. That fills in the base URL, the model
+        mapping for all three tiers, and the capability flags Claude Code needs to keep
+        effort/thinking enabled on a model it does not recognise.
+        <br />
+        <b>3.</b> preview, apply, open a new terminal.
+        <br />
+        <br />
+        The key you connected here is reused automatically — the preset writes a reference to it,
+        not a copy, so you never paste it twice and it stays encrypted. Prices come from ccmon's
+        bundled DeepSeek catalog, so the spend lands in every view next to your Claude usage.
+      </Hint>
+    </div>
+  );
+}
 
 /**
  * Balance trail from the persisted polls. Scaled to the observed min/max
@@ -106,6 +153,7 @@ export function DeepseekCard() {
           </span>
         </div>
         <DeepseekConnect />
+        <RunOnDeepseek />
       </Panel>
     );
   }
@@ -117,6 +165,7 @@ export function DeepseekCard() {
           <span className="ds-empty-lead">fetching balance…</span>
         </div>
         <DeepseekConnect />
+        <RunOnDeepseek />
       </Panel>
     );
   }
@@ -136,6 +185,7 @@ export function DeepseekCard() {
           </button>
         </div>
         <DeepseekConnect />
+        <RunOnDeepseek />
       </Panel>
     );
   }
@@ -259,6 +309,7 @@ export function DeepseekCard() {
       </div>
 
       <DeepseekConnect />
+      <RunOnDeepseek />
     </Panel>
   );
 }
