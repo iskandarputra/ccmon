@@ -519,6 +519,14 @@ message that is not even true on their machine. Reads are cached 5 s
 (identity resolves on every snapshot publish; each miss is a process spawn)
 and the cache is dropped on write.
 
+`classifySecurityError` separates "you are not logged in" (exit 44, no item —
+say nothing extra) from "the credentials exist but this process cannot reach
+them". The second case is common and otherwise baffling: a Keychain unlock is
+bound to the GUI security session, so ccmon started over SSH or from a tmux
+server that predates login gets `errSecInteractionNotAllowed` and would report
+"no stored login" on a Mac that is plainly logged in. `keychainReason` appends
+that explanation instead.
+
 Results per dir, `{ok, fetchedAt, session, week, weekOpus, weekSonnet}`
 with windows as `{pct, resetsAt}` (from `five_hour` / `seven_day` /
 `seven_day_opus` / `seven_day_sonnet`), flow via `limits:data` events and

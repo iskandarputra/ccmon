@@ -45,17 +45,49 @@ export interface KeychainIO {
 
 const RW_TIMEOUT_MS = 5000;
 
+/**
+ * `security(1)` exit codes worth telling the user apart. 44 is the ordinary
+ * "you are not logged in on this root" case and needs no explanation; the
+ * others mean the credentials EXIST but this process cannot reach them, which
+ * is a completely different problem with a completely different fix.
+ *
+ * The interaction case is common and confusing: a Keychain unlock is bound to
+ * the GUI (Aqua) security session, so Claude Code and ccmon run from SSH, or
+ * from a tmux server started before login, both get errSecInteractionNotAllowed
+ * and see "no stored login" on a Mac that is plainly logged in.
+ */
+export function classifySecurityError(status: number | undefined, stderr: string): string | null {
+  const text = (stderr || '').toLowerCase();
+  if (status === 44 || text.includes('could not be found')) return null; // no item — ordinary
+  if (status === 36 || text.includes('interaction is not allowed')) {
+    return 'the macOS Keychain refused access without a GUI session (SSH or a detached tmux) — ' +
+      'run `security unlock-keychain` in that session, or start it from a terminal you logged into';
+  }
+  if (status === 51 || text.includes('locked')) return 'the macOS Keychain is locked';
+  if (status === 128 || text.includes('user canceled')) return 'the macOS Keychain prompt was cancelled';
+  return stderr.trim() ? `macOS Keychain error: ${stderr.trim().slice(0, 120)}` : null;
+}
+
+/** Why the last Keychain read failed, when it failed for a reason worth showing. */
+let lastError: string | null = null;
+export const keychainLastError = (): string | null => lastError;
+
 export const securityIO: KeychainIO = {
   read(service, account) {
     try {
       const args = ['find-generic-password', '-s', service, '-w'];
       if (account) args.push('-a', account);
-      const out = execFileSync('security', args, { encoding: 'utf8', timeout: RW_TIMEOUT_MS });
+      const out = execFileSync('security', args, {
+        encoding: 'utf8',
+        timeout: RW_TIMEOUT_MS,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      lastError = null;
       const trimmed = out.trim();
       return trimmed || null;
-    } catch {
-      // exit 44 = item not found; anything else (locked keychain, denied) is
-      // equally "no credentials from here" as far as the caller is concerned
+    } catch (e) {
+      const err = e as { status?: number; stderr?: Buffer | string };
+      lastError = classifySecurityError(err.status, String(err.stderr ?? ''));
       return null;
     }
   },
@@ -108,11 +140,15 @@ export function keychainApplies(root: string, opts: KeychainOptions = {}): boole
 export function keychainReason(root: string, opts: KeychainOptions = {}): string {
   const platform = opts.platform ?? process.platform;
   if (platform !== 'darwin') return '';
-  if (keychainApplies(root, opts)) return '';
-  return (
-    ' — on macOS the login lives in the Keychain under one item, which ccmon reads only for the ' +
-    'default ~/.claude account; other roots need a ~/.credentials.json'
-  );
+  if (!keychainApplies(root, opts)) {
+    return (
+      ' — on macOS the login lives in the Keychain under one item, which ccmon reads only for the ' +
+      'default ~/.claude account; other roots need a ~/.credentials.json'
+    );
+  }
+  // the Keychain WAS consulted and refused for a reason the user can act on
+  const err = lastError;
+  return err ? ` — ${err}` : '';
 }
 
 /**

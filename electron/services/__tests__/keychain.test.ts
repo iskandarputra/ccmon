@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import path from 'path';
 import {
   KEYCHAIN_SERVICE,
+  classifySecurityError,
   clearKeychainCache,
   keychainApplies,
   keychainReason,
@@ -102,6 +103,32 @@ describe('writeKeychainSecret — token rotation goes back where it came from', 
     expect(writeKeychainSecret(WORK_ROOT, 'x', mac({ io: f.io }))).toBe(false);
     expect(writeKeychainSecret(DEFAULT_ROOT, 'x', { platform: 'linux', home: HOME, io: f.io })).toBe(false);
     expect(f.calls).toHaveLength(0);
+  });
+});
+
+describe('classifySecurityError — tell "not logged in" apart from "cannot reach it"', () => {
+  it('says nothing for an absent item — that is the ordinary not-logged-in case', () => {
+    expect(classifySecurityError(44, 'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.')).toBeNull();
+  });
+
+  it('explains the GUI-session refusal, which is what SSH and detached tmux hit', () => {
+    // credentials exist and the Mac is logged in — the process just cannot
+    // reach the Keychain, which reads as "no stored login" without this
+    const msg = classifySecurityError(36, 'security: SecKeychainSearchCopyNext: User interaction is not allowed.');
+    expect(msg).toContain('without a GUI session');
+    expect(msg).toContain('unlock-keychain');
+  });
+
+  it('reports a locked keychain and a cancelled prompt', () => {
+    expect(classifySecurityError(51, 'The user name or passphrase you entered is not correct; keychain is locked')).toContain('locked');
+    expect(classifySecurityError(128, 'User canceled the operation.')).toContain('cancelled');
+  });
+
+  it('passes an unrecognised failure through, truncated, rather than swallowing it', () => {
+    expect(classifySecurityError(1, 'something else entirely')).toBe(
+      'macOS Keychain error: something else entirely',
+    );
+    expect(classifySecurityError(1, '   ')).toBeNull();
   });
 });
 

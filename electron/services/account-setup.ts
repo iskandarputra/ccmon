@@ -288,7 +288,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Fail($m) { Write-Error $m; exit 1 }
+# -ErrorAction Continue: the preference above is Stop, which would make
+# Write-Error terminating here and leave the exit below unreachable — the
+# caller would see an exception instead of the exit code the POSIX twin gives.
+function Fail($m) { Write-Error $m -ErrorAction Continue; exit 1 }
 function Note($m) { Write-Host $m -ForegroundColor DarkGray }
 
 if ($Force -and $Keep) { Fail '-Force and -Keep are mutually exclusive' }
@@ -355,7 +358,7 @@ if ($DryRun -or $NoLaunch) {
     $where = $cwd
     if (-not $where) { $where = '<project dir>' }
     Note "[$reason] not launching. To resume manually:"
-    Note "  cd '$where'; \\$env:CLAUDE_CONFIG_DIR = '$Dst'; claude --resume $Id"
+    Note "  cd '$where'; \`$env:CLAUDE_CONFIG_DIR = '$Dst'; claude --resume $Id"
     exit 0
 }
 
@@ -363,13 +366,14 @@ if ($cwd -and (Test-Path -LiteralPath $cwd -PathType Container)) {
     Set-Location -LiteralPath $cwd
     $env:CLAUDE_CONFIG_DIR = $Dst
     claude --resume $Id
+    if ($null -eq $LASTEXITCODE) { exit 0 }
     exit $LASTEXITCODE
 }
 
-Write-Error @"
+Write-Error -ErrorAction Continue -Message @"
 could not auto-locate the original working directory.
 cd to the project dir manually, then run:
-  \\$env:CLAUDE_CONFIG_DIR = '$Dst'; claude --resume $Id
+  \`$env:CLAUDE_CONFIG_DIR = '$Dst'; claude --resume $Id
 "@
 exit 1
 `;
