@@ -128,7 +128,7 @@ describe('accountRoot + crossResumeCommand', () => {
 
   it('builds the canonical helper command from the roots', () => {
     expect(crossResumeCommand(PERSONAL, WORK, 'abc-123')).toBe(
-      'claude-cross-resume /home/isz/.claude /home/isz/.claude-work abc-123',
+      '~/.local/bin/claude-cross-resume /home/isz/.claude /home/isz/.claude-work abc-123',
     );
   });
 
@@ -139,7 +139,7 @@ describe('accountRoot + crossResumeCommand', () => {
   it('quotes roots that contain spaces', () => {
     const spaced = '/home/isz/My Claude/projects';
     expect(crossResumeCommand(spaced, WORK, 'x')).toBe(
-      'claude-cross-resume "/home/isz/My Claude" /home/isz/.claude-work x',
+      '~/.local/bin/claude-cross-resume "/home/isz/My Claude" /home/isz/.claude-work x',
     );
   });
 });
@@ -180,5 +180,33 @@ describe('isDefaultAccountRoot', () => {
     expect(isDefaultAccountRoot('/home/isz/.claude')).toBe(true);
     expect(isDefaultAccountRoot('/home/isz/.claude-work')).toBe(false);
     expect(isDefaultAccountRoot('/home/isz/.claude-personal')).toBe(false);
+  });
+});
+
+describe('effectiveWrapperAccounts — env survives a rename/untrack rewrite', () => {
+  it('carries a saved env through, since this list regenerates the whole file', () => {
+    const dirs = [PERSONAL, WORK];
+    const prefs = {
+      '/home/isz/.claude-work': {
+        name: 'claude-deepseek',
+        env: { ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic' },
+      },
+    };
+    const out = effectiveWrapperAccounts(dirs, prefs);
+    expect(out).toEqual([
+      { name: 'claude-personal', root: '/home/isz/.claude' },
+      {
+        name: 'claude-deepseek',
+        root: '/home/isz/.claude-work',
+        env: { ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic' },
+      },
+    ]);
+  });
+
+  it('omits the key entirely when there is no env', () => {
+    expect(effectiveWrapperAccounts([PERSONAL], {})[0]).toEqual({
+      name: 'claude-personal',
+      root: '/home/isz/.claude',
+    });
   });
 });

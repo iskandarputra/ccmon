@@ -37,6 +37,22 @@ export async function buildElectron(): Promise<void> {
   });
 }
 
+/**
+ * Windows has no shebang and no executable bit, so the shipped `index.cjs`
+ * cannot be run directly the way the README's `ln -sf` runs it on Unix. This
+ * batch shim sits beside it and is what a user puts on PATH (or points a
+ * Claude Code `statusLine.command` at): it forwards every argument to node and
+ * propagates the exit code, which a statusline needs to stay silent on error.
+ */
+const CMD_SHIM = [
+  '@echo off',
+  'rem ccmon CLI launcher (generated) — Windows has no shebang.',
+  'setlocal',
+  'node "%~dp0index.cjs" %*',
+  'exit /b %ERRORLEVEL%',
+  '',
+].join('\r\n');
+
 export async function buildCli(): Promise<void> {
   await build({
     ...common,
@@ -47,6 +63,7 @@ export async function buildCli(): Promise<void> {
   // the shebang is only useful if the file is executable — npm's bin symlink
   // does not add the bit for you
   await fs.chmod(path.join('dist-cli', 'index.cjs'), 0o755);
+  await fs.writeFile(path.join('dist-cli', 'ccmon.cmd'), CMD_SHIM);
 }
 
 if (require.main === module) {

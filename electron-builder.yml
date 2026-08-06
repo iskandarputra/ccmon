@@ -26,6 +26,9 @@ extraResources:
     to: cli
     filter:
       - '**/*.cjs'
+      # ccmon.cmd is the Windows entry point: no shebang there, so index.cjs
+      # cannot be executed directly the way it is on Unix.
+      - '**/*.cmd'
 
 asar: true
 compression: normal
@@ -58,8 +61,17 @@ nsis:
 mac:
   icon: build/icon.png
   category: public.app-category.developer-tools
+  # CI runs on macos-latest, which is Apple Silicon — without an explicit arch
+  # list only arm64 is built and Intel Macs get nothing at all from a release.
   target:
-    - dmg
-    - zip
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  # Unsigned and un-notarised on purpose (no paid Developer ID): a downloaded
+  # build carries the quarantine bit, so Gatekeeper refuses it until the user
+  # clears it — the README documents the xattr one-liner. Ad-hoc signing keeps
+  # the arm64 build launchable at all; arm64 binaries MUST carry a signature.
+  identity: null
 
 artifactName: ${name}-${version}-${os}-${arch}.${ext}

@@ -9,7 +9,7 @@ six network paths (see Gotchas) — four background, two user-initiated.
 | Command | What | When to run |
 |---|---|---|
 | `npm run dev` | esbuild + Vite + Electron, hot reload | developing |
-| `npm test` | vitest, 261 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
+| `npm test` | vitest, 443 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
 | `npm run smoke` | full pipeline against real `~/.claude` data, no Electron | after touching `electron/services/` |
 | `npm run cli -- <args>` | the headless CLI via tsx (`json`, `csv`, `statusline`) | developing `cli/` |
 | `npm run build:cli` | just the CLI bundle → `dist-cli/index.cjs` (+x, shebang) | testing the real binary |
@@ -45,12 +45,15 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
   isn't a single-implementation abstraction.
 - `electron/services/` — pure Node, **never** import Electron here (this is
   what keeps smoke and the unit tests possible; type-only electron imports
-  erase, so they're fine). Twenty-one services: paths, config, settings,
+  erase, so they're fine). Twenty-two services: paths, config, settings,
   watcher, parser, aggregate, blocks, pricing, pricing-archive, accounts,
-  auth, advisor, export, cross-account, account-setup, limits-history,
-  currency, deepseek, deepseek-history, deepseek-key, window-state. A service
-  needing an Electron API takes it INJECTED rather than importing it —
-  `deepseek-key.ts` receives a `KeyCrypto` that main backs with `safeStorage`.
+  auth, keychain, advisor, export, cross-account, account-setup,
+  limits-history, currency, deepseek, deepseek-history, deepseek-key,
+  window-state. A service needing an Electron API takes it INJECTED rather
+  than importing it — `deepseek-key.ts` receives a `KeyCrypto` that main backs
+  with `safeStorage`. `keychain.ts` shells out to macOS `security(1)` for the
+  same reason: a native keychain module would need node-gyp and break the
+  pure-Node rule.
 - `electron/main.ts` — the only main-process file that touches Electron
   APIs; owns `entries[]`, the debounced recompute, the two pollers
   (limits 60 s, currency 1 h), and the tray. Tray STRINGS come from the pure
@@ -190,8 +193,8 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
   4. user-initiated re-login (`auth.ts`, the "Log in" control) — a
      refresh-token grant, falling back to a browser PKCE code-paste flow.
      Runs ONLY on an explicit click, never in a poller, and ALWAYS persists
-     the rotated tokens back to `.credentials.json` (atomic, mode 0600) so
-     Claude Code stays in sync;
+     the rotated tokens back to the store they came from — `.credentials.json`
+     (atomic, mode 0600), or the macOS Keychain — so Claude Code stays in sync;
   5. user-initiated AI advisor (`advisor.ts`, the advisor view) — POSTs the
      Messages API reusing the stored login token (read-only), sending ONLY
      snapshot aggregates, never transcripts. Anthropic's ToS scopes that
@@ -206,6 +209,15 @@ CI (`.github/workflows/ci.yml`) runs typecheck + tests on every push;
      burn, runway and the computed-vs-observed drift check are all measured
      locally from the balance falling (`deepseek-history.ts`). The connect
      click probes the endpoint once before persisting the key.
+- **macOS keeps the Claude Code login in the Keychain, not a file.** No
+  `<root>/.credentials.json` exists there, so limits, the tray cap row, the
+  near-cap alert and the advisor all depend on `services/keychain.ts` reading
+  the `Claude Code-credentials` item via `security(1)`. File first, Keychain
+  second (the file is per-root and authoritative). The item identifies no
+  config dir, so it is used for the DEFAULT `~/.claude` root only — reusing it
+  for a second root would report one login's limits under another account's
+  name. `auth.ts` writes rotations back to whichever store it read from;
+  writing the file on a Mac would desync Claude Code silently.
 - ccmon NEVER deletes an account: that root holds the credentials and every
   transcript the app reads. "Remove" is `AccountWrapperPrefs.hidden`, a view
   preference. Main keeps `allSourceDirs` (detected) vs `sourceDirs` (visible);

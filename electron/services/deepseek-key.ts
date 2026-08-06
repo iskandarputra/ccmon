@@ -160,9 +160,12 @@ export class DeepseekKeyStore {
     this.stored = value;
     this.storedEncrypted = enc;
     if (!enc) {
+      // POSIX modes do not exist on Windows — claiming 0600 there would
+      // describe protection the file does not have (the profile ACL is it)
+      const how = process.platform === 'win32' ? 'your user profile only' : 'mode 0600';
       console.warn(
         '[ccmon] OS keyring unavailable — the DeepSeek key is stored unencrypted at ' +
-          `${this.file} (mode 0600)`,
+          `${this.file} (${how})`,
       );
     }
   }

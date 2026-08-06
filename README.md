@@ -133,6 +133,19 @@ ccmon json | jq '.totals.cost'
 ccmon csv days --since 20260101 > days.csv
 ```
 
+On **Windows** there is no shebang and no executable bit, so the build ships a
+`ccmon.cmd` launcher next to `index.cjs`. Add its folder to `PATH` (or call it
+by full path):
+
+```powershell
+# installed build
+$env:Path += ";$env:LOCALAPPDATA\Programs\ccmon\resources\cli"
+ccmon --help
+
+# from a source checkout
+npm run build:cli; .\dist-cli\ccmon.cmd json --range 30d
+```
+
 It reads the same data and settings as the app, never writes anything, and
 never polls your login — plan limits come from the history the app already
 persisted. Useful as a Claude Code statusline:
@@ -140,6 +153,38 @@ persisted. Useful as a Claude Code statusline:
 ```json
 { "statusLine": { "type": "command", "command": "ccmon statusline" } }
 ```
+
+On Windows, point it at the launcher (JSON needs the backslashes doubled):
+
+```json
+{ "statusLine": { "type": "command", "command": "C:\\Users\\me\\AppData\\Local\\Programs\\ccmon\\resources\\cli\\ccmon.cmd statusline" } }
+```
+
+### macOS: first launch
+
+The Mac builds are unsigned and un-notarised — ccmon has no paid Apple
+Developer ID — so Gatekeeper refuses a downloaded `.dmg` with *"ccmon is
+damaged and can't be opened"*. That message is about the missing signature,
+not the download. Clear the quarantine attribute once after copying the app to
+`/Applications`:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/ccmon.app
+```
+
+Both `arm64` and `x64` builds are published; take the one matching your Mac.
+Building from source (`./build.sh mac`) produces an app that runs without this
+step.
+
+### macOS: plan limits and the Keychain
+
+Claude Code stores its login in the **login Keychain** on macOS, not in
+`~/.claude/.credentials.json`. ccmon reads that Keychain item (via
+`security(1)`, read-only) so live plan limits, the tray cap row, the near-cap
+alert and the AI advisor work there. One limitation: the item carries nothing
+identifying a `CLAUDE_CONFIG_DIR`, so it is only used for the default
+`~/.claude` account — a second account root on macOS needs its own
+`.credentials.json`, and ccmon says so instead of guessing.
 
 Tagged pushes cut a GitHub release with Linux, Windows and macOS artifacts
 attached (`.github/workflows/build.yml`):

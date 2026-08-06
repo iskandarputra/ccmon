@@ -339,8 +339,11 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
       // force the wrapper name to match the new folder suffix exactly —
       // name and shell command must never diverge
       const nextPrefs = { ...prefs };
+      const carried = prefs[root];
       delete nextPrefs[root];
-      nextPrefs[newRoot] = { name: `claude-${suffix}` };
+      // the folder moved, but everything else about the account is unchanged —
+      // dropping its env here would break an alternate-provider wrapper
+      nextPrefs[newRoot] = { ...carried, name: `claude-${suffix}` };
       updateSettings({ accountWrapperPrefs: nextPrefs });
       await window.ccmon?.updateWrapperAccounts(
         effectiveWrapperAccounts(useUsageStore.getState().sourceDirs, nextPrefs),
@@ -775,8 +778,12 @@ function HeadroomBanner() {
         the highest-usage account is the source and every other logged-in
         account is a target, so you can switch at any utilization (targets with
         genuine headroom are flagged). It needs the{' '}
-        <code>claude-cross-resume</code> helper on your PATH (install it from the
-        setup panel below). ccmon never moves or launches a session itself.
+        <code>claude-cross-resume</code> helper, which the setup panel below
+        installs to <code>~/.local/bin</code> — the command is spelled with that
+        path, so it works whether or not the directory is on your PATH (macOS
+        does not add it). Windows gets the same thing as a PowerShell script
+        under <code>~/.config/ccmon</code>. ccmon never moves or launches a
+        session itself.
       </Hint>
     </Panel>
   );

@@ -8,7 +8,9 @@
 
 import crypto from 'crypto';
 import fs from 'fs';
+import path from 'path';
 import { credentialsPath } from './accounts';
+import { readKeychainSecret, writeKeychainSecret } from './keychain';
 
 /**
  * This module is the ONLY place ccmon ever writes Claude Code credentials, and
@@ -19,10 +21,12 @@ import { credentialsPath } from './accounts';
  * keeps the two in lockstep. Failing to persist a rotated token is what would
  * log the user out, so persistence is mandatory, not best-effort.
  *
- * macOS note: when Claude Code stores its login in the Keychain rather than a
- * file, no `.credentials.json` exists; the silent refresh has nothing to read
- * and the browser flow would write a file Claude Code may not consult. Limits
- * already only work where the file exists, so this inherits that limitation.
+ * macOS: Claude Code keeps the login in the Keychain there, so no
+ * `.credentials.json` exists for the default account. `keychain.ts` reads that
+ * item and `persistTokens` writes the rotated pair straight back to it, which
+ * keeps the lockstep contract above true on a Mac instead of writing a file
+ * Claude Code would never consult. A non-default root on macOS still needs a
+ * file — the Keychain item carries nothing that identifies a config dir.
  */
 
 // Public Claude Code OAuth client (native/loopback client — has no secret).
@@ -83,6 +87,8 @@ const snip = (text: string): string => {
   return s ? ` · ${s}` : '';
 };
 
+const rootOf = (projectDir: string) => path.dirname(projectDir);
+
 function readFile(projectDir: string): CredentialsFile | null {
   try {
     return JSON.parse(fs.readFileSync(credentialsPath(projectDir), 'utf8')) as CredentialsFile;
@@ -91,9 +97,27 @@ function readFile(projectDir: string): CredentialsFile | null {
   }
 }
 
+/**
+ * The stored record, from the file or — on a default-root Mac, where Claude
+ * Code writes no file — the Keychain. Reading both here is what lets the
+ * silent refresh grant work on macOS at all; before this it had nothing to
+ * read and every login fell through to the browser paste flow.
+ */
+function readStore(projectDir: string): CredentialsFile | null {
+  const file = readFile(projectDir);
+  if (file?.claudeAiOauth) return file;
+  const secret = readKeychainSecret(rootOf(projectDir));
+  if (!secret) return file;
+  try {
+    return JSON.parse(secret) as CredentialsFile;
+  } catch {
+    return file;
+  }
+}
+
 /** Full stored OAuth record for a source dir (incl. the refresh token), or null. */
 export function readOauth(projectDir: string): StoredOauth | null {
-  return readFile(projectDir)?.claudeAiOauth ?? null;
+  return readStore(projectDir)?.claudeAiOauth ?? null;
 }
 
 /**
@@ -112,14 +136,28 @@ export function mergeTokens(prev: StoredOauth, tok: TokenResponse, now: number):
   };
 }
 
-/** Merge + write `.credentials.json` atomically (temp + rename, mode 0600). Returns the new expiry. */
+/**
+ * Merge + write the rotated pair back to the SAME store it was read from:
+ * `.credentials.json` atomically (temp + rename, mode 0600) everywhere, and
+ * the macOS Keychain when that is where this root's login lives. Writing the
+ * file on a default-root Mac would leave Claude Code reading a stale Keychain
+ * item while ccmon held the rotated one — exactly the desync this module
+ * exists to prevent. Returns the new expiry.
+ */
 function persistTokens(projectDir: string, tok: TokenResponse): number {
-  const file = readFile(projectDir) ?? {};
-  const next = mergeTokens(file.claudeAiOauth ?? {}, tok, Date.now());
-  const out: CredentialsFile = { ...file, claudeAiOauth: next };
+  const store = readStore(projectDir) ?? {};
+  const next = mergeTokens(store.claudeAiOauth ?? {}, tok, Date.now());
+  const out: CredentialsFile = { ...store, claudeAiOauth: next };
+  const payload = `${JSON.stringify(out, null, 2)}\n`;
+
+  const toKeychain = !readFile(projectDir)?.claudeAiOauth;
+  if (toKeychain && writeKeychainSecret(rootOf(projectDir), payload)) {
+    return next.expiresAt ?? Date.now();
+  }
+
   const target = credentialsPath(projectDir);
   const tmp = `${target}.ccmon-${process.pid}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(out, null, 2)}\n`, { mode: 0o600 });
+  fs.writeFileSync(tmp, payload, { mode: 0o600 });
   fs.renameSync(tmp, target); // atomic on the same filesystem
   return next.expiresAt ?? Date.now();
 }

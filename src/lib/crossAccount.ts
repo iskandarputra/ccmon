@@ -152,17 +152,25 @@ export const accountRoot = (projectDir: string): string =>
 const needsQuote = (s: string) => /[^A-Za-z0-9_./-]/.test(s);
 const sh = (s: string) => (needsQuote(s) ? `"${s.replace(/(["$`\\])/g, '\\$1')}"` : s);
 
+/** Where the setup panel installs the helper — the one path we can count on. */
+export const CROSS_RESUME_BIN = '~/.local/bin/claude-cross-resume';
+
 /**
  * The canonical, always-available resume command (mirrors the user's
  * `claude-cross-resume` helper): copy a session into the other account's root
  * and relaunch it there. ccmon emits this for the user to run; it never runs
  * it. `sessionId` is optional so the command can be shown before a specific
  * session is picked.
+ *
+ * Spelled with the install path rather than a bare name because `~/.local/bin`
+ * is on PATH by default on most Linux distros but NOT on macOS — a bare
+ * command is a copy-paste that fails there. `~` is expanded by the shell the
+ * user pastes into, and works even if PATH never picks the directory up.
  */
 export function crossResumeCommand(fromDir: string, toDir: string, sessionId?: string): string {
   const from = sh(accountRoot(fromDir));
   const to = sh(accountRoot(toDir));
-  return `claude-cross-resume ${from} ${to} ${sessionId ?? '<session-id>'}`;
+  return `${CROSS_RESUME_BIN} ${from} ${to} ${sessionId ?? '<session-id>'}`;
 }
 
 // ---- shell-wrapper naming (mirrors electron/services/account-setup.ts, which
@@ -193,6 +201,11 @@ export const WRAPPER_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
  * The account list the managed wrapper file should contain, given every
  * discovered source dir and the user's rename/untrack prefs: disabled roots
  * are dropped, others get their custom name or the suggested default.
+ *
+ * The saved `env` is carried through, and that is not optional: this is what
+ * the quick rename/untrack controls pass to `updateWrapperAccounts`, which
+ * REGENERATES the whole managed file. Dropping it here would silently strip an
+ * alternate-provider account's entire configuration on an unrelated rename.
  */
 export function effectiveWrapperAccounts(
   sourceDirs: string[],
@@ -201,5 +214,12 @@ export function effectiveWrapperAccounts(
   return sourceDirs
     .map(accountRoot)
     .filter((root) => !prefs[root]?.disabled)
-    .map((root) => ({ name: prefs[root]?.name || suggestWrapperName(root), root }));
+    .map((root) => {
+      const env = prefs[root]?.env;
+      return {
+        name: prefs[root]?.name || suggestWrapperName(root),
+        root,
+        ...(env && Object.keys(env).length ? { env } : {}),
+      };
+    });
 }

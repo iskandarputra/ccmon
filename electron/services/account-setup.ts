@@ -212,9 +212,20 @@ else
 fi
 
 # --- locate the original working directory ----------------------------------
+# node first: macOS ships NO python3 until the Xcode command line tools are
+# installed, and node is what ran ccmon in the first place. python3 stays as a
+# fallback for a box with python but no node.
 cwd=""
-if command -v python3 >/dev/null 2>&1; then
-    cwd=$(python3 - "$src_file" <<'PY' 2>/dev/null || true
+read_cwd_node() {
+    node -e '
+const fs = require("fs");
+for (const line of fs.readFileSync(process.argv[1], "utf8").split("\\n")) {
+  if (!line) continue;
+  try { const d = JSON.parse(line); if (d && d.cwd) { process.stdout.write(d.cwd); break; } } catch {}
+}' "$1" 2>/dev/null || true
+}
+read_cwd_python() {
+    python3 - "$1" <<'PY' 2>/dev/null || true
 import json, sys
 for line in open(sys.argv[1]):
     try:
@@ -224,7 +235,11 @@ for line in open(sys.argv[1]):
     if isinstance(d, dict) and d.get("cwd"):
         print(d["cwd"]); break
 PY
-)
+}
+if command -v node >/dev/null 2>&1; then
+    cwd=$(read_cwd_node "$src_file")
+elif command -v python3 >/dev/null 2>&1; then
+    cwd=$(read_cwd_python "$src_file")
 fi
 
 # --- launch (or explain how to) ---------------------------------------------
@@ -249,6 +264,115 @@ EOF
 exit 1
 `;
 
+/**
+ * The Windows port of the helper above — same contract, same overwrite policy,
+ * PowerShell 5.1-compatible (no ternary, no null-coalescing: Windows ships 5.1
+ * and a script that only runs under pwsh 7 would be useless on a stock box).
+ *
+ * Reading `cwd` needs no external interpreter here: ConvertFrom-Json is built
+ * in, which is the one thing the bash version has to shell out to node for.
+ */
+const PS_HELPER_SCRIPT = `# claude-cross-resume.ps1 — continue a Claude Code session on a different account.
+# Installed by ccmon. See the POSIX twin at ~/.local/bin/claude-cross-resume.
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true, Position = 0)][string] $Src,
+    [Parameter(Mandatory = $true, Position = 1)][string] $Dst,
+    [Parameter(Mandatory = $true, Position = 2)][string] $Id,
+    [switch] $Force,
+    [switch] $Keep,
+    [switch] $DryRun,
+    [switch] $NoLaunch
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Fail($m) { Write-Error $m; exit 1 }
+function Note($m) { Write-Host $m -ForegroundColor DarkGray }
+
+if ($Force -and $Keep) { Fail '-Force and -Keep are mutually exclusive' }
+if (-not (Test-Path -LiteralPath $Src -PathType Container)) { Fail "source config dir not found: $Src" }
+if (-not (Test-Path -LiteralPath $Dst -PathType Container)) { Fail "destination config dir not found: $Dst" }
+
+$srcFile = Get-ChildItem -LiteralPath (Join-Path $Src 'projects') -Filter "$Id.jsonl" -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $srcFile) { Fail "session $Id not found under $Src\\projects" }
+
+$proj    = Split-Path -Leaf $srcFile.DirectoryName
+$dstDir  = Join-Path (Join-Path $Dst 'projects') $proj
+$dstFile = Join-Path $dstDir "$Id.jsonl"
+
+function LineCount($p) {
+    if (-not (Test-Path -LiteralPath $p)) { return 0 }
+    return (Get-Content -LiteralPath $p -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
+}
+
+function BackupPath {
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $base = "$dstFile.$stamp.bak"
+    $candidate = $base
+    $n = 1
+    while (Test-Path -LiteralPath $candidate) { $candidate = "$base-$n"; $n++ }
+    return $candidate
+}
+
+function DoCopy {
+    if ($DryRun) {
+        if (Test-Path -LiteralPath $dstFile) { Note '[dry-run] would back up existing destination' }
+        Note "[dry-run] would copy transcript -> $dstFile ($(LineCount $srcFile.FullName) lines)"
+        return
+    }
+    New-Item -ItemType Directory -Force -Path $dstDir | Out-Null
+    if (Test-Path -LiteralPath $dstFile) {
+        $bak = BackupPath
+        Copy-Item -LiteralPath $dstFile -Destination $bak
+        Note "backed up existing destination -> $bak"
+    }
+    Copy-Item -LiteralPath $srcFile.FullName -Destination $dstFile
+    Write-Host "copied transcript -> $dstFile ($(LineCount $srcFile.FullName) lines)"
+}
+
+# A resumed session only APPENDS, so more lines == newer. Same policy as POSIX.
+if (-not (Test-Path -LiteralPath $dstFile)) { DoCopy }
+elseif ($Keep) { Note 'note: destination exists - keeping it (-Keep)' }
+elseif ($Force) { Note 'overwriting destination (-Force)'; DoCopy }
+else {
+    $s = LineCount $srcFile.FullName
+    $d = LineCount $dstFile
+    if ($s -gt $d) { Note "source is newer ($s > $d lines) - overwriting"; DoCopy }
+    else { Note "note: destination is same-or-newer ($d >= $s lines) - keeping it; use -Force to override" }
+}
+
+$cwd = $null
+foreach ($line in Get-Content -LiteralPath $srcFile.FullName) {
+    try { $o = $line | ConvertFrom-Json } catch { continue }
+    if ($o -and $o.cwd) { $cwd = $o.cwd; break }
+}
+
+if ($DryRun -or $NoLaunch) {
+    $reason = 'dry-run'
+    if (-not $DryRun) { $reason = '-NoLaunch' }
+    $where = $cwd
+    if (-not $where) { $where = '<project dir>' }
+    Note "[$reason] not launching. To resume manually:"
+    Note "  cd '$where'; \\$env:CLAUDE_CONFIG_DIR = '$Dst'; claude --resume $Id"
+    exit 0
+}
+
+if ($cwd -and (Test-Path -LiteralPath $cwd -PathType Container)) {
+    Set-Location -LiteralPath $cwd
+    $env:CLAUDE_CONFIG_DIR = $Dst
+    claude --resume $Id
+    exit $LASTEXITCODE
+}
+
+Write-Error @"
+could not auto-locate the original working directory.
+cd to the project dir manually, then run:
+  \\$env:CLAUDE_CONFIG_DIR = '$Dst'; claude --resume $Id
+"@
+exit 1
+`;
+
 export interface SetupEnv {
   home: string;
   /** the user's login shell path, or null when undetectable / on Windows */
@@ -259,26 +383,68 @@ export interface SetupEnv {
   psProfile?: string;
 }
 
+/** Run a probe command for the login shell; null on any failure. Injectable for tests. */
+export type ShellProbe = (file: string, args: string[]) => string | null;
+
+const execProbe: ShellProbe = (file, args) => {
+  try {
+    return execFileSync(file, args, { encoding: 'utf8', timeout: 2000 });
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Resolve the login shell the way a setup tool should: trust the system
- * account record (/etc/passwd via getent) over `$SHELL`, because `$SHELL`
- * lies in nested or wrapped shells (e.g. it reads `zsh` while the login shell
- * is actually `zy`). Falls back to `$SHELL` only when getent is unavailable
- * (e.g. macOS).
+ * account record over `$SHELL`, because `$SHELL` lies in nested or wrapped
+ * shells (it reads `zsh` while the login shell is actually `zy`) and is not
+ * guaranteed to be in our environment at all.
+ *
+ * The record lives in a different place per OS:
+ * - Linux/BSD: `/etc/passwd`, read via `getent passwd $USER` (field 7).
+ * - macOS: Directory Services — there is NO `getent`. `dscl . -read
+ *   /Users/$USER UserShell` is the equivalent, and it matters more here than
+ *   on Linux: a GUI app started from Finder or the Dock inherits launchd's
+ *   environment, which need not carry `$SHELL`, so the old fallback could
+ *   leave us with no login shell at all and an empty shell list in the wizard.
+ *
+ * `$SHELL` stays as the last resort for anything neither probe answers.
  */
-export function resolveLoginShell(): string | null {
+export function resolveLoginShell(
+  platform: string = process.platform,
+  probe: ShellProbe = execProbe,
+): string | null {
+  let user = '';
   try {
-    const user = os.userInfo().username;
-    const out = execFileSync('getent', ['passwd', user], { encoding: 'utf8', timeout: 2000 });
-    const shell = out.split('\n')[0]?.split(':')[6];
-    if (shell && shell.trim()) return shell.trim();
+    user = os.userInfo().username;
   } catch {
-    /* getent missing or failed (macOS/Windows) — fall back to $SHELL */
+    /* no passwd entry for this uid (containers) — probes are pointless */
+  }
+  if (user) {
+    if (platform === 'darwin') {
+      // "UserShell: /bin/zsh" — the key is echoed back with the value
+      const shell = probe('dscl', ['.', '-read', `/Users/${user}`, 'UserShell'])?.match(
+        /UserShell:\s*(\S+)/,
+      )?.[1];
+      if (shell) return shell;
+    } else {
+      const shell = probe('getent', ['passwd', user])?.split('\n')[0]?.split(':')[6]?.trim();
+      if (shell) return shell;
+    }
   }
   return process.env.SHELL || null;
 }
 
-/** Ask PowerShell for the user's profile path; fall back to the PS7 default. */
+/**
+ * Ask PowerShell for the user's profile path; fall back to the PS7 default.
+ *
+ * Asking the shell is what makes this correct — the answer accounts for both
+ * `Documents\PowerShell` (PS7, via `pwsh`) and `Documents\WindowsPowerShell`
+ * (5.1, via `powershell`), and for OneDrive Known Folder Move, which
+ * redirects `Documents` to `%USERPROFILE%\OneDrive\Documents`. The hardcoded
+ * fallback can only guess, so it at least honours the OneDrive redirect when
+ * that folder is the one that exists.
+ */
 export function resolvePowershellProfile(home = os.homedir()): string {
   for (const exe of ['pwsh', 'powershell']) {
     try {
@@ -291,14 +457,17 @@ export function resolvePowershellProfile(home = os.homedir()): string {
       /* not installed / not Windows — try the next, then the default */
     }
   }
-  return path.join(home, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1');
+  const plain = path.join(home, 'Documents');
+  const oneDrive = path.join(home, 'OneDrive', 'Documents');
+  const docs = !dirExists(plain) && dirExists(oneDrive) ? oneDrive : plain;
+  return path.join(docs, 'PowerShell', 'Microsoft.PowerShell_profile.ps1');
 }
 
 function defaultEnv(): SetupEnv {
   const platform = process.platform;
   return {
     home: os.homedir(),
-    loginShell: platform === 'win32' ? null : resolveLoginShell(),
+    loginShell: platform === 'win32' ? null : resolveLoginShell(platform),
     platform,
     psProfile: platform === 'win32' ? resolvePowershellProfile() : undefined,
   };
@@ -306,7 +475,22 @@ function defaultEnv(): SetupEnv {
 
 const managedScriptPath = (home: string, family: Family) =>
   path.join(home, '.config', 'ccmon', MANAGED_FILE[family]);
-const helperPath = (home: string) => path.join(home, '.local', 'bin', 'claude-cross-resume');
+
+/**
+ * Where the cross-resume helper lands. POSIX keeps the Unix convention
+ * (`~/.local/bin`, mode 0755, called by absolute path since macOS does not put
+ * it on PATH). Windows has no such convention and no executable bit, so the
+ * `.ps1` sits next to the managed wrapper file that calls it.
+ */
+const helperPath = (home: string, family: Family = 'posix'): string =>
+  family === 'powershell'
+    ? path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1')
+    : path.join(home, '.local', 'bin', 'claude-cross-resume');
+
+/** `$HOME`-relative reference to the PowerShell helper, for the generated file. */
+const PS_HELPER_REF = '"$HOME/.config/ccmon/claude-cross-resume.ps1"';
+
+const helperScript = (family: Family) => (family === 'powershell' ? PS_HELPER_SCRIPT : HELPER_SCRIPT);
 
 function fileText(file: string): string | null {
   try {
@@ -316,6 +500,14 @@ function fileText(file: string): string | null {
   }
 }
 const fileExists = (file: string) => fileText(file) != null;
+/** fileExists() reads the file, so it says no for a directory — this is the dir test. */
+function dirExists(dir: string): boolean {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
 const rcLinked = (rcPath: string) => (fileText(rcPath) ?? '').includes(MARK_BEGIN);
 const fileEquals = (file: string, content: string) => fileText(file) === content;
 const tilde = (p: string, home: string) => (p.startsWith(home) ? p.replace(home, '~') : p);
@@ -341,6 +533,55 @@ function psConfigDir(root: string, home: string): string {
   return `"${rel.replace(/[\\]/g, '/').replace(/(["`])/g, '`$1')}"`;
 }
 
+/**
+ * A POSIX single-quoted literal: nothing inside is expanded, which is what an
+ * API token or a URL with `$` or backticks needs. `'` closes, escapes, reopens.
+ */
+const shLiteral = (v: string) => `'${v.replace(/'/g, `'\\''`)}'`;
+
+/** A PowerShell single-quoted literal — no expansion; `'` doubles to escape. */
+const psLiteral = (v: string) => `'${v.replace(/'/g, "''")}'`;
+
+/** `KEY='value'` pairs for the POSIX `export` line, in insertion order. */
+const shEnvSets = (env?: Record<string, string>): string[] =>
+  Object.entries(env ?? {}).map(([k, v]) => `${k}=${shLiteral(v)}`);
+
+/** `'KEY' = 'value'` entries for the PowerShell hashtable literal. */
+const psEnvSets = (env?: Record<string, string>): string[] =>
+  Object.entries(env ?? {}).map(([k, v]) => `${psLiteral(k)} = ${psLiteral(v)}`);
+
+/**
+ * A PowerShell function body that sets env vars, runs `body`, and puts the
+ * environment back exactly as it was.
+ *
+ * `$env:X = …` inside a PowerShell function writes the PROCESS environment,
+ * not a local scope — the previous single-line wrapper leaked
+ * `CLAUDE_CONFIG_DIR` into the whole session, so a later bare `claude` silently
+ * ran against the last wrapper's account. The save/restore in `finally` is what
+ * makes the Windows wrapper behave like the POSIX subshell.
+ */
+function psScopedBody(sets: string[], body: string): string {
+  return [
+    '    $ccmonVars = @{ ' + sets.join('; ') + ' }',
+    '    $ccmonPrev = @{}',
+    '    try {',
+    '        foreach ($k in $ccmonVars.Keys) {',
+    '            $ccmonPrev[$k] = [Environment]::GetEnvironmentVariable($k)',
+    // Set-Item refuses an empty -Value, so an empty variable is an unset one
+    // in both directions — otherwise a `KEY=` line would throw at call time.
+    '            if ([string]::IsNullOrEmpty($ccmonVars[$k])) { Remove-Item -Path "env:$k" -ErrorAction SilentlyContinue }',
+    '            else { Set-Item -Path "env:$k" -Value $ccmonVars[$k] }',
+    '        }',
+    `        ${body}`,
+    '    } finally {',
+    '        foreach ($k in $ccmonPrev.Keys) {',
+    '            if ([string]::IsNullOrEmpty($ccmonPrev[$k])) { Remove-Item -Path "env:$k" -ErrorAction SilentlyContinue }',
+    '            else { Set-Item -Path "env:$k" -Value $ccmonPrev[$k] }',
+    '        }',
+    '    }',
+  ].join('\n');
+}
+
 /** A nice default wrapper name for a config root (~/.claude → claude-personal). */
 export function suggestLabel(root: string): string {
   const base = path.basename(root);
@@ -354,15 +595,14 @@ const shortName = (name: string) => name.replace(/^claude-/, '');
 
 /**
  * The ordered cross-resume pairs, shared by the generator and the scanner.
- * Only POSIX: the `claude-cross-resume` helper they call is a bash script, so
- * Windows gets launchers only (no `-from-` functions).
+ * Both families: the helper ships as a bash script for POSIX and a PowerShell
+ * script for Windows, so `claude-<to>-from-<from>` exists everywhere.
  */
 function crossPairs(
   accounts: AccountSpec[],
-  family: Family,
 ): Array<{ name: string; from: AccountSpec; to: AccountSpec }> {
   const pairs: Array<{ name: string; from: AccountSpec; to: AccountSpec }> = [];
-  if (family !== 'posix' || accounts.length < 2) return pairs;
+  if (accounts.length < 2) return pairs;
   for (const to of accounts) {
     for (const from of accounts) {
       if (to.name === from.name) continue;
@@ -372,9 +612,13 @@ function crossPairs(
   return pairs;
 }
 
-/** Every function name the managed file defines (launchers + resume helpers). */
-export function managedNames(accounts: AccountSpec[], family: Family = 'posix'): string[] {
-  return [...accounts.map((a) => a.name), ...crossPairs(accounts, family).map((p) => p.name)];
+/**
+ * Every function name the managed file defines (launchers + resume helpers).
+ * Family-independent since Windows gained its own cross-resume helper — both
+ * families now define the same set of names.
+ */
+export function managedNames(accounts: AccountSpec[]): string[] {
+  return [...accounts.map((a) => a.name), ...crossPairs(accounts).map((p) => p.name)];
 }
 
 /**
@@ -395,23 +639,54 @@ export function renderManagedScript(
     '# `ccmon managed` block in your shell startup file) to uninstall.',
     '',
   ];
+  const pairs = crossPairs(accounts);
+
   if (family === 'powershell') {
     for (const a of accounts) {
-      lines.push(
-        `function ${a.name} { $env:CLAUDE_CONFIG_DIR = ${psConfigDir(a.root, home)}; claude @args }`,
-      );
+      const sets = [
+        `${psLiteral('CLAUDE_CONFIG_DIR')} = ${psConfigDir(a.root, home)}`,
+        ...psEnvSets(a.env),
+      ];
+      lines.push(`function ${a.name} {`, psScopedBody(sets, 'claude @args'), '}', '');
+    }
+    if (pairs.length) {
+      lines.push('# Continue a session on another account when one hits its limit:');
+      for (const p of pairs) {
+        // The destination's env is applied around the helper call, so the
+        // relaunched session lands on the right account AND the right provider.
+        const sets = [
+          `${psLiteral('CLAUDE_CONFIG_DIR')} = ${psConfigDir(p.to.root, home)}`,
+          ...psEnvSets(p.to.env),
+        ];
+        const call =
+          `& ${PS_HELPER_REF} ${psConfigDir(p.from.root, home)} ${psConfigDir(p.to.root, home)} $args[0]`;
+        lines.push(`function ${p.name} {`, psScopedBody(sets, call), '}', '');
+      }
     }
     return lines.join('\n') + '\n';
   }
+
   for (const a of accounts) {
-    lines.push(`${a.name}() { ( export CLAUDE_CONFIG_DIR=${shConfigDir(a.root, home)}; claude "$@" ); }`);
+    const sets = [`CLAUDE_CONFIG_DIR=${shConfigDir(a.root, home)}`, ...shEnvSets(a.env)];
+    // the subshell ( … ) is what keeps every export local to the one command
+    lines.push(`${a.name}() { ( export ${sets.join(' ')}; claude "$@" ); }`);
   }
-  const pairs = crossPairs(accounts, family);
   if (pairs.length) {
     lines.push('', '# Continue a session on another account when one hits its limit:');
     for (const p of pairs) {
+      // Called by absolute path, not by name: ccmon installs the helper into
+      // ~/.local/bin, which most Linux distros add to PATH but macOS does NOT
+      // — a bare `claude-cross-resume` there is a command-not-found. `$HOME`
+      // keeps the generated file host-independent either way.
+      //
+      // The DESTINATION's extra env is exported around the call: the helper
+      // ends in `exec claude --resume`, which inherits it, so resuming into an
+      // alternate-provider account (DeepSeek) keeps that provider instead of
+      // silently falling back to Anthropic's endpoint.
+      const sets = shEnvSets(p.to.env);
+      const exports = sets.length ? `export ${sets.join(' ')}; ` : '';
       lines.push(
-        `${p.name}() { claude-cross-resume ${shConfigDir(p.from.root, home)} ${shConfigDir(p.to.root, home)} "$1"; }`,
+        `${p.name}() { ( ${exports}"$HOME/.local/bin/claude-cross-resume" ${shConfigDir(p.from.root, home)} ${shConfigDir(p.to.root, home)} "$1" ); }`,
       );
     }
   }
@@ -484,11 +759,43 @@ function commentOutWrappers(text: string, names: string[], family: Family): stri
     .join('\n');
 }
 
-/** Write via temp-file + rename so a rewrite can never leave a truncated rc. */
+/**
+ * Write via temp-file + rename so a rewrite can never leave a truncated rc.
+ *
+ * The parent dir is created first for Windows: a POSIX rc always sits in
+ * `$HOME`, but the PowerShell `$PROFILE` target is
+ * `Documents\PowerShell\Microsoft.PowerShell_profile.ps1` and that directory
+ * does not exist until a profile is created — writing straight into it fails
+ * with ENOENT on a machine that has never had one. No-op everywhere else.
+ */
 function writeAtomic(file: string, content: string): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.ccmon-tmp`;
   fs.writeFileSync(tmp, content);
-  fs.renameSync(tmp, file);
+  try {
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    // Windows fails the rename with EPERM/EBUSY while another process holds the
+    // destination open — an editor or an antivirus scanner is enough, and it
+    // never happens on Linux. Fall back to an in-place rewrite: strictly worse
+    // (a crash mid-write could truncate) but the alternative is a setup that
+    // just refuses to apply. POSIX errors still propagate untouched.
+    const code = (e as NodeJS.ErrnoException).code;
+    if (process.platform !== 'win32' || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) {
+      try {
+        fs.unlinkSync(tmp);
+      } catch {
+        /* best effort */
+      }
+      throw e;
+    }
+    fs.writeFileSync(file, content);
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      /* best effort */
+    }
+  }
 }
 
 /**
@@ -523,37 +830,60 @@ export function detectShells(env: SetupEnv = defaultEnv()): ShellDetection {
     };
   }
 
+  const mac = env.platform === 'darwin';
   const loginName = env.loginShell ? path.basename(env.loginShell) : '';
-  const bashRc = env.platform === 'darwin' ? '.bash_profile' : '.bashrc';
-  const defs: Array<{ shell: 'zy' | 'zsh' | 'bash'; rc: string }> = [
+  const defs: Array<{ shell: 'zy' | 'zsh' | 'bash'; rc: string; alsoRc?: string }> = [
     { shell: 'zy', rc: '.zyrc' },
     { shell: 'zsh', rc: '.zshrc' },
-    { shell: 'bash', rc: bashRc },
+    // macOS bash reads ~/.bash_profile at login, so that stays the write
+    // target — but plenty of people keep their config in ~/.bashrc and source
+    // it from there, so its presence still counts as "you run bash".
+    { shell: 'bash', rc: mac ? '.bash_profile' : '.bashrc', alsoRc: mac ? '.bashrc' : undefined },
   ];
-  const shells = defs
-    .map<ShellTarget>((d) => {
-      const rcPath = path.join(env.home, d.rc);
-      const exists = fileExists(rcPath);
-      const detected = loginName === d.shell;
-      const linked = rcLinked(rcPath);
-      const note = linked
-        ? 'already linked'
-        : detected
-          ? exists
-            ? 'your login shell'
-            : `login shell · creates ~/${d.rc}`
-          : 'rc present';
-      return { shell: d.shell, family: 'posix', rcPath, exists, detected, linked, note };
-    })
-    // Only surface shells the user actually uses: the login shell, or any with
-    // an rc file already present. A shell that's neither is just noise — we
-    // don't offer to create configs for shells you don't run (e.g. zsh on a
-    // machine with no ~/.zshrc).
-    .filter((s) => s.detected || s.exists);
+  const all = defs.map<ShellTarget & { inPlay: boolean }>((d) => {
+    const rcPath = path.join(env.home, d.rc);
+    const exists = fileExists(rcPath);
+    const detected = loginName === d.shell;
+    const linked = rcLinked(rcPath);
+    const note = linked
+      ? 'already linked'
+      : detected
+        ? exists
+          ? 'your login shell'
+          : `login shell · creates ~/${d.rc}`
+        : exists
+          ? 'rc present'
+          : `~/${d.alsoRc} present · creates ~/${d.rc}`;
+    const inPlay = detected || exists || (d.alsoRc ? fileExists(path.join(env.home, d.alsoRc)) : false);
+    return { shell: d.shell, family: 'posix', rcPath, exists, detected, linked, note, inPlay };
+  });
+  // Only surface shells the user actually uses: the login shell, or any with
+  // an rc file already present. A shell that's neither is just noise — we
+  // don't offer to create configs for shells you don't run (e.g. zsh on a
+  // machine with no ~/.zshrc).
+  let shells: ShellTarget[] = all.filter((s) => s.inPlay).map(({ inPlay: _inPlay, ...s }) => s);
+  // ...but never hand the UI an empty list. A fresh macOS account is exactly
+  // that case: zsh is the login shell with no ~/.zshrc yet, and if the login
+  // shell could not be resolved at all (see resolveLoginShell) nothing above
+  // matches. Fall back to the platform's default shell so the wizard always
+  // has a target, and say plainly that this is a guess.
+  if (!shells.length) {
+    const fallback = all.find((s) => s.shell === (mac ? 'zsh' : 'bash'))!;
+    const { inPlay: _inPlay, ...target } = fallback;
+    shells = [{ ...target, note: `no login shell detected · creates ~/${path.basename(target.rcPath)}` }];
+  }
   return { platform: env.platform, shells };
 }
 
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
+/** A portable environment-variable name — the only shape both shells accept. */
+const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/**
+ * `CLAUDE_CONFIG_DIR` is derived from the account's root, never taken from the
+ * env map: two sources for one variable is a silent-mismatch bug waiting to
+ * happen, and the root is what every other part of ccmon keys on.
+ */
+const RESERVED_ENV = new Set(['CLAUDE_CONFIG_DIR']);
 
 /**
  * Validation problems with the account list itself (name format, dupes,
@@ -568,6 +898,14 @@ function validateAccounts(accounts: AccountSpec[]): string[] {
     if (seen.has(a.name)) problems.push(`duplicate wrapper name "${a.name}"`);
     seen.add(a.name);
     if (!a.root || !path.isAbsolute(a.root)) problems.push(`"${a.name}" has no config dir`);
+    for (const [k, v] of Object.entries(a.env ?? {})) {
+      if (!ENV_NAME_RE.test(k)) problems.push(`"${a.name}": invalid environment variable name "${k}"`);
+      else if (RESERVED_ENV.has(k)) problems.push(`"${a.name}": ${k} comes from the config dir — remove it`);
+      // Both generators emit fully-literal quoting, so a value can hold
+      // anything printable; a newline is the one thing that would break out of
+      // the single line it is written on.
+      if (/[\r\n]/.test(v)) problems.push(`"${a.name}": ${k} must not contain a line break`);
+    }
   }
   return problems;
 }
@@ -585,8 +923,8 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
   const { home } = env;
   const family = familyOf(env.platform);
   const block = rcSourceBlock(family);
-  const helperDest = helperPath(home);
-  const names = managedNames(opts.accounts, family);
+  const helperDest = helperPath(home, family);
+  const names = managedNames(opts.accounts);
   const warnings: string[] = [];
 
   const rcEdits = opts.rcPaths.map((rcPath) => {
@@ -607,9 +945,13 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
     return { rcPath, alreadyLinked, blockToAdd: alreadyLinked ? '' : block, existing };
   });
 
-  // the cross-resume helper is a bash script — Unix only
   if (family === 'powershell' && opts.installHelper) {
-    warnings.push('the claude-cross-resume helper is Unix-only and is skipped on Windows');
+    // PowerShell blocks unsigned scripts under the default machine policy, and
+    // the wizard cannot change that for the user — say so before they rely on it.
+    warnings.push(
+      'cross-resume runs a PowerShell script: if it is blocked, allow local scripts once with ' +
+        'Set-ExecutionPolicy -Scope CurrentUser RemoteSigned',
+    );
   }
 
   return {
@@ -617,7 +959,7 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
     managedScript: renderManagedScript(opts.accounts, home, family),
     rcEdits,
     helperDest,
-    helperInstalled: family === 'posix' && fileEquals(helperDest, HELPER_SCRIPT),
+    helperInstalled: fileEquals(helperDest, helperScript(family)),
     problems: validate(opts),
     warnings,
   };
@@ -643,13 +985,16 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
   const managedPath = managedScriptPath(home, family);
   try {
     fs.mkdirSync(path.dirname(managedPath), { recursive: true });
-    fs.writeFileSync(managedPath, renderManagedScript(opts.accounts, home, family));
+    // 0600: an account's env may carry a provider API token, and this file is
+    // only ever read by the user's own shell.
+    fs.writeFileSync(managedPath, renderManagedScript(opts.accounts, home, family), { mode: 0o600 });
+    if (process.platform !== 'win32') fs.chmodSync(managedPath, 0o600); // umask cannot loosen it
     wroteManaged = true;
   } catch (e) {
     errors.push(`managed file: ${msg(e)}`);
   }
 
-  const names = managedNames(opts.accounts, family);
+  const names = managedNames(opts.accounts);
   const block = rcSourceBlock(family);
   const linkedRc: string[] = [];
   const tidiedRc: string[] = [];
@@ -684,15 +1029,21 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
     }
   }
 
-  // the embedded helper is a bash script — install on POSIX only
+  // the cross-resume helper ships per family: a bash script for POSIX, a
+  // PowerShell script for Windows. Both are idempotent (content-compared).
   let helperInstalled = false;
-  if (opts.installHelper && family === 'posix') {
-    const dest = helperPath(home);
+  if (opts.installHelper) {
+    const dest = helperPath(home, family);
+    const script = helperScript(family);
     try {
-      if (!fileEquals(dest, HELPER_SCRIPT)) {
+      if (!fileEquals(dest, script)) {
         fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.writeFileSync(dest, HELPER_SCRIPT, { mode: 0o755 });
-        fs.chmodSync(dest, 0o755); // writeFileSync mode is masked by umask — force it
+        if (family === 'powershell') {
+          fs.writeFileSync(dest, script);
+        } else {
+          fs.writeFileSync(dest, script, { mode: 0o755 });
+          fs.chmodSync(dest, 0o755); // writeFileSync mode is masked by umask — force it
+        }
       }
       helperInstalled = true;
     } catch (e) {
@@ -700,9 +1051,11 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
     }
   }
 
+  // `source` is POSIX-only; PowerShell dot-sources with a bare `.`
+  const sourceVerb = family === 'powershell' ? '.' : 'source';
   const reloadTargets = (linkedRc.length ? linkedRc : opts.rcPaths).map((p) => tilde(p, home));
   const reloadHint = reloadTargets.length
-    ? `run: ${reloadTargets.map((t) => `source ${t}`).join('   ')}  (or open a new terminal)`
+    ? `run: ${reloadTargets.map((t) => `${sourceVerb} ${t}`).join('   ')}  (or open a new terminal)`
     : 'open a new terminal to load the wrappers';
 
   return { ok: errors.length === 0, wroteManaged, linkedRc, tidiedRc, helperInstalled, reloadHint, errors };
@@ -725,7 +1078,8 @@ export function writeWrapperAccounts(
   const managedPath = managedScriptPath(home, family);
   try {
     fs.mkdirSync(path.dirname(managedPath), { recursive: true });
-    fs.writeFileSync(managedPath, renderManagedScript(accounts, home, family));
+    fs.writeFileSync(managedPath, renderManagedScript(accounts, home, family), { mode: 0o600 });
+    if (process.platform !== 'win32') fs.chmodSync(managedPath, 0o600);
     return { ok: true, errors: [] };
   } catch (e) {
     return { ok: false, errors: [`managed file: ${msg(e)}`] };

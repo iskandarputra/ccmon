@@ -16,6 +16,7 @@ import {
   planSetup,
   renameAccountDir,
   renderManagedScript,
+  resolveLoginShell,
   scanRcForWrappers,
   suggestLabel,
   visibleAccountDirs,
@@ -88,12 +89,80 @@ describe('detectShells — per-OS targets', () => {
     expect(zsh.detected).toBe(true);
   });
 
+  it('macOS surfaces bash when only ~/.bashrc exists, still targeting ~/.bash_profile', () => {
+    // people carry a ~/.bashrc over from Linux and source it from .bash_profile;
+    // that machine clearly runs bash, so hiding it would be wrong.
+    fs.writeFileSync(path.join(home, '.bashrc'), '# bash\n');
+    const shells = detectShells({ home, loginShell: '/bin/bash', platform: 'darwin' }).shells;
+    const bash = shells.find((s) => s.shell === 'bash')!;
+    expect(bash.rcPath).toBe(path.join(home, '.bash_profile'));
+    expect(bash.exists).toBe(false); // the TARGET does not exist yet
+  });
+
+  it('macOS shows bash from ~/.bashrc even when it is not the login shell', () => {
+    fs.writeFileSync(path.join(home, '.bashrc'), '# bash\n');
+    const shells = detectShells({ home, loginShell: '/bin/zsh', platform: 'darwin' }).shells;
+    const bash = shells.find((s) => s.shell === 'bash')!;
+    expect(bash.detected).toBe(false);
+    expect(bash.note).toBe('~/.bashrc present · creates ~/.bash_profile');
+  });
+
+  it('never returns an empty list: a fresh macOS account falls back to zsh', () => {
+    // no rc files, and the login shell could not be resolved (no $SHELL in a
+    // Finder-launched app, dscl unavailable) — the wizard still needs a target.
+    const { shells } = detectShells({ home, loginShell: null, platform: 'darwin' });
+    expect(shells).toHaveLength(1);
+    expect(shells[0].shell).toBe('zsh');
+    expect(shells[0].rcPath).toBe(path.join(home, '.zshrc'));
+    expect(shells[0].note).toBe('no login shell detected · creates ~/.zshrc');
+  });
+
+  it('the empty-list fallback is bash on Linux', () => {
+    const { shells } = detectShells({ home, loginShell: null, platform: 'linux' });
+    expect(shells.map((s) => s.shell)).toEqual(['bash']);
+    expect(shells[0].rcPath).toBe(path.join(home, '.bashrc'));
+  });
+
   it('Windows offers a single PowerShell profile target', () => {
     const profile = path.join(home, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1');
     const { platform, shells } = detectShells({ home, loginShell: null, platform: 'win32', psProfile: profile });
     expect(platform).toBe('win32');
     expect(shells).toHaveLength(1);
     expect(shells[0]).toMatchObject({ shell: 'powershell', family: 'powershell', detected: true, rcPath: profile });
+  });
+});
+
+describe('resolveLoginShell — per-OS account record', () => {
+  const saved = process.env.SHELL;
+  afterEach(() => {
+    if (saved === undefined) delete process.env.SHELL;
+    else process.env.SHELL = saved;
+  });
+
+  it('reads Directory Services on macOS, not getent', () => {
+    const calls: string[] = [];
+    const probe = (file: string, args: string[]) => {
+      calls.push(file);
+      return file === 'dscl' && args.includes('UserShell') ? 'UserShell: /bin/bash\n' : null;
+    };
+    expect(resolveLoginShell('darwin', probe)).toBe('/bin/bash');
+    expect(calls).toEqual(['dscl']); // getent does not exist on macOS
+  });
+
+  it('reads /etc/passwd via getent elsewhere', () => {
+    const probe = (file: string) =>
+      file === 'getent' ? 'me:x:1000:1000:me:/home/me:/usr/bin/zy\n' : null;
+    expect(resolveLoginShell('linux', probe)).toBe('/usr/bin/zy');
+  });
+
+  it('falls back to $SHELL when the probe answers nothing', () => {
+    process.env.SHELL = '/bin/fish';
+    expect(resolveLoginShell('darwin', () => null)).toBe('/bin/fish');
+  });
+
+  it('returns null when the probe fails and $SHELL is unset — the Finder-launch case', () => {
+    delete process.env.SHELL;
+    expect(resolveLoginShell('darwin', () => null)).toBeNull();
   });
 });
 
@@ -110,10 +179,86 @@ describe('renderManagedScript', () => {
     expect(out).toContain('claude-work-from-personal() {');
   });
 
+  it('calls the helper by its install path — ~/.local/bin is not on PATH on macOS', () => {
+    const out = renderManagedScript(opts().accounts, home);
+    expect(out).toContain('"$HOME/.local/bin/claude-cross-resume" "$HOME/.claude-work" "$HOME/.claude"');
+    expect(out).not.toMatch(/^\s*claude-\S+\(\) \{ claude-cross-resume/m); // never bare
+  });
+
   it('suggestLabel maps the default root to claude-personal', () => {
     expect(suggestLabel(path.join(home, '.claude'))).toBe('claude-personal');
     expect(suggestLabel(path.join(home, '.claude-work'))).toBe('claude-work');
     expect(suggestLabel(path.join(home, '.claude_research'))).toBe('claude-research');
+  });
+});
+
+describe('renderManagedScript — per-account environment (alternate providers)', () => {
+  // the real case: Claude Code pointed at DeepSeek is a base URL + a token +
+  // a model mapping, none of which is a config dir
+  const deepseek = () => [
+    { name: 'claude-personal', root: path.join(home, '.claude') },
+    {
+      name: 'claude-deepseek',
+      root: path.join(home, '.claude-deepseek'),
+      env: {
+        ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+        ANTHROPIC_AUTH_TOKEN: 'sk-secret',
+        ANTHROPIC_MODEL: 'deepseek-v4-pro[1m]',
+      },
+    },
+  ];
+
+  it('exports the extra env inside the same subshell as the config dir', () => {
+    const out = renderManagedScript(deepseek(), home);
+    expect(out).toContain(
+      `claude-deepseek() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude-deepseek" ` +
+        `ANTHROPIC_BASE_URL='https://api.deepseek.com/anthropic' ANTHROPIC_AUTH_TOKEN='sk-secret' ` +
+        `ANTHROPIC_MODEL='deepseek-v4-pro[1m]'; claude "$@" ); }`,
+    );
+    // an account with no env keeps exactly the old one-variable form
+    expect(out).toContain('claude-personal() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude"; claude "$@" ); }');
+  });
+
+  it('single-quotes values so nothing in a token or URL is expanded', () => {
+    const out = renderManagedScript(
+      [
+        { name: 'claude-a', root: path.join(home, '.claude') },
+        { name: 'claude-b', root: path.join(home, '.claude-b'), env: { T: "a$HOME`x'y" } },
+      ],
+      home,
+    );
+    expect(out).toContain(`T='a$HOME\`x'\\''y'`);
+  });
+
+  it('a cross-resume INTO a provider account carries that provider', () => {
+    // without this the helper ends in `exec claude --resume` with only
+    // CLAUDE_CONFIG_DIR set, and the resumed session silently talks to Anthropic
+    const out = renderManagedScript(deepseek(), home);
+    expect(out).toContain(
+      `claude-deepseek-from-personal() { ( export ANTHROPIC_BASE_URL='https://api.deepseek.com/anthropic' ` +
+        `ANTHROPIC_AUTH_TOKEN='sk-secret' ANTHROPIC_MODEL='deepseek-v4-pro[1m]'; ` +
+        `"$HOME/.local/bin/claude-cross-resume" "$HOME/.claude" "$HOME/.claude-deepseek" "$1" ); }`,
+    );
+    // and resuming into the plain account exports nothing extra
+    expect(out).toContain(
+      `claude-personal-from-deepseek() { ( "$HOME/.local/bin/claude-cross-resume" ` +
+        `"$HOME/.claude-deepseek" "$HOME/.claude" "$1" ); }`,
+    );
+  });
+
+  it('PowerShell sets the same variables and restores them all', () => {
+    const out = renderManagedScript(deepseek(), home, 'powershell');
+    expect(out).toContain(`'ANTHROPIC_BASE_URL' = 'https://api.deepseek.com/anthropic'`);
+    expect(out).toContain(`'ANTHROPIC_MODEL' = 'deepseek-v4-pro[1m]'`);
+    expect(out).toContain(`$ccmonPrev[$k] = [Environment]::GetEnvironmentVariable($k)`);
+  });
+
+  it('rejects an unusable variable name, a reserved one, and an embedded newline', () => {
+    const bad = (env: Record<string, string>) =>
+      planSetup(opts({ accounts: [{ name: 'claude-x', root: path.join(home, '.claude'), env }] })).problems;
+    expect(bad({ 'BAD NAME': 'v' }).some((p) => p.includes('invalid environment variable name'))).toBe(true);
+    expect(bad({ CLAUDE_CONFIG_DIR: '/x' }).some((p) => p.includes('comes from the config dir'))).toBe(true);
+    expect(bad({ T: 'a\nb' }).some((p) => p.includes('line break'))).toBe(true);
   });
 });
 
@@ -170,6 +315,23 @@ describe('applySetup — writes and idempotency', () => {
     const after = fs.readFileSync(rc, 'utf8');
     expect(after).toContain('export EDITOR=vim');
     expect(after).toContain('# >>> ccmon managed >>>');
+  });
+
+  it('Windows: creates the missing $PROFILE directory and dot-sources the .ps1', () => {
+    // Documents\PowerShell does not exist until a profile does — writing
+    // straight into it used to fail with ENOENT on a clean machine.
+    const profile = path.join(home, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1');
+    const win: SetupEnv = { home, loginShell: null, platform: 'win32', psProfile: profile };
+    const r = applySetup(opts({ rcPaths: [profile] }), win);
+    expect(r.errors).toEqual([]);
+    expect(r.ok).toBe(true);
+
+    const written = fs.readFileSync(profile, 'utf8');
+    expect(written).toContain('# >>> ccmon managed >>>');
+    expect(written).toContain('claude-accounts.ps1');
+    expect(fs.existsSync(path.join(home, '.config', 'ccmon', 'claude-accounts.ps1'))).toBe(true);
+    expect(r.reloadHint).toContain('. ~'); // PowerShell dot-source, not `source`
+    expect(r.reloadHint).not.toContain('source ~');
   });
 });
 
@@ -320,27 +482,49 @@ describe('PowerShell (Windows) setup', () => {
     ...over,
   });
 
-  it('renders function-style wrappers and omits the bash cross-resume helpers', () => {
+  it('renders function-style wrappers that RESTORE the environment afterwards', () => {
     const script = renderManagedScript(winOpts().accounts, home, 'powershell');
-    expect(script).toContain(
-      'function claude-personal { $env:CLAUDE_CONFIG_DIR = "$HOME/.claude"; claude @args }',
-    );
-    expect(script).toContain(
-      'function claude-work { $env:CLAUDE_CONFIG_DIR = "$HOME/.claude-work"; claude @args }',
-    );
-    expect(script).not.toContain('claude-cross-resume');
-    expect(managedNames(winOpts().accounts, 'powershell')).toEqual(['claude-personal', 'claude-work']);
+    expect(script).toContain('function claude-personal {');
+    expect(script).toContain(`'CLAUDE_CONFIG_DIR' = "$HOME/.claude"`);
+    expect(script).toContain(`'CLAUDE_CONFIG_DIR' = "$HOME/.claude-work"`);
+    expect(script).toContain('claude @args');
+    // $env: writes the PROCESS environment, so without the restore a single
+    // claude-work would rebind every later bare `claude` in that session.
+    expect(script).toContain('} finally {');
+    expect(script).toContain('Remove-Item -Path "env:$k"');
   });
 
-  it('writes the .ps1 managed file, dot-sources it from $PROFILE, and skips the Unix helper', () => {
+  it('emits cross-resume wrappers on Windows too, calling the .ps1 helper', () => {
+    const script = renderManagedScript(winOpts().accounts, home, 'powershell');
+    expect(script).toContain('function claude-personal-from-work {');
+    expect(script).toContain('"$HOME/.config/ccmon/claude-cross-resume.ps1"');
+    expect(managedNames(winOpts().accounts)).toEqual([
+      'claude-personal',
+      'claude-work',
+      'claude-personal-from-work',
+      'claude-work-from-personal',
+    ]);
+  });
+
+  it('writes the .ps1 managed file, dot-sources it from $PROFILE, and installs the PS helper', () => {
     const r = applySetup(winOpts({ installHelper: true }), winEnv());
     expect(r.ok).toBe(true);
     expect(fs.existsSync(path.join(home, '.config', 'ccmon', 'claude-accounts.ps1'))).toBe(true);
     const prof = fs.readFileSync(profile(), 'utf8');
     expect(prof).toContain('# >>> ccmon managed >>>');
     expect(prof).toContain('. "$HOME/.config/ccmon/claude-accounts.ps1"');
-    expect(r.helperInstalled).toBe(false); // bash helper is Unix-only
+
+    expect(r.helperInstalled).toBe(true);
+    const helper = path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1');
+    expect(fs.readFileSync(helper, 'utf8')).toContain('claude --resume $Id');
+    // the bash twin has no business on Windows
     expect(fs.existsSync(path.join(home, '.local', 'bin', 'claude-cross-resume'))).toBe(false);
+  });
+
+  it('warns about the execution policy, which the wizard cannot change itself', () => {
+    const p = planSetup(winOpts({ installHelper: true }), winEnv());
+    expect(p.warnings.some((w) => w.includes('Set-ExecutionPolicy'))).toBe(true);
+    expect(p.helperDest).toBe(path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1'));
   });
 
   it('detects and tidies a pre-existing PowerShell function def', () => {
@@ -348,7 +532,7 @@ describe('PowerShell (Windows) setup', () => {
       profile(),
       'function claude-work { $env:CLAUDE_CONFIG_DIR = "$HOME/.claude-work"; claude @args }\n',
     );
-    const found = scanRcForWrappers(profile(), managedNames(winOpts().accounts, 'powershell'), 'powershell');
+    const found = scanRcForWrappers(profile(), managedNames(winOpts().accounts), 'powershell');
     expect(found.map((f) => f.name)).toContain('claude-work');
     expect(found.find((f) => f.name === 'claude-work')!.canTidy).toBe(true);
 

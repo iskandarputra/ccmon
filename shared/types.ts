@@ -263,6 +263,16 @@ export interface AccountWrapperPrefs {
    * because that dir holds the transcripts the whole app is built on.
    */
   hidden?: boolean;
+  /**
+   * Extra environment this account's wrapper exports (see `AccountSpec.env`) —
+   * how an alternate-provider account (Claude Code pointed at DeepSeek) is
+   * described. Persisted so reopening the wizard doesn't silently regenerate
+   * the wrapper without it.
+   *
+   * May hold an API token, so `settings.json` is written 0600 like every other
+   * ccmon file that can carry a secret.
+   */
+  env?: Record<string, string>;
 }
 
 // ---- currency (§5) ----------------------------------------------------------
@@ -1055,6 +1065,17 @@ export interface AccountSpec {
   name: string;
   /** config dir Claude Code reads (CLAUDE_CONFIG_DIR), e.g. ~/.claude-work */
   root: string;
+  /**
+   * Extra environment exported by this wrapper, on top of `CLAUDE_CONFIG_DIR`.
+   * This is what makes an alternate-provider account expressible: Claude Code
+   * pointed at DeepSeek is `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` + the
+   * model mapping, none of which is a config dir. A cross-resume INTO this
+   * account re-exports the same map, so a resumed session keeps its provider.
+   *
+   * Values are written verbatim into a file only the user can read (0600) —
+   * treat anything here as a secret at rest.
+   */
+  env?: Record<string, string>;
 }
 
 export interface SetupOptions {

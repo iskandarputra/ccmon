@@ -663,11 +663,62 @@
   letter-spacing: 0;
 }
 
+.wiz-acct-row {
+  margin-bottom: 8px;
+}
+
+/* extra environment for one wrapper — an alternate provider, a model mapping */
+.wiz-env-toggle {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
+}
+.wiz-env-toggle:hover {
+  color: var(--text);
+  border-color: var(--amber);
+}
+.wiz-env-toggle.is-set {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+}
+.wiz-env {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  resize: vertical;
+}
+.wiz-env:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
+}
+.wiz-env::placeholder {
+  color: var(--text-faint);
+}
+
 .wiz-acct {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 8px;
   padding: 10px 14px;
   background: var(--bg0);
   border: 1px solid var(--line);

@@ -480,7 +480,8 @@ independent of the data scope, since the account about to cap may not be the
 one whose usage is on screen (this powers the accounts dashboard and
 cross-account headroom). The overview's `<PlanLimits/>` then scope-filters
 `limits` to the viewed account(s) via `useScopedDirs()`, so its behavior is
-unchanged. Polling uses `<root>/.credentials.json` read-only. The poller
+unchanged. Polling uses the account's stored login read-only — see the
+credential-store note below. The poller
 NEVER refreshes tokens (refresh-token rotation could invalidate the user's
 Claude Code login); an expired login reports an error string instead, and the
 UI offers a "Log in" control. Accounts with no stored login are omitted. A
@@ -493,10 +494,30 @@ grant against `https://console.anthropic.com/v1/oauth/token` (public Claude
 Code client `9d1c250a-…`); a dead refresh token falls back to a browser PKCE
 flow (authorize on `claude.ai/oauth/authorize` with `code=true`, the user
 pastes the returned `code#state`). Both grants persist the rotated pair back
-to `.credentials.json` atomically (temp + rename, mode 0600), reusing the
-account's existing scopes so a re-login never downgrades them — which is what
-keeps ccmon and Claude Code in lockstep. Exposed as `login(dir)` /
-`submitLoginCode(dir, code)` on `CcmonApi`.
+to the SAME store they were read from, atomically (file: temp + rename, mode
+0600), reusing the account's existing scopes so a re-login never downgrades
+them — which is what keeps ccmon and Claude Code in lockstep. Exposed as
+`login(dir)` / `submitLoginCode(dir, code)` on `CcmonApi`.
+
+**Where the credentials live — `electron/services/keychain.ts`.** Linux and
+Windows: `<root>/.credentials.json`. **macOS: the login Keychain**, service
+`Claude Code-credentials` — Claude Code writes no file there, which used to
+leave live limits, the tray cap row, the near-cap alert, limits history and
+the advisor (it reuses the token) dark on every Mac. `keychain.ts` reads that
+item through `security(1)` — no native module, so `electron/services` stays
+pure Node — and `auth.ts` writes the rotated pair straight back to it. The
+resolution order is FILE FIRST, Keychain second: the file is per-root and
+authoritative wherever it exists.
+
+The Keychain is consulted for the **default `~/.claude` root only**. The item
+is keyed by service name and carries nothing identifying a
+`CLAUDE_CONFIG_DIR`, so reusing it for a second root would report one login's
+limits under another account's name — a wrong number is worse than a missing
+one. `keychainReason()` supplies the explanation that `fetchLiveLimits`
+appends to its error, so a Mac user reads why rather than a missing-file
+message that is not even true on their machine. Reads are cached 5 s
+(identity resolves on every snapshot publish; each miss is a process spawn)
+and the cache is dropped on write.
 
 Results per dir, `{ok, fetchedAt, session, week, weekOpus, weekSonnet}`
 with windows as `{pct, resetsAt}` (from `five_hour` / `seven_day` /
@@ -599,7 +620,9 @@ account's session and weekly windows and returns advice only when the
 binding account is ≥80 % utilized AND another account with a stored login is
 ≥25 pts lower AND itself below 70 % — i.e. genuinely worth switching to.
 `crossResumeCommand(fromDir, toDir, id?)` emits the canonical
-`claude-cross-resume <fromRoot> <toRoot> <id>` (roots via `accountRoot()`,
+`~/.local/bin/claude-cross-resume <fromRoot> <toRoot> <id>` — spelled with the
+install path, not a bare command, because `~/.local/bin` is on PATH by default
+on most Linux distros but NOT on macOS (roots via `accountRoot()`,
 shell-quoted). ccmon NEVER copies or launches a session — it surfaces the
 command for the user to run their own wrapper.
 
@@ -762,31 +785,73 @@ writes shell startup files. Design rule: **never edit an rc file in place**
 `powershell`) is derived from `process.platform` and threaded through
 generation, detection, and linking — one family per run.
 
-- `resolveLoginShell()` trusts `/etc/passwd` (via `getent passwd $USER`)
-  over `$SHELL` — `$SHELL` lies in wrapped/nested shells (reads `zsh` while
-  the login shell is `zy`). Falls back to `$SHELL` only when `getent` is
-  absent (macOS). On Windows `resolvePowershellProfile()` asks
-  `pwsh`/`powershell` for `$PROFILE`, falling back to the PS7 default path.
+- `resolveLoginShell(platform, probe)` trusts the system account record over
+  `$SHELL` — `$SHELL` lies in wrapped/nested shells (reads `zsh` while the
+  login shell is `zy`) and need not be in our environment at all. The record
+  is read per-OS: `getent passwd $USER` (field 7) on Linux/BSD, and on macOS
+  `dscl . -read /Users/$USER UserShell`, since there is NO `getent` there.
+  That macOS branch matters more than the Linux one: an app launched from
+  Finder or the Dock inherits launchd's environment, which need not carry
+  `$SHELL`, so a `$SHELL`-only fallback could resolve nothing. `$SHELL` stays
+  the last resort. `probe` is injectable so both OS branches are unit-tested
+  on one host. On Windows `resolvePowershellProfile()` asks
+  `pwsh`/`powershell` for `$PROFILE` — that answer is what gets
+  `Documents\PowerShell` (7) vs `Documents\WindowsPowerShell` (5.1) and
+  OneDrive folder redirection right; the hardcoded fallback can only guess,
+  and honours the OneDrive `Documents` only when the plain one is absent.
 - `detectShells(env)` returns `{platform, shells}`. On Linux/macOS the
   candidates are zy/zsh/bash (bash → `~/.bash_profile` on macOS, the file
   login shells read there), but a shell is shown ONLY when it's the login
   shell OR its rc already exists — an unconfigured shell the user doesn't run
   (e.g. zsh with no `~/.zshrc`) is hidden rather than offered for creation.
-  The login shell is flagged `detected`. On Windows it's a single PowerShell
-  `$PROFILE` target. Injectable `env {home, loginShell, platform, psProfile}`
-  for tests, so every OS path is unit-tested on one host.
+  Two refinements keep macOS honest: bash also counts as in play when
+  `~/.bashrc` exists (common when carried over from Linux and sourced from
+  `.bash_profile`) while the write target stays `~/.bash_profile`; and the
+  list is NEVER empty — if nothing matches (fresh macOS account: zsh login
+  shell, no `~/.zshrc`, and possibly no resolvable login shell) it falls back
+  to the platform default (zsh on macOS, bash elsewhere) with a note saying
+  so, and the wizard pre-picks a lone candidate. The login shell is flagged
+  `detected`. On Windows it's a single PowerShell `$PROFILE` target.
+  Injectable `env {home, loginShell, platform, psProfile}` for tests, so every
+  OS path is unit-tested on one host.
 - `renderManagedScript(accounts, home, family)` builds the contents of the
-  ONE ccmon-owned file — `~/.config/ccmon/claude-accounts.{sh,ps1}`. POSIX:
-  a `claude-<name>() { ( export CLAUDE_CONFIG_DIR=…; claude "$@" ); }`
+  ONE ccmon-owned file — `~/.config/ccmon/claude-accounts.{sh,ps1}`, written
+  **0600** because an account's `env` may carry a provider API token. POSIX:
+  a `claude-<name>() { ( export CLAUDE_CONFIG_DIR=… …; claude "$@" ); }`
   launcher (`$HOME`-relative) per account plus a `claude-<to>-from-<from>`
-  resume helper per ordered pair. PowerShell: a
-  `function claude-<name> { $env:CLAUDE_CONFIG_DIR = …; claude @args }`
-  launcher per account (no `-from-` helpers — the bash cross-resume helper is
-  Unix-only). Regenerated wholesale on every apply.
+  resume helper per ordered pair, calling the helper by its install path
+  (`$HOME/.local/bin/…`, since macOS does not put it on PATH). PowerShell: a
+  `function claude-<name> { … }` per account and the same `-from-` set.
+  Regenerated wholesale on every apply.
+- **`AccountSpec.env`** — extra variables the wrapper exports beside
+  `CLAUDE_CONFIG_DIR`. This is what makes an alternate-provider account
+  expressible: Claude Code pointed at DeepSeek is `ANTHROPIC_BASE_URL` +
+  `ANTHROPIC_AUTH_TOKEN` + a model mapping, none of which is a config dir.
+  Values are emitted as fully-literal single-quoted strings in both families
+  (nothing expands), names must match `[A-Za-z_][A-Za-z0-9_]*`,
+  `CLAUDE_CONFIG_DIR` is rejected (it comes from the root — two sources for
+  one variable is a silent-mismatch bug), and a newline in a value is rejected
+  because it would break out of its line. The POSIX subshell already scopes
+  the exports; PowerShell's `$env:` writes the PROCESS environment, so the
+  generated function saves every variable it touches and restores it in a
+  `finally` — otherwise one `claude-work` would rebind every later bare
+  `claude` in that session. A cross-resume re-exports the DESTINATION's env,
+  so resuming into a DeepSeek account keeps DeepSeek instead of silently
+  falling back to Anthropic's endpoint. Persisted in
+  `accountWrapperPrefs[root].env` (settings.json, also 0600) so a later apply
+  cannot regenerate the file without it.
 - `applySetup(opts)` (re)writes that file, then appends a single guarded
   block (`# >>> ccmon managed >>>` … `. claude-accounts.sh` … `# <<< … <<<`)
-  to each chosen rc that lacks it, and optionally installs the embedded
-  `claude-cross-resume` helper to `~/.local/bin` (mode 0755). The helper's
+  to each chosen rc that lacks it (creating the rc's PARENT dir first — a
+  POSIX rc always sits in `$HOME`, but Windows' `Documents\PowerShell` does
+  not exist until a profile does, and writing into it blind is an ENOENT; the
+  rename also falls back to an in-place rewrite on Windows EPERM/EBUSY, which
+  is what a file held open by an editor or AV scanner produces),
+  and optionally installs the cross-resume helper: bash to
+  `~/.local/bin/claude-cross-resume` (mode 0755) on POSIX, PowerShell to
+  `~/.config/ccmon/claude-cross-resume.ps1` on Windows (same contract, same
+  overwrite policy, 5.1-compatible; `planSetup` warns that an execution policy
+  may block it, which the wizard cannot fix for the user). The helper's
   overwrite policy makes the personal↔work round-trip lossless: it copies the
   transcript when the destination is missing or the source has more lines (a
   resumed session only appends, so more lines == newer), backing any

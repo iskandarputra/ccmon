@@ -6,6 +6,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { keychainReason, readKeychainSecret } from './keychain';
 import type { AccountInfo, AccountsMap, LimitsResult, LimitWindow } from '../../shared/types';
 
 /**
@@ -101,9 +102,36 @@ function accountConfig(projectDir: string): ClaudeConfig | null {
   return null;
 }
 
+/**
+ * Where this root's login actually came from. The file always wins: it is
+ * per-root and authoritative wherever it exists. The Keychain is the macOS
+ * fallback for the default account, whose credentials are simply not on disk
+ * there (see keychain.ts) — without it, every limits-driven surface is dark on
+ * a Mac.
+ */
+export function credentialsSource(projectDir: string): 'file' | 'keychain' | null {
+  if (readJson<CredentialsFile>(credentialsPath(projectDir))?.claudeAiOauth) return 'file';
+  const secret = readKeychainSecret(rootOf(projectDir));
+  if (!secret) return null;
+  try {
+    return (JSON.parse(secret) as CredentialsFile).claudeAiOauth ? 'keychain' : null;
+  } catch {
+    return null;
+  }
+}
+
 function credentials(projectDir: string): OauthCredentials | null {
   const creds = readJson<CredentialsFile>(credentialsPath(projectDir));
-  return creds?.claudeAiOauth || null;
+  if (creds?.claudeAiOauth) return creds.claudeAiOauth;
+  const secret = readKeychainSecret(rootOf(projectDir));
+  if (!secret) return null;
+  try {
+    return (JSON.parse(secret) as CredentialsFile).claudeAiOauth || null;
+  } catch {
+    // a Keychain item that is not the JSON we expect: report nothing rather
+    // than half-read a credential blob
+    return null;
+  }
 }
 
 /**
@@ -210,7 +238,9 @@ export async function fetchLiveLimits(projectDir: string): Promise<LimitsResult>
     return {
       ok: false,
       at: Date.now(),
-      error: 'no stored login (.credentials.json missing or has no access token)',
+      error:
+        'no stored login (.credentials.json missing or has no access token)' +
+        keychainReason(rootOf(projectDir)),
     };
   }
   if (creds.expiresAt && creds.expiresAt < Date.now() + 60_000) {

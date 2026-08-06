@@ -57,7 +57,10 @@ export class Settings {
     this.data = { ...this.data, ...partial };
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2));
+      // 0600: accountWrapperPrefs[].env can carry a provider API token. The
+      // mode is a no-op on Windows (which has no POSIX bits) — there the user
+      // profile ACL is the only protection, as it is for .credentials.json.
+      fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2), { mode: 0o600 });
     } catch {
       /* persistence is best-effort */
     }

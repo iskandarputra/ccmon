@@ -140,7 +140,7 @@ var Settings = class {
     this.data = { ...this.data, ...partial };
     try {
       import_fs3.default.mkdirSync(import_path3.default.dirname(this.file), { recursive: true });
-      import_fs3.default.writeFileSync(this.file, JSON.stringify(this.data, null, 2));
+      import_fs3.default.writeFileSync(this.file, JSON.stringify(this.data, null, 2), { mode: 384 });
     } catch {
     }
     return this.get();

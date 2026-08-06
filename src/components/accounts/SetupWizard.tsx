@@ -19,6 +19,34 @@ import type {
   ShellTarget,
 } from '../../../shared/types';
 
+/**
+ * `KEY=value` lines → an env map. Deliberately forgiving about spacing and a
+ * stray `export` prefix, because the text people paste in comes straight out
+ * of a hand-written launcher script. Blank lines and `#` comments are dropped;
+ * surrounding quotes are stripped so a pasted `KEY="v"` doesn't export the
+ * quotes as part of the value.
+ */
+export function parseEnvText(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const raw of text.split('\n')) {
+    const line = raw.trim().replace(/^export\s+/, '');
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (value.length >= 2 && /^(".*"|'.*')$/s.test(value)) value = value.slice(1, -1);
+    out[key] = value;
+  }
+  return out;
+}
+
+/** The inverse, for seeding the editor from saved prefs. */
+export const envToText = (env?: Record<string, string>): string =>
+  Object.entries(env ?? {})
+    .map(([k, v]) => `${k}=${v}`)
+    .join('\n');
+
 /** Human OS label from process.platform. */
 function osLabel(platform: string): string {
   return platform === 'darwin'
@@ -46,15 +74,22 @@ export function SetupWizard() {
 
   const [newSuffix, setNewSuffix] = useState('');
   const [createErr, setCreateErr] = useState<string | null>(null);
+  /** raw `KEY=value` text per root, and which rows have the editor open */
+  const [envText, setEnvText] = useState<Record<string, string>>({});
+  const [envOpen, setEnvOpen] = useState<Set<string>>(new Set());
 
-  // detect OS + shells once; pre-pick the login shell (and anything linked)
+  // detect OS + shells once; pre-pick the login shell (and anything linked).
+  // A lone candidate is pre-picked too: when detection falls back to the
+  // platform default (macOS with no resolvable login shell), it is the only
+  // thing to link, and leaving it unticked would block apply for no reason.
   useEffect(() => {
     let alive = true;
     void window.ccmon?.detectShells().then((found) => {
       if (!alive) return;
+      const only = found.shells.length === 1;
       setShells(found.shells);
       setPlatform(found.platform);
-      setPicked(new Set(found.shells.filter((s) => s.detected || s.linked).map((s) => s.rcPath)));
+      setPicked(new Set(found.shells.filter((s) => only || s.detected || s.linked).map((s) => s.rcPath)));
     });
     return () => {
       alive = false;
@@ -78,19 +113,43 @@ export function SetupWizard() {
       }
       return next;
     });
+    // an account's extra env is persisted: regenerating the wrapper file
+    // without it would silently strip a provider account's whole config
+    setEnvText((prev) => {
+      const next = { ...prev };
+      for (const root of roots) {
+        if (next[root] === undefined) next[root] = envToText(prefs[root]?.env);
+      }
+      return next;
+    });
+    setEnvOpen((prev) => {
+      const next = new Set(prev);
+      for (const root of roots) if (Object.keys(prefs[root]?.env ?? {}).length) next.add(root);
+      return next;
+    });
   }, [roots, prefs]);
+
+  const envByRoot = useMemo(() => {
+    const out: Record<string, Record<string, string>> = {};
+    for (const root of roots) out[root] = parseEnvText(envText[root] ?? '');
+    return out;
+  }, [roots, envText]);
 
   const opts: SetupOptions = useMemo(
     () => ({
-      accounts: roots.map<AccountSpec>((root) => ({
-        name: names[root] || suggestWrapperName(root),
-        root,
-      })),
+      accounts: roots.map<AccountSpec>((root) => {
+        const env = envByRoot[root];
+        return {
+          name: names[root] || suggestWrapperName(root),
+          root,
+          ...(env && Object.keys(env).length ? { env } : {}),
+        };
+      }),
       rcPaths: [...picked],
       installHelper,
       tidyExisting: tidy,
     }),
-    [roots, names, picked, installHelper, tidy],
+    [roots, names, envByRoot, picked, installHelper, tidy],
   );
 
   // any edit invalidates a stale preview so apply can't run against old input
@@ -127,9 +186,17 @@ export function SetupWizard() {
       setReport(r ?? null);
       setPlan(null);
       if (r?.ok) {
-        // persist wizard-typed names so they survive reopening the wizard
+        // persist wizard-typed names AND env so they survive reopening the
+        // wizard — a later apply would otherwise regenerate the file without them
         const nextPrefs = { ...prefs };
-        for (const root of roots) nextPrefs[root] = { ...nextPrefs[root], name: names[root] };
+        for (const root of roots) {
+          const env = envByRoot[root];
+          nextPrefs[root] = {
+            ...nextPrefs[root],
+            name: names[root],
+            ...(Object.keys(env ?? {}).length ? { env } : { env: undefined }),
+          };
+        }
         void updateSettings({ accountWrapperPrefs: nextPrefs });
       }
       const found = await window.ccmon?.detectShells();
@@ -169,21 +236,54 @@ export function SetupWizard() {
         <div className="wiz-col">
           <div className="wiz-step-label">1 · accounts → wrapper command</div>
           <div className="wiz-accts-list">
-            {roots.map((root) => (
-              <div className="wiz-acct" key={root}>
-                <input
-                  className="wiz-name"
-                  value={names[root] ?? ''}
-                  spellCheck={false}
-                  onChange={(e) => {
-                    setNames((p) => ({ ...p, [root]: e.target.value }));
-                    invalidate();
-                  }}
-                />
-                <span className="wiz-arrow">→</span>
-                <code className="wiz-root">{tildify(root)}</code>
-              </div>
-            ))}
+            {roots.map((root) => {
+              const envCount = Object.keys(envByRoot[root] ?? {}).length;
+              return (
+                <div className="wiz-acct-row" key={root}>
+                  <div className="wiz-acct">
+                    <input
+                      className="wiz-name"
+                      value={names[root] ?? ''}
+                      spellCheck={false}
+                      onChange={(e) => {
+                        setNames((p) => ({ ...p, [root]: e.target.value }));
+                        invalidate();
+                      }}
+                    />
+                    <span className="wiz-arrow">→</span>
+                    <code className="wiz-root">{tildify(root)}</code>
+                    <button
+                      type="button"
+                      className={`wiz-env-toggle${envCount ? ' is-set' : ''}`}
+                      onClick={() =>
+                        setEnvOpen((p) => {
+                          const next = new Set(p);
+                          if (next.has(root)) next.delete(root);
+                          else next.add(root);
+                          return next;
+                        })
+                      }
+                      title="extra environment this wrapper exports (alternate provider, model mapping)"
+                    >
+                      {envCount ? `env · ${envCount}` : '+ env'}
+                    </button>
+                  </div>
+                  {envOpen.has(root) && (
+                    <textarea
+                      className="wiz-env"
+                      spellCheck={false}
+                      rows={3}
+                      placeholder={'ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic\nANTHROPIC_AUTH_TOKEN=sk-…'}
+                      value={envText[root] ?? ''}
+                      onChange={(e) => {
+                        setEnvText((p) => ({ ...p, [root]: e.target.value }));
+                        invalidate();
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
           <div className="wiz-add">
             <span className="wiz-add-pre">~/.claude-</span>
@@ -372,6 +472,19 @@ export function SetupWizard() {
         choose: leave them (the managed copies are identical, so they just shadow) or tidy them
         away. Remove the <code>ccmon managed</code> block to uninstall. Nothing runs until you
         open a new shell and call a wrapper.
+      </Hint>
+      <Hint label="env: running an account on another provider">
+        <code>+ env</code> adds variables the wrapper exports alongside{' '}
+        <code>CLAUDE_CONFIG_DIR</code>, which is what an alternate-provider account needs —
+        Claude Code pointed at DeepSeek is <code>ANTHROPIC_BASE_URL</code> +{' '}
+        <code>ANTHROPIC_AUTH_TOKEN</code> + a model mapping, none of which is a config dir. Give
+        that account its own root (<code>~/.claude-deepseek</code>) so its usage stays separate:
+        ccmon prices every model it finds, but transcripts written into{' '}
+        <code>~/.claude</code> belong to that account. Values are exported in a subshell (on
+        Windows, restored afterwards) so they never leak into your session, and the cross-resume
+        wrappers re-export the destination's env — resuming into a DeepSeek account keeps
+        DeepSeek. A token typed here is stored in the generated wrapper file and in ccmon's
+        settings, both written <code>0600</code>: private to your user, not encrypted.
       </Hint>
     </Panel>
   );

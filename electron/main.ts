@@ -104,6 +104,13 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 }
 
+// Windows routes toasts through the Application User Model ID and silently
+// drops them when it does not match a registered shortcut. Without this the
+// near-cap alert and the first close-to-tray hint never appear — and that hint
+// is the ONLY feedback a window vanishing to the tray gives. Must be set before
+// any Notification is constructed; a no-op on macOS/Linux.
+if (process.platform === 'win32') app.setAppUserModelId('dev.iskandar.ccmon');
+
 interface MainState {
   win: BrowserWindow | null;
   /** ambient tray indicator; null when the platform has no usable tray */
@@ -814,7 +821,13 @@ function createTray(): void {
   try {
     // The source icon is 1024px; a tray wants ~16-22px, and passing the full
     // image gives an enormous or blank indicator depending on the platform.
-    const image = nativeImage.createFromPath(iconPath).resize({ width: 22, height: 22 });
+    // The right size differs per OS: the Windows notification area draws at
+    // 16px and the macOS menu bar at 16pt, so 22 there is downscaled by the
+    // shell and comes out fuzzy. Linux panels are the ones that want ~22.
+    const px = process.platform === 'linux' ? 22 : 16;
+    const image = nativeImage
+      .createFromPath(iconPath)
+      .resize({ width: px, height: px, quality: 'best' });
     if (image.isEmpty()) {
       console.warn(`[ccmon] tray disabled: could not load ${iconPath}`);
       return;
@@ -1285,6 +1298,11 @@ void app.whenReady().then(async () => {
 // never fires in that mode — it stays the quit path for the default behaviour
 // and for the case where the tray vanished and the close went through.
 app.on('window-all-closed', () => {
+  // macOS keeps the app alive with no window — Cmd-W is "close this window",
+  // not "quit", and the dock icon (plus the `activate` handler above, which
+  // would otherwise be dead code) is how you get it back. Quitting here would
+  // also throw away the tray and the pollers on a plain window close.
+  if (process.platform === 'darwin') return;
   state.quitting = true;
   app.quit();
 });
