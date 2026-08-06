@@ -840,6 +840,19 @@ generation, detection, and linking — one family per run.
   falling back to Anthropic's endpoint. Persisted in
   `accountWrapperPrefs[root].env` (settings.json, also 0600) so a later apply
   cannot regenerate the file without it.
+- **Presets + secret references — `shared/providerPresets.ts`.** Running Claude
+  Code on DeepSeek needs ~10 variables, several undocumented (the capability
+  flags, without which effort/thinking are silently dropped for an unrecognised
+  model). `PROVIDER_PRESETS` is that knowledge written down once; the wizard
+  drops it into the editable env box, so model ids stay the user's to change.
+  A preset value may be `${ccmon:<name>}`, resolved by `resolveEnvSecrets` in
+  MAIN — the DeepSeek key is stored encrypted and the renderer never sees it,
+  so the reference means the token is not typed twice, never crosses IPC and
+  never reaches `settings.json`. `setup:apply` resolves with the real value;
+  `setup:preview` resolves MASKED, because `planSetup.managedScript` is
+  rendered on screen and a preview that prints an API key defeats the point of
+  encrypting it — the one place the preview is deliberately not byte-exact. An
+  unresolved reference is a blocking `problem`, never written verbatim.
 - `applySetup(opts)` (re)writes that file, then appends a single guarded
   block (`# >>> ccmon managed >>>` … `. claude-accounts.sh` … `# <<< … <<<`)
   to each chosen rc that lacks it (creating the rc's PARENT dir first — a

@@ -11,6 +11,7 @@ import { useUsageStore } from '../../store/useUsageStore';
 import { refreshAccounts, updateSettings } from '../../bootstrap';
 import { tildify } from '../../lib/format';
 import { accountRoot, suggestWrapperName } from '../../lib/crossAccount';
+import { PROVIDER_PRESETS } from '../../../shared/providerPresets';
 import type {
   AccountSpec,
   SetupOptions,
@@ -268,6 +269,37 @@ export function SetupWizard() {
                       {envCount ? `env · ${envCount}` : '+ env'}
                     </button>
                   </div>
+                  {envOpen.has(root) && (
+                    <div className="wiz-env-presets">
+                      <span className="wiz-env-presets-label">preset</span>
+                      {PROVIDER_PRESETS.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="wiz-preset"
+                          title={p.summary}
+                          onClick={() => {
+                            setEnvText((prev) => ({ ...prev, [root]: envToText(p.env) }));
+                            invalidate();
+                          }}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                      {envText[root] ? (
+                        <button
+                          type="button"
+                          className="wiz-preset is-clear"
+                          onClick={() => {
+                            setEnvText((prev) => ({ ...prev, [root]: '' }));
+                            invalidate();
+                          }}
+                        >
+                          clear
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
                   {envOpen.has(root) && (
                     <textarea
                       className="wiz-env"

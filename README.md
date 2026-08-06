@@ -99,6 +99,40 @@ see and control in settings:
 Turn pricing offline and ccmon runs from bundled snapshots. Nothing is
 written anywhere except your own disk.
 
+## Running Claude Code on DeepSeek
+
+Claude Code talks to any Anthropic-compatible endpoint, so it can run on
+DeepSeek — roughly 35× cheaper per input token than Opus, 86× cheaper per
+output token. Doing it by hand means knowing ten environment variables, several
+undocumented. ccmon generates them:
+
+1. **Get a key** at [platform.deepseek.com](https://platform.deepseek.com), and
+   connect it in ccmon's **DeepSeek** panel. That enables balance and runway
+   tracking, and the setup wizard reuses the same key — you never type it twice.
+2. **Accounts → multi-account setup → `~/.claude-` `deepseek` → create.** Its
+   own config dir is what keeps DeepSeek usage separately attributed; a
+   transcript records no account identity, so sessions written into `~/.claude`
+   are indistinguishable from your subscription work.
+3. On the new row, click **+ env → DeepSeek**. That fills in the base URL, the
+   model mapping for all three tiers, the capability flags Claude Code needs to
+   keep effort/thinking enabled on an unrecognised model, and a
+   `${ccmon:deepseek-key}` reference to your stored key.
+4. **Preview**, check the diff (the key shows masked — the real value is only
+   written to disk), then **apply**. Open a new terminal.
+
+```bash
+claude-deepseek                        # a session on DeepSeek
+claude-deepseek-from-personal <id>     # move a running session onto DeepSeek
+```
+
+Both wrappers export the same environment, so a resumed session keeps DeepSeek
+rather than silently falling back to Anthropic. ccmon prices DeepSeek models
+from its own bundled catalog, so the spend shows up in every view alongside
+your Claude usage.
+
+Model ids move. If DeepSeek renames one, edit the env box — it is plain
+`KEY=value` text, and the preset is only a starting point.
+
 ## Build installers
 
 ```bash

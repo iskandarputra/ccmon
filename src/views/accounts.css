@@ -692,6 +692,45 @@
   color: var(--amber);
   border-color: color-mix(in srgb, var(--amber) 45%, transparent);
 }
+.wiz-env-presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+.wiz-env-presets-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-right: 2px;
+}
+.wiz-preset {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text);
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 4px 9px;
+  cursor: pointer;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
+}
+.wiz-preset:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.wiz-preset.is-clear {
+  color: var(--text-faint);
+}
+.wiz-preset.is-clear:hover {
+  border-color: var(--line);
+  color: var(--text);
+}
+
 .wiz-env {
   display: block;
   width: 100%;

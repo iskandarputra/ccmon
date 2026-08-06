@@ -40,6 +40,7 @@ import {
   applySetup,
   createAccountDir,
   detectShells,
+  resolveEnvSecrets,
   planSetup,
   renameAccountDir,
   visibleAccountDirs,
@@ -1158,9 +1159,30 @@ ipcMain.handle('sessions:recent', (_e, projectDir: string, limit?: number) => {
 
 // ---- multi-account setup wizard (writes shell rc — gated by an explicit
 // apply in the UI, which always previews the exact diff first) -------------
+/**
+ * Resolve `${ccmon:…}` env references in wrapper specs. `reveal` decides what
+ * a known secret becomes: the real value when we are about to WRITE it, and a
+ * masked stand-in when the result is only going to be rendered — `planSetup`'s
+ * script is shown on screen, and a preview that prints your API key defeats
+ * the point of storing it encrypted. Unknown names resolve to null, which
+ * `validateAccounts` turns into a blocking problem.
+ */
+function withSecrets(accounts: AccountSpec[], reveal: boolean): AccountSpec[] {
+  return resolveEnvSecrets(accounts, (name) => {
+    if (name !== 'deepseek-key') return null;
+    const key = state.deepseekKey?.key() ?? null;
+    if (!key) return null;
+    return reveal ? key : `${'•'.repeat(8)}${key.slice(-4)}`;
+  });
+}
+
 ipcMain.handle('setup:detectShells', () => detectShells());
-ipcMain.handle('setup:preview', (_e, opts: SetupOptions) => planSetup(opts));
-ipcMain.handle('setup:apply', (_e, opts: SetupOptions) => applySetup(opts));
+ipcMain.handle('setup:preview', (_e, opts: SetupOptions) =>
+  planSetup({ ...opts, accounts: withSecrets(opts.accounts, false) }),
+);
+ipcMain.handle('setup:apply', (_e, opts: SetupOptions) =>
+  applySetup({ ...opts, accounts: withSecrets(opts.accounts, true) }),
+);
 ipcMain.handle('setup:createAccount', (_e, suffix: string) => {
   const res = createAccountDir(suffix);
   if (res.ok) {
@@ -1196,7 +1218,7 @@ ipcMain.handle('setup:renameAccount', (_e, root: string, suffix: string) => {
   return res;
 });
 ipcMain.handle('setup:updateWrapperAccounts', (_e, accounts: AccountSpec[]) =>
-  writeWrapperAccounts(accounts),
+  writeWrapperAccounts(withSecrets(accounts, true)),
 );
 
 ipcMain.handle('pricing:refresh', async () => {

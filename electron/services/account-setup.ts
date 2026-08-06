@@ -8,6 +8,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
+import { SECRET_REF_RE } from '../../shared/providerPresets';
 import type {
   AccountSpec,
   AccountWrapperPrefs,
@@ -875,6 +876,31 @@ export function detectShells(env: SetupEnv = defaultEnv()): ShellDetection {
   return { platform: env.platform, shells };
 }
 
+/**
+ * Substitute `${ccmon:<name>}` references in every account's env.
+ *
+ * Secrets ccmon already holds (the DeepSeek key) are stored encrypted and
+ * readable only by the main process, so the wizard writes a reference and main
+ * resolves it here — the token is never typed twice, never crosses IPC, and
+ * never lands in `settings.json`. `resolve` returning null leaves the
+ * reference in place, and `validateAccounts` then refuses to write it.
+ *
+ * Pure: returns new objects, mutates nothing.
+ */
+export function resolveEnvSecrets(
+  accounts: AccountSpec[],
+  resolve: (name: string) => string | null,
+): AccountSpec[] {
+  return accounts.map((a) => {
+    if (!a.env) return a;
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(a.env)) {
+      env[k] = v.replace(SECRET_REF_RE, (whole, name: string) => resolve(name) ?? whole);
+    }
+    return { ...a, env };
+  });
+}
+
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 /** A portable environment-variable name — the only shape both shells accept. */
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -905,6 +931,14 @@ function validateAccounts(accounts: AccountSpec[]): string[] {
       // anything printable; a newline is the one thing that would break out of
       // the single line it is written on.
       if (/[\r\n]/.test(v)) problems.push(`"${a.name}": ${k} must not contain a line break`);
+      // an unresolved reference would be written verbatim and the wrapper would
+      // send the literal string as a token — fail loudly instead
+      for (const m of v.matchAll(SECRET_REF_RE)) {
+        problems.push(
+          `"${a.name}": ${k} references the ${m[1].replace(/-/g, ' ')} ccmon does not have — ` +
+            'connect it in the DeepSeek panel, or paste a token here',
+        );
+      }
     }
   }
   return problems;

@@ -16,6 +16,7 @@ import {
   planSetup,
   renameAccountDir,
   renderManagedScript,
+  resolveEnvSecrets,
   resolveLoginShell,
   scanRcForWrappers,
   suggestLabel,
@@ -23,6 +24,7 @@ import {
   writeWrapperAccounts,
   type SetupEnv,
 } from '../account-setup';
+import { PROVIDER_PRESETS } from '../../../shared/providerPresets';
 import type { SetupOptions } from '../../../shared/types';
 
 let home: string;
@@ -259,6 +261,45 @@ describe('renderManagedScript — per-account environment (alternate providers)'
     expect(bad({ 'BAD NAME': 'v' }).some((p) => p.includes('invalid environment variable name'))).toBe(true);
     expect(bad({ CLAUDE_CONFIG_DIR: '/x' }).some((p) => p.includes('comes from the config dir'))).toBe(true);
     expect(bad({ T: 'a\nb' }).some((p) => p.includes('line break'))).toBe(true);
+  });
+});
+
+describe('provider presets + secret references', () => {
+  const preset = () => PROVIDER_PRESETS.find((p) => p.id === 'deepseek')!;
+  const withPreset = () => [
+    { name: 'claude-deepseek', root: path.join(home, '.claude-deepseek'), env: preset().env },
+  ];
+
+  it('the DeepSeek preset is valid input to the generator', () => {
+    // a preset that trips its own validator would be worse than no preset
+    const p = planSetup(
+      opts({ accounts: resolveEnvSecrets(withPreset(), () => 'sk-real') }),
+      env,
+    );
+    expect(p.problems).toEqual([]);
+  });
+
+  it('resolves ${ccmon:…} to the stored secret at write time', () => {
+    const resolved = resolveEnvSecrets(withPreset(), (name) =>
+      name === 'deepseek-key' ? 'sk-real' : null,
+    );
+    expect(resolved[0].env!.ANTHROPIC_AUTH_TOKEN).toBe('sk-real');
+    // untouched values pass through, and the input is not mutated
+    expect(resolved[0].env!.ANTHROPIC_BASE_URL).toBe('https://api.deepseek.com/anthropic');
+    expect(withPreset()[0].env!.ANTHROPIC_AUTH_TOKEN).toContain('${ccmon:');
+  });
+
+  it('REFUSES to write an unresolved reference rather than sending it as a token', () => {
+    const p = planSetup(opts({ accounts: resolveEnvSecrets(withPreset(), () => null) }), env);
+    expect(p.problems.some((x) => x.includes('ccmon does not have'))).toBe(true);
+  });
+
+  it('a masked resolution is what a preview renders — never the real key', () => {
+    const masked = resolveEnvSecrets(withPreset(), () => '••••••••real');
+    const p = planSetup(opts({ accounts: masked }), env);
+    expect(p.problems).toEqual([]);
+    expect(p.managedScript).toContain('••••••••real');
+    expect(p.managedScript).not.toContain('sk-real');
   });
 });
 
