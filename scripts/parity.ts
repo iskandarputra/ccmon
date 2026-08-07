@@ -42,8 +42,7 @@ interface CcusageDailyRow extends CcusageTokens {
 
 type Totals = { in: number; out: number; write: number; read: number };
 
-const fmt = (t: Totals) =>
-  `in ${t.in} · out ${t.out} · write ${t.write} · read ${t.read}`;
+const fmt = (t: Totals) => `in ${t.in} · out ${t.out} · write ${t.write} · read ${t.read}`;
 
 /** One ccusage row/totals object → our shape. */
 const tokensOf = (t: CcusageTokens): Totals => ({
@@ -53,17 +52,57 @@ const tokensOf = (t: CcusageTokens): Totals => ({
   read: t.cacheReadTokens || 0,
 });
 
-async function main(): Promise<void> {
+/**
+ * Roots to compare, and the `CLAUDE_CONFIG_DIR` value that pins ccusage to
+ * exactly the same ones.
+ *
+ * Two modes:
+ *
+ *   default   — the real `~/.claude` corpus. The strongest signal there is
+ *               (tens of thousands of entries, every shape Claude Code has
+ *               ever written) and the reason this script exists. Needs data on
+ *               the machine, so it cannot run on a clean checkout.
+ *
+ *   --fixture — the committed corpus under `scripts/fixtures/parity/`, a small
+ *               root holding one instance of each case where a naive
+ *               implementation diverges: cumulative streaming chunks, a
+ *               subagent entry mirrored into a parent transcript, an
+ *               incomplete ephemeral-cache breakdown, a fast-speed turn, a
+ *               non-Anthropic model, and lines that must NOT be billed
+ *               (synthetic, usage-limit error, tool_result, compaction,
+ *               malformed). This is what CI can run, because it ships with the
+ *               repo.
+ *
+ * The fixture is a floor, not a replacement: it proves no rule regressed, the
+ * real corpus proves no rule is missing. Run both before trusting a change to
+ * the parser or the dedupe.
+ */
+function resolveRoots(useFixture: boolean): { dirs: string[]; configDir: string } {
+  if (useFixture) {
+    const root = path.join(__dirname, 'fixtures', 'parity');
+    return { dirs: [path.join(root, 'projects')], configDir: root };
+  }
   // only the roots ccusage also reads — extra ccmon roots (multi-account
   // dirs like ~/.claude-work) would inflate our side of the comparison
   const dirs = detectProjectDirs(loadConfig().claudeDirs || []).filter(
-    (d) => /[\\/]\.claude[\\/]projects$/.test(d) || /[\\/]\.config[\\/]claude[\\/]projects$/.test(d),
+    (d) =>
+      /[\\/]\.claude[\\/]projects$/.test(d) || /[\\/]\.config[\\/]claude[\\/]projects$/.test(d),
   );
+  return { dirs, configDir: dirs.map((d) => path.dirname(d)).join(',') };
+}
+
+async function main(): Promise<void> {
+  const useFixture = process.argv.includes('--fixture');
+  const { dirs, configDir } = resolveRoots(useFixture);
   if (!dirs.length) {
-    console.error('no standard Claude data directories found');
+    console.error(
+      'no standard Claude data directories found\n' +
+        'On a machine with no Claude Code history, run the committed corpus instead:\n' +
+        '  npm run parity -- --fixture',
+    );
     process.exit(1);
   }
-  console.log('comparing roots:', dirs.join(', '));
+  console.log(`comparing roots${useFixture ? ' (fixture)' : ''}:`, dirs.join(', '));
 
   console.log('scanning via ccmon pipeline…');
   const watcher = new UsageWatcher({ dirs, watch: false });
@@ -94,7 +133,7 @@ async function main(): Promise<void> {
   // environment named. The run still prints tidy percentages, so the failure
   // reads as a token-math regression rather than a harness bug. Setting it
   // explicitly makes the comparison independent of the shell it runs in.
-  const ccusageRoots = dirs.map((d) => path.dirname(d)).join(',');
+  const ccusageRoots = configDir;
   console.log('running ccusage (npx, may download on first run)…');
   console.log('  CLAUDE_CONFIG_DIR pinned to:', ccusageRoots);
   const raw = execFileSync(
@@ -119,15 +158,18 @@ async function main(): Promise<void> {
   const totalsObj = parsed.totals as CcusageTokens | undefined;
   const theirs: Totals = totalsObj
     ? tokensOf(totalsObj)
-    : rows.reduce<Totals>((acc, row) => {
-        const t = tokensOf(row);
-        return {
-          in: acc.in + t.in,
-          out: acc.out + t.out,
-          write: acc.write + t.write,
-          read: acc.read + t.read,
-        };
-      }, { in: 0, out: 0, write: 0, read: 0 });
+    : rows.reduce<Totals>(
+        (acc, row) => {
+          const t = tokensOf(row);
+          return {
+            in: acc.in + t.in,
+            out: acc.out + t.out,
+            write: acc.write + t.write,
+            read: acc.read + t.read,
+          };
+        },
+        { in: 0, out: 0, write: 0, read: 0 },
+      );
   console.log(
     `ccusage : ${rows.length} day rows · ${fmt(theirs)}` +
       `${totalsObj ? '' : '  (summed from rows — no totals object)'}`,
@@ -148,7 +190,9 @@ async function main(): Promise<void> {
     const d = drift(a, b);
     const ok = d < 0.001; // 0.1% — boundary-day bucketing noise at most
     if (!ok) failed = true;
-    console.log(`${ok ? 'OK  ' : 'FAIL'} ${label.padEnd(12)} ccmon ${a} vs ccusage ${b} (drift ${(d * 100).toFixed(3)}%)`);
+    console.log(
+      `${ok ? 'OK  ' : 'FAIL'} ${label.padEnd(12)} ccmon ${a} vs ccusage ${b} (drift ${(d * 100).toFixed(3)}%)`,
+    );
   }
 
   // Localize on failure. Grand totals say "something diverged"; the per-day
