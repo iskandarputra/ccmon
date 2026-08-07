@@ -1,0 +1,26 @@
+# Normalise line endings so a Windows checkout does not produce a whole-file
+# diff. The CI matrix runs on windows-latest, and account-setup.ts emits
+# PowerShell that is edited on all three platforms.
+* text=auto eol=lf
+
+# Generated lockfile: committed on purpose (npm ci requires it, and it is the
+# record of exactly which transitive versions ship in an installer), but there
+# is nothing to review line by line.
+#
+#   linguist-generated  collapses it by default in GitHub PR diffs
+#   -diff               keeps `git diff` from printing 600 packages of noise
+#
+# Neither flag affects merges: npm 7+ resolves lockfile conflicts itself —
+# take either side, run `npm install`, commit the result.
+package-lock.json linguist-generated=true -diff
+
+# Committed test corpus — captured data, byte-for-byte meaningful. Never let a
+# checkout rewrite line endings here: the parser is tested against these exact
+# bytes, and the parity fixture asserts an exact entry count.
+scripts/fixtures/** -text
+
+# Binary-ish assets: no EOL conversion, no diff.
+*.png binary
+*.ico binary
+*.icns binary
+*.svg text eol=lf
