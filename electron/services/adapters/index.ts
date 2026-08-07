@@ -5,19 +5,25 @@
  */
 
 import { claudeAdapter } from './claude';
+import { codexAdapter } from './codex';
 import type { SourceAdapter, SourceRoot } from './types';
 
 export type { SourceAdapter, SourceRoot } from './types';
 export { claudeAdapter } from './claude';
+export { codexAdapter } from './codex';
 
 /**
  * Every adapter ccmon knows, in precedence order.
  *
- * Claude Code is first and, for now, alone: it is the only format whose data
- * this build reads. Adding one here is what makes it discoverable — nothing
- * else needs to change in the watcher or the aggregator.
+ * Claude Code first because it is the format ccmon was built around and the
+ * one `npm run parity` pins. Codex second — it is what proved the seam:
+ * fitting it required adding per-file parse state to `SourceAdapter`, which no
+ * amount of designing against a single format would have surfaced.
+ *
+ * Adding one here is what makes it discoverable; nothing else needs to change
+ * in the watcher or the aggregator.
  */
-export const ADAPTERS: SourceAdapter[] = [claudeAdapter];
+export const ADAPTERS: SourceAdapter[] = [claudeAdapter, codexAdapter];
 
 /** Look up an adapter by its stable id. */
 export function adapterById(id: string): SourceAdapter | null {
