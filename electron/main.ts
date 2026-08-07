@@ -25,7 +25,13 @@ import { createPricingEngine, costForMode, type PricingEngine } from './services
 import { PricingArchive } from './services/pricing-archive';
 import { UsageWatcher } from './services/watcher';
 import { buildSnapshot, dayBreakdown, toFeedEvent } from './services/aggregate';
-import { accountsFor, demoLimits, fetchLiveLimits } from './services/accounts';
+import {
+  accountLabel,
+  accountsFor,
+  capAlerts,
+  demoLimits,
+  fetchLiveLimits,
+} from './services/accounts';
 import {
   beginBrowserLogin,
   completeBrowserLogin,
@@ -52,7 +58,14 @@ import { fetchBalance } from './services/deepseek';
 import { DeepseekHistory } from './services/deepseek-history';
 import { DeepseekKeyStore, envKey, looksLikeKey, type KeyCrypto } from './services/deepseek-key';
 import { loadState, trackState } from './services/window-state';
+import { recomputeSig as sigOf } from './services/recompute';
 import { trayText } from './services/status-text';
+import {
+  dirsChanged,
+  primaryDir as primaryOf,
+  resolveSourceScope,
+  visibleEntries as entriesForVisible,
+} from './services/scope';
 import { isDeepseekModel } from '../shared/providers';
 import type {
   AccountSpec,
@@ -70,7 +83,6 @@ import type {
   LimitsMap,
   ToolResultByDay,
   LimitsResult,
-  LimitWindow,
   LoginCodeResult,
   LoginResult,
   PricingMeta,
@@ -99,7 +111,6 @@ const CURRENCY_REFRESH_MS = 3_600_000; // hourly display-currency rates
 // is not one to hammer — 5 min is plenty to keep runway honest.
 const DEEPSEEK_REFRESH_MS = 300_000;
 const DEEPSEEK_RETRY_MS = 300_000; // FIXED retry after a balance failure
-const CAP_ALERT_PCT = 90; // opt-in OS notification threshold for a live window
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -206,13 +217,7 @@ function send(channel: string, payload: unknown): void {
 }
 
 /** The main account's project dir: literal ~/.claude when present, else first. */
-function primaryDir(): string | null {
-  return (
-    state.sourceDirs.find((d) => /[\\/]\.claude[\\/]projects$/.test(d)) ||
-    state.sourceDirs[0] ||
-    null
-  );
-}
+const primaryDir = (): string | null => primaryOf(state.sourceDirs);
 
 /**
  * Recompute the visible dir list from the detected one and the hide prefs.
@@ -227,7 +232,7 @@ function applyVisibility(): boolean {
   const next = visibleAccountDirs(state.allSourceDirs, prefs);
   // NUL separator, not a space: a project path may contain spaces but never
   // a NUL, so this can't report "unchanged" for two different lists.
-  const changed = next.join('\0') !== state.sourceDirs.join('\0');
+  const changed = dirsChanged(next, state.sourceDirs);
   state.sourceDirs = next;
   return changed;
 }
@@ -252,27 +257,16 @@ function refreshSourceDirs(): void {
  * side door — so it resolves to the explicit visible set instead.
  */
 function sourceScope(): Set<string> | null {
-  const visible = state.sourceDirs;
-  const everything = visible.length < state.allSourceDirs.length ? new Set(visible) : null;
-  const sel = state.settings ? state.settings.get().sources : null;
-  if (Array.isArray(sel) && sel.length) {
-    const live = sel.filter((d) => visible.includes(d));
-    if (live.length === visible.length) return everything; // explicit all
-    if (live.length) return new Set(live);
-  }
-  if (visible.length > 1) {
-    const p = primaryDir();
-    if (p) return new Set([p]);
-  }
-  return everything;
+  return resolveSourceScope({
+    visible: state.sourceDirs,
+    all: state.allSourceDirs,
+    selected: state.settings ? state.settings.get().sources : null,
+  });
 }
 
 /** Entries from visible accounts only — hidden ones are out of the app entirely. */
-function visibleEntries(): UsageEntry[] {
-  if (state.sourceDirs.length === state.allSourceDirs.length) return state.entries;
-  const visible = new Set(state.sourceDirs);
-  return state.entries.filter((e) => visible.has(e.source ?? ''));
-}
+const visibleEntries = (): UsageEntry[] =>
+  entriesForVisible(state.entries, state.sourceDirs, state.allSourceDirs);
 
 interface ScopedData {
   entries: UsageEntry[];
@@ -306,7 +300,8 @@ function scopedData(): ScopedData {
   if (scopedCache && scopedCache.sig === sig) return scopedCache.value;
   const entries = scope ? state.entries.filter((e) => scope.has(e.source ?? '')) : state.entries;
   const compactions = scope ? allC.filter((c) => scope.has(c.source ?? '')) : allC;
-  const toolResults = watcher ? watcher.toolResultsFor(scope) : new Map();
+  const toolResults: ToolResultByDay =
+    watcher?.toolResultsFor(scope) ?? new Map<string, { count: number; chars: number }>();
   const value: ScopedData = { entries, compactions, toolResults };
   scopedCache = { sig, value };
   return value;
@@ -322,22 +317,16 @@ function scopedData(): ScopedData {
  * block can only form from NEW entries, which force a rebuild anyway.
  */
 function recomputeSig(now: number): string {
-  const s = state.settings?.get();
-  const last = state.entries[state.entries.length - 1];
-  const active = !!state.snapshot?.block;
-  return [
-    state.entries.length,
-    last?.key ?? '',
-    s
-      ? `${s.costMode}|${s.startOfWeek}|${s.tokenLimit}|${s.timezone || ''}|${s.blockHours ?? ''}|${(s.sources || []).join(',')}`
-      : '',
-    state.pricingMeta?.fetchedAt ?? 0,
-    state.pricingMeta?.source ?? '',
-    state.watcher?.resetTs ?? 0,
-    dayKeyFor(now, s?.timezone || null),
-    active ? Math.floor(now / 60_000) : 'idle',
-    `${state.range.preset}|${state.range.customStart ?? ''}|${state.range.customEnd ?? ''}`,
-  ].join('§');
+  return sigOf({
+    entries: state.entries,
+    settings: state.settings?.get() ?? null,
+    pricingFetchedAt: state.pricingMeta?.fetchedAt ?? null,
+    pricingSource: state.pricingMeta?.source ?? null,
+    resetTs: state.watcher?.resetTs ?? null,
+    blockActive: !!state.snapshot?.block,
+    range: state.range,
+    now,
+  });
 }
 
 function recompute(force = false): void {
@@ -407,11 +396,6 @@ function scheduleRecompute(): void {
  *  - every failure and recovery is logged with full context
  */
 /** Short account label from a source dir ('~/.claude-work/projects' → 'work'). */
-function accountLabel(dir: string): string {
-  const root = path.basename(path.dirname(dir));
-  if (root === '.claude') return 'default';
-  return root.replace(/^\.claude-?/, '') || root;
-}
 
 /**
  * Opt-in OS notification when an account crosses ~90% of a live window. Fires
@@ -420,22 +404,18 @@ function accountLabel(dir: string): string {
  * focuses the app. No-op unless the setting is on and the OS supports it.
  */
 function maybeNotifyCap(dir: string, r: LimitsResult): void {
-  if (!r.ok || process.env.CCMON_DEMO_LIMITS) return;
+  if (process.env.CCMON_DEMO_LIMITS) return;
   if (!state.settings?.get().notifyNearCap || !Notification.isSupported()) return;
-  const windows: Array<{ name: string; win: LimitWindow | null | undefined }> = [
-    { name: 'session', win: r.session },
-    { name: 'week', win: r.week },
-  ];
-  for (const { name, win } of windows) {
-    if (win?.pct == null || win.pct < CAP_ALERT_PCT) continue;
-    const key = `${dir}:${name}`;
-    const resetsAt = win.resetsAt ?? 0;
-    if (state.capNotified.get(key) === resetsAt) continue; // already alerted this cycle
-    state.capNotified.set(key, resetsAt);
-    const resetNote = win.resetsAt ? ` · resets ${new Date(win.resetsAt).toLocaleTimeString()}` : '';
+  // `capAlerts` owns the WHICH (threshold, per-reset-cycle dedupe) and is unit
+  // tested; this function owns only the Electron effect.
+  for (const alert of capAlerts(dir, r, state.capNotified)) {
+    state.capNotified.set(alert.key, alert.resetsAt);
+    const resetNote = alert.resetsAt
+      ? ` · resets ${new Date(alert.resetsAt).toLocaleTimeString()}`
+      : '';
     const note = new Notification({
       title: `ccmon · ${accountLabel(dir)} near cap`,
-      body: `${name} window at ${Math.round(win.pct)}%${resetNote}`,
+      body: `${alert.window} window at ${Math.round(alert.pct)}%${resetNote}`,
     });
     note.on('click', () => {
       if (!state.win) return;
@@ -443,7 +423,9 @@ function maybeNotifyCap(dir: string, r: LimitsResult): void {
       state.win.focus();
     });
     note.show();
-    console.log(`[ccmon] cap alert: ${accountLabel(dir)} ${name} ${Math.round(win.pct)}%`);
+    console.log(
+      `[ccmon] cap alert: ${accountLabel(dir)} ${alert.window} ${Math.round(alert.pct)}%`,
+    );
   }
 }
 
@@ -510,7 +492,9 @@ async function refreshLimits(force = false): Promise<void> {
       console.warn(
         `[ccmon] limits ${d}: ${r.error} — ${force ? 'manual attempt' : `attempt ${failures}`}, ` +
           `next automatic retry in ${Math.max(0, Math.round((nextAttemptAt - Date.now()) / 1000))}s` +
-          (prev?.ok ? `, keeping data fetched ${new Date(prev.fetchedAt).toLocaleTimeString()}` : ''),
+          (prev?.ok
+            ? `, keeping data fetched ${new Date(prev.fetchedAt).toLocaleTimeString()}`
+            : ''),
       );
       if (prev?.ok) {
         // serve the last good numbers, clearly marked stale + why
@@ -637,10 +621,17 @@ async function refreshDeepseek(force = false): Promise<void> {
       console.warn(
         `[ccmon] deepseek: ${r.error} — ${force ? 'manual attempt' : `attempt ${failures}`}, ` +
           `next automatic retry in ${Math.max(0, Math.round((nextAttemptAt - Date.now()) / 1000))}s` +
-          (prev?.ok ? `, keeping balance fetched ${new Date(prev.fetchedAt).toLocaleTimeString()}` : ''),
+          (prev?.ok
+            ? `, keeping balance fetched ${new Date(prev.fetchedAt).toLocaleTimeString()}`
+            : ''),
       );
       state.deepseek = prev?.ok
-        ? { ...prev, stale: true, lastError: { error: r.error, at: r.at ?? Date.now() }, nextRetryAt: nextAttemptAt }
+        ? {
+            ...prev,
+            stale: true,
+            lastError: { error: r.error, at: r.at ?? Date.now() },
+            nextRetryAt: nextAttemptAt,
+          }
         : { ...r, nextRetryAt: nextAttemptAt };
     }
     send('deepseek:data', state.deepseek);
@@ -769,14 +760,28 @@ function createWindow(): void {
     notifyClosedToTray();
   });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  // The renderer is a fixed local document and must never become a browser.
+  // `setWindowOpenHandler` only covers NEW windows; a top-level navigation in
+  // the existing one (a stray anchor, a redirect, injected markup) would swap
+  // the app out for a remote page that still has the preload bridge attached.
+  // Anything not the page we loaded is denied and, if it looks like a link the
+  // user meant to follow, handed to the real browser instead.
+  win.webContents.on('will-navigate', (e, url) => {
+    if (url === win.webContents.getURL()) return; // in-page reload
+    e.preventDefault();
+    if (url.startsWith('https://')) void shell.openExternal(url);
+  });
   trackState(win, stateFile);
 
-  if (DEV_URL) {
-    win.loadURL(DEV_URL);
-    win.webContents.openDevTools({ mode: 'detach' });
-  } else {
-    win.loadFile(path.join(__dirname, '..', 'dist', 'renderer', 'index.html'));
-  }
+  // Load failures surface through the window's own events (and a blank
+  // window), not through these promises — but they must still be handled, or a
+  // missing renderer bundle becomes an unhandled rejection instead of a log.
+  const loaded = DEV_URL
+    ? win.loadURL(DEV_URL)
+    : win.loadFile(path.join(__dirname, '..', 'dist', 'renderer', 'index.html'));
+  loaded.catch((err: unknown) => console.error('[ccmon] renderer failed to load:', err));
+  if (DEV_URL) win.webContents.openDevTools({ mode: 'detach' });
 
   state.win = win;
   win.on('closed', () => {
@@ -834,7 +839,7 @@ function createTray(): void {
       return;
     }
     state.tray = new Tray(image);
-    state.tray.on('click', showWindow);      // Windows/macOS
+    state.tray.on('click', showWindow); // Windows/macOS
     state.tray.on('double-click', showWindow);
     refreshTray();
     console.log('[ccmon] tray ready');
@@ -924,7 +929,11 @@ ipcMain.handle('settings:set', (_e, partial: Partial<AppSettings>) => {
   const visibilityChanged = applyVisibility();
   if (visibilityChanged) {
     state.accounts = accountsFor(state.sourceDirs);
-    send('accounts:data', { sourceDirs: state.sourceDirs, allSourceDirs: state.allSourceDirs, accounts: state.accounts });
+    send('accounts:data', {
+      sourceDirs: state.sourceDirs,
+      allSourceDirs: state.allSourceDirs,
+      accounts: state.accounts,
+    });
     void refreshLimits(true);
   }
   // A zone change re-buckets which day every message counts against. Entries
@@ -939,7 +948,9 @@ ipcMain.handle('settings:set', (_e, partial: Partial<AppSettings>) => {
     for (const e of state.entries) e.dateKey = dayKeyFor(e.ts, zone);
     state.watcher?.setTimezone(zone); // lines parsed from here on match
     state.dataEpoch += 1; //            invalidate scopedData's memo
-    console.log(`[ccmon] timezone → ${next.timezone || 'system'}, re-stamped ${state.entries.length} entries`);
+    console.log(
+      `[ccmon] timezone → ${next.timezone || 'system'}, re-stamped ${state.entries.length} entries`,
+    );
   }
   // Analytics semantics changed → rebuild the snapshot from the same entries.
   if (
@@ -972,7 +983,9 @@ ipcMain.handle('auth:login', async (_e, projectDir: string): Promise<LoginResult
   if (r.ok) {
     state.pendingLogins.delete(projectDir);
     state.accounts = accountsFor(state.sourceDirs); // a first-time login flips hasCredentials
-    console.log(`[ccmon] auth ${projectDir}: refreshed, expires ${new Date(r.expiresAt).toLocaleString()}`);
+    console.log(
+      `[ccmon] auth ${projectDir}: refreshed, expires ${new Date(r.expiresAt).toLocaleString()}`,
+    );
     await refreshLimits(true);
     return { status: 'refreshed' };
   }
@@ -1011,7 +1024,12 @@ ipcMain.handle(
 // here, and sends ONLY snapshot aggregates, no transcripts.
 ipcMain.handle(
   'advisor:ask',
-  async (_e, question: string, history: AdvisorMessage[], reqDir?: string): Promise<AdvisorResult> => {
+  async (
+    _e,
+    question: string,
+    history: AdvisorMessage[],
+    reqDir?: string,
+  ): Promise<AdvisorResult> => {
     if (typeof question !== 'string' || !question.trim()) {
       return { ok: false, error: 'empty question' };
     }
@@ -1022,7 +1040,10 @@ ipcMain.handle(
       typeof reqDir === 'string' && state.sourceDirs.includes(reqDir) ? reqDir : primaryDir();
     const creds = dir ? readOauth(dir) : null;
     if (!creds?.accessToken) {
-      return { ok: false, error: 'no Claude Code login found — sign in on the accounts view first' };
+      return {
+        ok: false,
+        error: 'no Claude Code login found — sign in on the accounts view first',
+      };
     }
     if (creds.expiresAt && creds.expiresAt < Date.now() + 60_000) {
       return { ok: false, error: 'the Claude Code login is expired — use "Log in" to refresh it' };
@@ -1073,7 +1094,9 @@ ipcMain.handle('deepseek:connect', async (_e, key?: string): Promise<DeepseekAut
   state.deepseek = withDeepseekDerived(probe);
   const auth = pushDeepseekAuth();
   send('deepseek:data', state.deepseek);
-  console.log(`[ccmon] deepseek: connected ${auth.hint}${auth.encrypted ? '' : ' (unencrypted — no OS keyring)'}`);
+  console.log(
+    `[ccmon] deepseek: connected ${auth.hint}${auth.encrypted ? '' : ' (unencrypted — no OS keyring)'}`,
+  );
   return { ok: true };
 });
 
@@ -1266,7 +1289,9 @@ app.on('second-instance', () => {
 void app.whenReady().then(async () => {
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   state.settings = new Settings(path.join(app.getPath('userData'), 'settings.json'));
-  state.limitsHistory = new LimitsHistory(path.join(app.getPath('userData'), 'limits-history.json'));
+  state.limitsHistory = new LimitsHistory(
+    path.join(app.getPath('userData'), 'limits-history.json'),
+  );
   state.currency = new CurrencyService(app.getPath('userData'));
   // safeStorage is only usable after `ready`; wrapping it here is what keeps
   // the key store itself a pure-Node service (electron/services never imports

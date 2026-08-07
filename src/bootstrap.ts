@@ -105,9 +105,20 @@ export function useBootstrap(): void {
   }, []);
 }
 
-/** Patch settings in main; the change echoes back via onSettings. */
-export function updateSettings(partial: Partial<AppSettings>) {
-  return window.ccmon?.setSettings(partial);
+/**
+ * Patch settings in main; the change echoes back via onSettings.
+ *
+ * Deliberately fire-and-forget, and typed `void` to say so. Main is the source
+ * of truth and pushes the applied settings back on `settings:changed`, so the
+ * resolved value carries no information a caller could act on — and no caller
+ * ever awaited it. Returning the promise only invited an unhandled rejection
+ * at twelve call sites; swallowing it here with a log keeps a failed IPC
+ * visible without every toggle needing a `void`.
+ */
+export function updateSettings(partial: Partial<AppSettings>): void {
+  void window.ccmon?.setSettings(partial)?.catch((err: unknown) => {
+    console.error('[ccmon] settings update failed:', err);
+  });
 }
 
 /** Refresh the store's account list after main re-detects config roots (new/renamed account dir). */

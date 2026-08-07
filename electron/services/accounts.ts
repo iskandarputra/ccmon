@@ -168,6 +168,64 @@ export function accountInfo(projectDir: string): AccountInfo | null {
   };
 }
 
+/**
+ * Short human name for an account, derived from its root directory:
+ * `~/.claude` → "default", `~/.claude-work` → "work".
+ *
+ * Display only. It is what the tray rows, the cap notification and the log
+ * lines call an account, so it must never be used as an identity key — two
+ * roots could decode to the same label.
+ */
+export function accountLabel(projectDir: string): string {
+  const root = path.basename(path.dirname(projectDir));
+  if (root === '.claude') return 'default';
+  return root.replace(/^\.claude-?/, '') || root;
+}
+
+/** Threshold at which a live usage window is considered "near cap". */
+export const CAP_ALERT_PCT = 90;
+
+export interface CapAlert {
+  /** dedupe key: one alert per account per window per reset cycle */
+  key: string;
+  window: 'session' | 'week';
+  pct: number;
+  resetsAt: number;
+}
+
+/**
+ * Which near-cap alerts a limits result warrants, given what has already been
+ * announced. Pure: the caller owns actually showing a notification and
+ * recording the result back into `notified`.
+ *
+ * The dedupe is keyed on the window's RESET time, not a boolean. That is what
+ * makes the 60-second poll quiet — an account sitting at 94% for three hours
+ * alerts once — while still re-arming the moment the window rolls over and
+ * `resetsAt` changes. A boolean would either spam every poll or alert once and
+ * never again.
+ */
+export function capAlerts(
+  projectDir: string,
+  r: LimitsResult,
+  notified: ReadonlyMap<string, number>,
+  threshold: number = CAP_ALERT_PCT,
+): CapAlert[] {
+  if (!r.ok) return [];
+  const out: CapAlert[] = [];
+  const windows: Array<['session' | 'week', LimitWindow | null | undefined]> = [
+    ['session', r.session],
+    ['week', r.week],
+  ];
+  for (const [name, win] of windows) {
+    if (win?.pct == null || win.pct < threshold) continue;
+    const key = `${projectDir}:${name}`;
+    const resetsAt = win.resetsAt ?? 0;
+    if (notified.get(key) === resetsAt) continue; // already alerted this cycle
+    out.push({ key, window: name, pct: win.pct, resetsAt });
+  }
+  return out;
+}
+
 /** All account infos keyed by source dir. */
 export function accountsFor(projectDirs: string[] = []): AccountsMap {
   const out: AccountsMap = {};
