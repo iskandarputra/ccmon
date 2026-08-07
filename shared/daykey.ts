@@ -67,7 +67,7 @@ function zoneOffsetMs(ts: number, zone: string): number {
   const hit = offsetCache.get(key);
   if (hit !== undefined) return hit;
 
-  let offset = 0;
+  let offset: number;
   try {
     const parts = formatterFor(zone).formatToParts(new Date(ts));
     const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? '0');

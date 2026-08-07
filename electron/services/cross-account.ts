@@ -81,7 +81,9 @@ export function recentSessions(projectsDir: string, limit = 8): RecentSession[] 
   const byId = new Map<string, RecentSession>();
   for (const file of files) {
     const id = path.basename(file, '.jsonl');
-    let mtime = 0;
+    // no initializer: every path either assigns or `continue`s, and letting
+    // the checker enforce that is better than a 0 nobody reads
+    let mtime: number;
     try {
       mtime = fs.statSync(file).mtimeMs;
     } catch {

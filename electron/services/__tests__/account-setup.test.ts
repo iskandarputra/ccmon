@@ -127,10 +127,20 @@ describe('detectShells — per-OS targets', () => {
 
   it('Windows offers a single PowerShell profile target', () => {
     const profile = path.join(home, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1');
-    const { platform, shells } = detectShells({ home, loginShell: null, platform: 'win32', psProfile: profile });
+    const { platform, shells } = detectShells({
+      home,
+      loginShell: null,
+      platform: 'win32',
+      psProfile: profile,
+    });
     expect(platform).toBe('win32');
     expect(shells).toHaveLength(1);
-    expect(shells[0]).toMatchObject({ shell: 'powershell', family: 'powershell', detected: true, rcPath: profile });
+    expect(shells[0]).toMatchObject({
+      shell: 'powershell',
+      family: 'powershell',
+      detected: true,
+      rcPath: profile,
+    });
   });
 });
 
@@ -183,7 +193,9 @@ describe('renderManagedScript', () => {
 
   it('calls the helper by its install path — ~/.local/bin is not on PATH on macOS', () => {
     const out = renderManagedScript(opts().accounts, home);
-    expect(out).toContain('"$HOME/.local/bin/claude-cross-resume" "$HOME/.claude-work" "$HOME/.claude"');
+    expect(out).toContain(
+      '"$HOME/.local/bin/claude-cross-resume" "$HOME/.claude-work" "$HOME/.claude"',
+    );
     expect(out).not.toMatch(/^\s*claude-\S+\(\) \{ claude-cross-resume/m); // never bare
   });
 
@@ -218,7 +230,9 @@ describe('renderManagedScript — per-account environment (alternate providers)'
         `ANTHROPIC_MODEL='deepseek-v4-pro[1m]'; claude "$@" ); }`,
     );
     // an account with no env keeps exactly the old one-variable form
-    expect(out).toContain('claude-personal() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude"; claude "$@" ); }');
+    expect(out).toContain(
+      'claude-personal() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude"; claude "$@" ); }',
+    );
   });
 
   it('single-quotes values so nothing in a token or URL is expanded', () => {
@@ -257,9 +271,14 @@ describe('renderManagedScript — per-account environment (alternate providers)'
 
   it('rejects an unusable variable name, a reserved one, and an embedded newline', () => {
     const bad = (env: Record<string, string>) =>
-      planSetup(opts({ accounts: [{ name: 'claude-x', root: path.join(home, '.claude'), env }] })).problems;
-    expect(bad({ 'BAD NAME': 'v' }).some((p) => p.includes('invalid environment variable name'))).toBe(true);
-    expect(bad({ CLAUDE_CONFIG_DIR: '/x' }).some((p) => p.includes('comes from the config dir'))).toBe(true);
+      planSetup(opts({ accounts: [{ name: 'claude-x', root: path.join(home, '.claude'), env }] }))
+        .problems;
+    expect(
+      bad({ 'BAD NAME': 'v' }).some((p) => p.includes('invalid environment variable name')),
+    ).toBe(true);
+    expect(
+      bad({ CLAUDE_CONFIG_DIR: '/x' }).some((p) => p.includes('comes from the config dir')),
+    ).toBe(true);
     expect(bad({ T: 'a\nb' }).some((p) => p.includes('line break'))).toBe(true);
   });
 });
@@ -272,10 +291,7 @@ describe('provider presets + secret references', () => {
 
   it('the DeepSeek preset is valid input to the generator', () => {
     // a preset that trips its own validator would be worse than no preset
-    const p = planSetup(
-      opts({ accounts: resolveEnvSecrets(withPreset(), () => 'sk-real') }),
-      env,
-    );
+    const p = planSetup(opts({ accounts: resolveEnvSecrets(withPreset(), () => 'sk-real') }), env);
     expect(p.problems).toEqual([]);
   });
 
@@ -286,7 +302,7 @@ describe('provider presets + secret references', () => {
     expect(resolved[0].env!.ANTHROPIC_AUTH_TOKEN).toBe('sk-real');
     // untouched values pass through, and the input is not mutated
     expect(resolved[0].env!.ANTHROPIC_BASE_URL).toBe('https://api.deepseek.com/anthropic');
-    expect(withPreset()[0].env!.ANTHROPIC_AUTH_TOKEN).toContain('${ccmon:');
+    expect(withPreset()[0].env.ANTHROPIC_AUTH_TOKEN).toContain('${ccmon:');
   });
 
   it('REFUSES to write an unresolved reference rather than sending it as a token', () => {
@@ -305,7 +321,10 @@ describe('provider presets + secret references', () => {
 
 describe('planSetup — validation', () => {
   it('flags an invalid wrapper name', () => {
-    const p = planSetup(opts({ accounts: [{ name: 'bad name', root: path.join(home, '.claude') }] }), env);
+    const p = planSetup(
+      opts({ accounts: [{ name: 'bad name', root: path.join(home, '.claude') }] }),
+      env,
+    );
     expect(p.problems.some((x) => x.includes('invalid wrapper name'))).toBe(true);
   });
 
@@ -328,7 +347,10 @@ describe('applySetup — writes and idempotency', () => {
     const r = applySetup(opts(), env);
     expect(r.ok).toBe(true);
 
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).toContain('claude-work() {');
 
     const rc = fs.readFileSync(path.join(home, '.bashrc'), 'utf8');
@@ -380,7 +402,10 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
   it('writes the managed file without touching any rc', () => {
     const r = writeWrapperAccounts(opts().accounts, env);
     expect(r.ok).toBe(true);
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).toContain('claude-work() {');
     expect(fs.existsSync(path.join(home, '.bashrc'))).toBe(false);
   });
@@ -391,7 +416,10 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
       a.name === 'claude-work' ? { ...a, name: 'claude-client-x' } : a,
     );
     writeWrapperAccounts(renamed, env);
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).toContain('claude-client-x() {');
     expect(managed).not.toContain('claude-work() {');
     expect(managed).toContain('claude-personal() {'); // untouched account survives
@@ -401,7 +429,10 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
     writeWrapperAccounts(opts().accounts, env);
     const kept = opts().accounts.filter((a) => a.name !== 'claude-work');
     writeWrapperAccounts(kept, env);
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).not.toContain('claude-work');
     expect(managed).toContain('claude-personal() {');
   });
@@ -410,7 +441,10 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
     writeWrapperAccounts(opts().accounts, env);
     const r = writeWrapperAccounts([], env);
     expect(r.ok).toBe(true);
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).not.toContain('claude-personal');
     expect(managed).not.toContain('claude-work');
   });
@@ -432,7 +466,10 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
     );
     expect(dup.ok).toBe(false);
 
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).toBe(before); // rejected writes never touch the file
   });
 });
@@ -464,7 +501,9 @@ describe('conflict detection — pre-existing hand-written wrappers', () => {
   it('planSetup warns about shadowing and lists the defs per rc', () => {
     fs.writeFileSync(path.join(home, '.zyrc'), HANDWRITTEN);
     const p = planSetup(zyOpts(), env);
-    expect(p.warnings.some((w) => w.includes('already defines') && w.includes('shadowed'))).toBe(true);
+    expect(p.warnings.some((w) => w.includes('already defines') && w.includes('shadowed'))).toBe(
+      true,
+    );
     expect(p.rcEdits[0].existing.length).toBe(3);
   });
 
@@ -516,7 +555,12 @@ describe('conflict detection — pre-existing hand-written wrappers', () => {
 
 describe('PowerShell (Windows) setup', () => {
   const profile = () => path.join(home, 'profile.ps1');
-  const winEnv = (): SetupEnv => ({ home, loginShell: null, platform: 'win32', psProfile: profile() });
+  const winEnv = (): SetupEnv => ({
+    home,
+    loginShell: null,
+    platform: 'win32',
+    psProfile: profile(),
+  });
   const winOpts = (over: Partial<SetupOptions> = {}): SetupOptions => ({
     ...opts(),
     rcPaths: [profile()],
@@ -578,7 +622,9 @@ describe('PowerShell (Windows) setup', () => {
     expect(found.find((f) => f.name === 'claude-work')!.canTidy).toBe(true);
 
     applySetup(winOpts({ tidyExisting: true }), winEnv());
-    expect(fs.readFileSync(profile(), 'utf8')).toContain('# ccmon superseded → function claude-work {');
+    expect(fs.readFileSync(profile(), 'utf8')).toContain(
+      '# ccmon superseded → function claude-work {',
+    );
   });
 });
 

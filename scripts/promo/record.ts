@@ -65,7 +65,12 @@ class Cdp {
 
   private constructor(private readonly ws: WebSocket) {
     ws.on('message', (data) => {
-      const msg = JSON.parse(String(data)) as CdpMessage;
+      // RawData is Buffer | ArrayBuffer | Buffer[]; String() on the array form
+      // yields comma-joined garbage, so normalise before parsing.
+      const text = Array.isArray(data)
+        ? Buffer.concat(data).toString('utf8')
+        : Buffer.from(data as ArrayBuffer).toString('utf8');
+      const msg = JSON.parse(text) as CdpMessage;
       if (msg.id && this.pending.has(msg.id)) {
         const p = this.pending.get(msg.id)!;
         this.pending.delete(msg.id);

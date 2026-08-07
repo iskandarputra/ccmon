@@ -55,7 +55,9 @@ describe('buildSnapshot — time range scoping', () => {
   it('a custom span includes only entries within the bounds', () => {
     const start = localDateKey(NOW - 24 * HOUR); // yesterday
     const end = localDateKey(NOW);
-    const s = snap(all, { range: resolveRange({ preset: 'custom', customStart: start, customEnd: end }, NOW) });
+    const s = snap(all, {
+      range: resolveRange({ preset: 'custom', customStart: start, customEnd: end }, NOW),
+    });
     expect(s.totals.cost).toBe(10); // yesterday + today, old (10d ago) excluded
     expect(s.days).toHaveLength(2);
     expect(s.entryCount).toBe(3);
@@ -159,7 +161,10 @@ describe('buildSnapshot — attribution analytics', () => {
       { kind: 'compact', ts: NOW - HOUR, sessionId: 's2' },
     ];
     const s = snap(
-      [makeEntry({ ts: NOW - HOUR, sessionId: 's1' }), makeEntry({ ts: NOW - HOUR, sessionId: 's2' })],
+      [
+        makeEntry({ ts: NOW - HOUR, sessionId: 's1' }),
+        makeEntry({ ts: NOW - HOUR, sessionId: 's2' }),
+      ],
       { compactions },
     );
     expect(s.compactions).toBe(3);
@@ -200,10 +205,19 @@ describe('compaction re-read cost', () => {
     const entries = [
       makeEntry({ ts: NOW - 5 * HOUR, model: 'fake-model', in: 0, read: 0, sessionId: sid }),
       // first turn after the compaction — the re-read we cost
-      makeEntry({ ts: NOW - 3 * HOUR, model: 'fake-model', in: 1_000_000, out: 500_000, read: 2_000_000, sessionId: sid }),
+      makeEntry({
+        ts: NOW - 3 * HOUR,
+        model: 'fake-model',
+        in: 1_000_000,
+        out: 500_000,
+        read: 2_000_000,
+        sessionId: sid,
+      }),
       makeEntry({ ts: NOW - 1 * HOUR, model: 'fake-model', in: 10, read: 0, sessionId: sid }),
     ];
-    const comps: CompactMarker[] = [{ kind: 'compact', ts: NOW - 4 * HOUR, sessionId: sid, source: null }];
+    const comps: CompactMarker[] = [
+      { kind: 'compact', ts: NOW - 4 * HOUR, sessionId: sid, source: null },
+    ];
     const s = snap(entries, { pricing: engine, compactions: comps });
     expect(s.compactionReread.turns).toBe(1);
     // in 1M @ $10/MTok + read 2M @ $1/MTok = 10 + 2 = 12 (output excluded)
@@ -213,7 +227,14 @@ describe('compaction re-read cost', () => {
   it('collapses several compactions before the same turn into one re-read', () => {
     const sid = 'cs2';
     const entries = [
-      makeEntry({ ts: NOW - 2 * HOUR, model: 'fake-model', in: 1_000_000, out: 0, read: 0, sessionId: sid }),
+      makeEntry({
+        ts: NOW - 2 * HOUR,
+        model: 'fake-model',
+        in: 1_000_000,
+        out: 0,
+        read: 0,
+        sessionId: sid,
+      }),
     ];
     const comps: CompactMarker[] = [
       { kind: 'compact', ts: NOW - 3 * HOUR, sessionId: sid, source: null },
@@ -232,9 +253,30 @@ describe('accountSpend — per-source rollup', () => {
   it('buckets lifetime cost/tokens/sessions by source root', () => {
     const map = accountSpend(
       [
-        makeEntry({ ts: NOW - 40 * 24 * HOUR, in: 10, out: 5, costUSD: 2, source: ROOT_A, sessionId: 'a1' }),
-        makeEntry({ ts: NOW - 2 * HOUR, in: 100, out: 50, costUSD: 3, source: ROOT_A, sessionId: 'a2' }),
-        makeEntry({ ts: NOW - 1 * HOUR, in: 200, out: 100, costUSD: 5, source: ROOT_B, sessionId: 'b1' }),
+        makeEntry({
+          ts: NOW - 40 * 24 * HOUR,
+          in: 10,
+          out: 5,
+          costUSD: 2,
+          source: ROOT_A,
+          sessionId: 'a1',
+        }),
+        makeEntry({
+          ts: NOW - 2 * HOUR,
+          in: 100,
+          out: 50,
+          costUSD: 3,
+          source: ROOT_A,
+          sessionId: 'a2',
+        }),
+        makeEntry({
+          ts: NOW - 1 * HOUR,
+          in: 200,
+          out: 100,
+          costUSD: 5,
+          source: ROOT_B,
+          sessionId: 'b1',
+        }),
       ],
       { now: NOW },
     );
@@ -277,9 +319,28 @@ describe('dayBreakdown — why was this day expensive', () => {
       // a cheap prior day → sets the median baseline low
       makeEntry({ ts: NOW - 24 * HOUR, costUSD: 2, project: '/p/alpha', dateKey: Y }),
       // the expensive target day
-      makeEntry({ ts: NOW - 3 * HOUR, costUSD: 6, project: '/p/alpha', model: 'opus', sessionId: 's1' }),
-      makeEntry({ ts: NOW - 2 * HOUR, costUSD: 3, project: '/p/beta', model: 'sonnet', sessionId: 's2', tools: ['Bash'] }),
-      makeEntry({ ts: NOW - 1 * HOUR, costUSD: 1, project: '/p/alpha', model: 'opus', sessionId: 's1' }),
+      makeEntry({
+        ts: NOW - 3 * HOUR,
+        costUSD: 6,
+        project: '/p/alpha',
+        model: 'opus',
+        sessionId: 's1',
+      }),
+      makeEntry({
+        ts: NOW - 2 * HOUR,
+        costUSD: 3,
+        project: '/p/beta',
+        model: 'sonnet',
+        sessionId: 's2',
+        tools: ['Bash'],
+      }),
+      makeEntry({
+        ts: NOW - 1 * HOUR,
+        costUSD: 1,
+        project: '/p/alpha',
+        model: 'opus',
+        sessionId: 's1',
+      }),
     ];
     const b = dayBreakdown(entries, TODAY)!;
     expect(b.cost).toBe(10);
@@ -330,17 +391,20 @@ describe('buildSnapshot — timezone bucketing', () => {
   });
 
   const snapIn = (zone: string, entries: UsageEntry[]) =>
-    buildSnapshot([...entries].sort((a, b) => a.ts - b.ts), {
-      now: LATE,
-      settings: { costMode: 'auto', startOfWeek: 'monday', timezone: zone },
-    });
+    buildSnapshot(
+      [...entries].sort((a, b) => a.ts - b.ts),
+      {
+        now: LATE,
+        settings: { costMode: 'auto', startOfWeek: 'monday', timezone: zone },
+      },
+    );
 
   it('puts the same instant on different calendar days per zone', () => {
     const utc = snapIn('UTC', [zoned(LATE, 'UTC', { costUSD: 5 })]);
     const tokyo = snapIn('Asia/Tokyo', [zoned(LATE, 'Asia/Tokyo', { costUSD: 5 })]);
 
-    expect(utc.days[utc.days.length - 1]!.date).toBe('2026-06-10');
-    expect(tokyo.days[tokyo.days.length - 1]!.date).toBe('2026-06-11');
+    expect(utc.days[utc.days.length - 1].date).toBe('2026-06-10');
+    expect(tokyo.days[tokyo.days.length - 1].date).toBe('2026-06-11');
     // and in both cases the entry counts as "today" — the point of the setting
     expect(utc.today.cost).toBe(5);
     expect(tokyo.today.cost).toBe(5);
@@ -348,7 +412,7 @@ describe('buildSnapshot — timezone bucketing', () => {
 
   it('treats an empty timezone as the system zone', () => {
     const sys = snapIn('', [zoned(LATE, '', { costUSD: 5 })]);
-    expect(sys.days[sys.days.length - 1]!.date).toBe(localDateKey(LATE));
+    expect(sys.days[sys.days.length - 1].date).toBe(localDateKey(LATE));
     expect(sys.today.cost).toBe(5);
   });
 
@@ -371,7 +435,7 @@ describe('buildSnapshot — timezone bucketing', () => {
       zoned(earlier, 'Pacific/Honolulu', { costUSD: 3, sessionId: 'a' }),
       zoned(LATE, 'Pacific/Honolulu', { costUSD: 5, sessionId: 'b' }),
     ]);
-    expect(hono.days[hono.days.length - 1]!.date).toBe('2026-06-10');
+    expect(hono.days[hono.days.length - 1].date).toBe('2026-06-10');
     expect(hono.today.cost).toBe(8);
   });
 
@@ -380,9 +444,9 @@ describe('buildSnapshot — timezone bucketing', () => {
     const tokyo = snapIn('Asia/Tokyo', [zoned(LATE, 'Asia/Tokyo', { in: 100, out: 50 })]);
 
     // 23:30 UTC on Wed 10 Jun → weekday 2 (Mon-first), hour 23
-    expect(utc.hourly[2]![23]).toBe(150);
+    expect(utc.hourly[2][23]).toBe(150);
     // 08:30 Thu 11 Jun in Tokyo → weekday 3, hour 8
-    expect(tokyo.hourly[3]![8]).toBe(150);
+    expect(tokyo.hourly[3][8]).toBe(150);
   });
 
   it('scopes accountSpend.today by the zone', () => {
@@ -390,8 +454,8 @@ describe('buildSnapshot — timezone bucketing', () => {
     const spendTokyo = accountSpend([e], { now: LATE, timezone: 'Asia/Tokyo' });
     const spendUtc = accountSpend([e], { now: LATE, timezone: 'UTC' });
     // the entry's key is Tokyo's 11th, which is Tokyo's today but not UTC's
-    expect(Object.values(spendTokyo)[0]!.today).toBe(5);
-    expect(Object.values(spendUtc)[0]!.today).toBe(0);
+    expect(Object.values(spendTokyo)[0].today).toBe(5);
+    expect(Object.values(spendUtc)[0].today).toBe(0);
   });
 });
 
@@ -452,7 +516,7 @@ describe('buildSnapshot — cost reconciliation', () => {
       priced({ ts: NOW, costUSD: 11 }),
     ]);
     expect(r.byDay).toHaveLength(2);
-    expect(r.byDay[0]!.key < r.byDay[1]!.key).toBe(true);
+    expect(r.byDay[0].key < r.byDay[1].key).toBe(true);
     expect(r.byDay.reduce((n, d) => n + d.entries, 0)).toBe(2);
   });
 
@@ -461,9 +525,9 @@ describe('buildSnapshot — cost reconciliation', () => {
       priced({ costUSD: 10.5 }), //          fake-model: small drift (calc $10)
       makeEntry({ model: 'fake-model-fast', in: 1e6, costUSD: 5 }), // fast: calc $20 → big drift
     ]);
-    expect(r.byModel[0]!.key).toBe('fake-model-fast');
-    expect(Math.abs(r.byModel[0]!.calculated - r.byModel[0]!.recorded)).toBeGreaterThan(
-      Math.abs(r.byModel[1]!.calculated - r.byModel[1]!.recorded),
+    expect(r.byModel[0].key).toBe('fake-model-fast');
+    expect(Math.abs(r.byModel[0].calculated - r.byModel[0].recorded)).toBeGreaterThan(
+      Math.abs(r.byModel[1].calculated - r.byModel[1].recorded),
     );
   });
 

@@ -92,12 +92,7 @@ function Radio<T extends string>({ name, value, current, onSelect, label, note }
   const checked = current === value;
   return (
     <label className={`set-radio${checked ? ' is-on' : ''}`}>
-      <input
-        type="radio"
-        name={name}
-        checked={checked}
-        onChange={() => onSelect(value)}
-      />
+      <input type="radio" name={name} checked={checked} onChange={() => onSelect(value)} />
       <span className="set-radio-dot" aria-hidden="true" />
       <span className="set-radio-text">
         <span className="set-opt-name">{label}</span>
@@ -117,11 +112,7 @@ interface ToggleProps {
 function Toggle({ checked, onChange, label, note }: ToggleProps) {
   return (
     <label className="set-toggle">
-      <input
-        type="checkbox"
-        checked={!!checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
+      <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} />
       <span className="set-toggle-track" aria-hidden="true" />
       <span className="set-radio-text">
         <span className="set-opt-name">{label}</span>
@@ -169,10 +160,14 @@ function ExportPanel() {
           </button>
         ))}
       </div>
-      {msg && <p className="set-note" title={msg}>{msg}</p>}
+      {msg && (
+        <p className="set-note" title={msg}>
+          {msg}
+        </p>
+      )}
       <p className="set-note">
-        exports the current data scope as CSV with full-precision numbers (USD +
-        token splits) — for spreadsheets and external analysis.
+        exports the current data scope as CSV with full-precision numbers (USD + token splits) — for
+        spreadsheets and external analysis.
       </p>
     </Panel>
   );
@@ -184,7 +179,7 @@ function ExportPanel() {
  * on a runtime that lacks it rather than shipping an empty dropdown.
  */
 const ZONE_GROUPS: Array<[string, string[]]> = (() => {
-  let zones: string[] = [];
+  let zones: string[];
   try {
     zones = Intl.supportedValuesOf('timeZone');
   } catch {
@@ -301,8 +296,7 @@ export function SettingsView() {
       updateSettings({ tokenLimit: null });
     } else {
       const n = parseInt(String(draft).replace(/[,_\s]/g, ''), 10);
-      const fallback =
-        Number.isFinite(n) && n > 0 ? n : maxBlockTokens || 50_000_000;
+      const fallback = Number.isFinite(n) && n > 0 ? n : maxBlockTokens || 50_000_000;
       updateSettings({ tokenLimit: fallback });
     }
   }
@@ -343,7 +337,7 @@ export function SettingsView() {
           {THEMES.map((t, i) => {
             const active = t.id === settings.theme;
             if (!showAllThemes && i >= 8 && !active) return null;
-            
+
             return (
               <button
                 key={t.id}
@@ -378,8 +372,8 @@ export function SettingsView() {
         <Panel title="cost mode">
           {!hasRecordedCosts && settings.costMode === 'display' && (
             <div className="set-err">
-              Every figure reads $0.00: this mode shows only costs recorded by the
-              CLI, and your transcripts contain none. Switch to calculate.
+              Every figure reads $0.00: this mode shows only costs recorded by the CLI, and your
+              transcripts contain none. Switch to calculate.
             </div>
           )}
           <div className="set-radios">
@@ -550,10 +544,9 @@ export function SettingsView() {
             </div>
           </div>
           <div className="set-note">
-            Only 5h matches Anthropic's real billing window — the value blocks,
-            burn rate and token-limit projections are built on. Any other length
-            reframes them as your own work sessions, which is useful for pacing
-            but no longer comparable to your plan's limits.
+            Only 5h matches Anthropic's real billing window — the value blocks, burn rate and
+            token-limit projections are built on. Any other length reframes them as your own work
+            sessions, which is useful for pacing but no longer comparable to your plan's limits.
           </div>
         </Panel>
 
@@ -570,7 +563,9 @@ export function SettingsView() {
                 {ZONE_GROUPS.map(([region, zones]) => (
                   <optgroup key={region} label={region}>
                     {zones.map((z) => (
-                      <option key={z} value={z}>{z}</option>
+                      <option key={z} value={z}>
+                        {z}
+                      </option>
                     ))}
                   </optgroup>
                 ))}
@@ -582,10 +577,9 @@ export function SettingsView() {
             </div>
           </div>
           <div className="set-note">
-            Which calendar day each message counts against — days, weeks, months,
-            the rhythm heatmap and every range preset. Changing it re-buckets
-            history immediately, without re-reading transcripts. Blocks are
-            5-hour windows anchored to real time, so they are unaffected.
+            Which calendar day each message counts against — days, weeks, months, the rhythm heatmap
+            and every range preset. Changing it re-buckets history immediately, without re-reading
+            transcripts. Blocks are 5-hour windows anchored to real time, so they are unaffected.
           </div>
         </Panel>
 
@@ -600,13 +594,17 @@ export function SettingsView() {
               >
                 <optgroup label="fiat">
                   {fiatCodes.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
                   ))}
                 </optgroup>
                 {cryptoCodes.length > 0 && (
                   <optgroup label="crypto">
                     {cryptoCodes.map((c) => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
                     ))}
                   </optgroup>
                 )}
@@ -646,13 +644,15 @@ export function SettingsView() {
               </Glyph>
               <span>
                 last refresh failed — {currency.lastError}
-                {currency.fetchedAt ? ` · using rates from ${relTime(currency.fetchedAt, now)}` : ''}
+                {currency.fetchedAt
+                  ? ` · using rates from ${relTime(currency.fetchedAt, now)}`
+                  : ''}
               </span>
             </div>
           )}
           <p className="set-note">
-            costs are computed in usd and converted at display time · fiat via
-            open.er-api.com, crypto via coingecko · refreshed hourly
+            costs are computed in usd and converted at display time · fiat via open.er-api.com,
+            crypto via coingecko · refreshed hourly
           </p>
         </Panel>
 
@@ -666,16 +666,18 @@ export function SettingsView() {
                 onChange={(e) => updateSettings({ aiModel: e.target.value })}
               >
                 {ADVISOR_MODELS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
           <p className="set-note">
-            the advisor (in the sidebar) answers questions about your usage using
-            this model. it reuses your Claude Code login and sends only computed
-            aggregates — never transcripts, prompts, or code. note: Anthropic's
-            terms scope that login to Claude Code itself, so the API may decline.
+            the advisor (in the sidebar) answers questions about your usage using this model. it
+            reuses your Claude Code login and sends only computed aggregates — never transcripts,
+            prompts, or code. note: Anthropic's terms scope that login to Claude Code itself, so the
+            API may decline.
           </p>
         </Panel>
 
@@ -734,8 +736,8 @@ export function SettingsView() {
             </button>
           </div>
           <p className="set-note">
-            ~/.config/ccmon/config.json holds power-user overrides — extra source
-            dirs and pricing patches.
+            ~/.config/ccmon/config.json holds power-user overrides — extra source dirs and pricing
+            patches.
           </p>
         </Panel>
 
@@ -745,8 +747,7 @@ export function SettingsView() {
             <span className="set-about-ver">v{version || '?'}</span>
           </div>
           <p className="set-note">
-            local-only · reads ~/.claude transcripts · api-equivalent cost
-            estimates
+            local-only · reads ~/.claude transcripts · api-equivalent cost estimates
           </p>
         </Panel>
       </div>

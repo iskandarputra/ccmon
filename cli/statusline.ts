@@ -32,7 +32,7 @@ export function parseHookPayload(stdin: string): HookPayload {
   if (!trimmed) return {};
   try {
     const v = JSON.parse(trimmed) as unknown;
-    return v && typeof v === 'object' ? (v as HookPayload) : {};
+    return v && typeof v === 'object' ? v : {};
   } catch {
     return {};
   }
@@ -52,14 +52,14 @@ export function formatStatusline(snap: Snapshot, hook: HookPayload, privacy = fa
   if (model) parts.push(model);
 
   const spend: string[] = [];
-  const session = hook.session_id
-    ? snap.sessions.find((s) => s.id === hook.session_id)
-    : undefined;
+  const session = hook.session_id ? snap.sessions.find((s) => s.id === hook.session_id) : undefined;
   if (session) spend.push(`${money(session.cost, privacy)} session`);
   spend.push(`${money(snap.today.cost, privacy)} today`);
 
   if (snap.block) {
-    spend.push(`${money(snap.block.cost, privacy)} block (${humanDuration(snap.block.remainingMs)} left)`);
+    spend.push(
+      `${money(snap.block.cost, privacy)} block (${humanDuration(snap.block.remainingMs)} left)`,
+    );
   } else {
     spend.push('no active block');
   }
@@ -76,7 +76,9 @@ export function formatStatusline(snap: Snapshot, hook: HookPayload, privacy = fa
   if (typeof used === 'number' && typeof max === 'number' && max > 0) {
     parts.push(`ctx ${compactTokens(used)} (${Math.round((used / max) * 100)}%)`);
   } else if (session?.context) {
-    parts.push(`ctx ${compactTokens(session.context.tokens)} (${Math.round(session.context.pct)}%)`);
+    parts.push(
+      `ctx ${compactTokens(session.context.tokens)} (${Math.round(session.context.pct)}%)`,
+    );
   }
 
   // A quota reset in the future is the single most actionable thing to surface.

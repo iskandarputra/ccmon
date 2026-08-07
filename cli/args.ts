@@ -124,7 +124,7 @@ export function parseArgs(argv: string[]): ParseResult {
   };
 
   for (let i = 0; i < rest.length; i += 1) {
-    const a = rest[i]!;
+    const a = rest[i];
     switch (a) {
       case '--offline':
         out.offline = true;
