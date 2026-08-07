@@ -49,15 +49,21 @@
 }
 .mdl-wi-row.is-cheaper {
   background: color-mix(in srgb, var(--ok) 6%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--ok) 22%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in srgb, var(--ok) 22%, transparent);
 }
 .mdl-wi-row.is-pricier {
   background: color-mix(in srgb, var(--rose) 5%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--rose) 18%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in srgb, var(--rose) 18%, transparent);
 }
 .mdl-wi-row:hover {
   transform: translateY(-1px);
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 .mdl-wi-row.is-cheaper:hover {
   background: color-mix(in srgb, var(--ok) 12%, var(--bg1));
@@ -195,7 +201,9 @@
 }
 .mdl-tile:hover {
   background: color-mix(in srgb, var(--amber) 8%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
   transform: translateY(-1px);
 }
 .mdl-tile-icon {

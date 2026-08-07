@@ -117,7 +117,9 @@ export class CurrencyService {
   async refresh(): Promise<CurrencyRates> {
     const reason = (r: PromiseRejectedResult) => {
       const e = r.reason as Error;
-      return e?.name === 'AbortError' ? `timeout after ${FETCH_TIMEOUT_MS / 1000}s` : e?.message || 'fetch failed';
+      return e?.name === 'AbortError'
+        ? `timeout after ${FETCH_TIMEOUT_MS / 1000}s`
+        : e?.message || 'fetch failed';
     };
     const [fiat, crypto] = await Promise.allSettled([fetchFiat(), fetchCrypto()]);
     const errors: string[] = [];

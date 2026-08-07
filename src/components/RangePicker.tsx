@@ -79,7 +79,18 @@ export function RangePicker() {
         aria-expanded={open}
         title="analytics time range"
       >
-        <svg className="rp-cal" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <svg
+          className="rp-cal"
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
           <rect x="3" y="4" width="18" height="18" rx="2" />
           <line x1="3" y1="9" x2="21" y2="9" />
           <line x1="8" y1="2" x2="8" y2="6" />
@@ -87,7 +98,14 @@ export function RangePicker() {
         </svg>
         <span className="rp-label">{buttonLabel}</span>
         <svg className="rp-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden>
-          <path d="M2 3.5 L5 6.5 L8 3.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M2 3.5 L5 6.5 L8 3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </button>
 
@@ -109,9 +127,21 @@ export function RangePicker() {
           <div className="rp-custom">
             <span className="rp-custom-head">Custom range</span>
             <div className="rp-dates">
-              <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label="from date" />
+              <input
+                type="date"
+                value={from}
+                max={to || undefined}
+                onChange={(e) => setFrom(e.target.value)}
+                aria-label="from date"
+              />
               <span className="rp-dash">→</span>
-              <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label="to date" />
+              <input
+                type="date"
+                value={to}
+                min={from || undefined}
+                onChange={(e) => setTo(e.target.value)}
+                aria-label="to date"
+              />
             </div>
             <button
               className={`rp-apply ${range.preset === 'custom' ? 'is-active' : ''}`}

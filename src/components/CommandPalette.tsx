@@ -48,22 +48,69 @@ export function CommandPalette() {
     const actions: Command[] = [
       {
         id: 'privacy',
-        title: privacy ? 'Disable Privacy Mode (show dollars)' : 'Enable Privacy Mode (hide dollars as $•••)',
+        title: privacy
+          ? 'Disable Privacy Mode (show dollars)'
+          : 'Enable Privacy Mode (hide dollars as $•••)',
         hint: 'privacy',
         run: () => {
           const st = useUsageStore.getState().settings;
           updateSettings({ privacyMode: !st?.privacyMode });
         },
       },
-      { id: 'rescan', title: 'Rescan transcripts', hint: 'action', run: () => void window.ccmon?.rescan() },
-      { id: 'limits', title: 'Refresh plan limits', hint: 'action', run: () => void window.ccmon?.refreshLimits() },
-      { id: 'pricing', title: 'Refresh pricing', hint: 'action', run: () => void window.ccmon?.refreshPricing() },
-      { id: 'currency', title: 'Refresh currency rates', hint: 'action', run: () => void window.ccmon?.refreshCurrency() },
-      { id: 'datadir', title: 'Open data folder', hint: 'action', run: () => void window.ccmon?.openDataDir() },
-      { id: 'csv-days', title: 'Export daily CSV', hint: 'export', run: () => void window.ccmon?.exportCsv('days') },
-      { id: 'csv-sessions', title: 'Export sessions CSV', hint: 'export', run: () => void window.ccmon?.exportCsv('sessions') },
-      { id: 'csv-projects', title: 'Export projects CSV', hint: 'export', run: () => void window.ccmon?.exportCsv('projects') },
-      { id: 'csv-models', title: 'Export models CSV', hint: 'export', run: () => void window.ccmon?.exportCsv('models') },
+      {
+        id: 'rescan',
+        title: 'Rescan transcripts',
+        hint: 'action',
+        run: () => void window.ccmon?.rescan(),
+      },
+      {
+        id: 'limits',
+        title: 'Refresh plan limits',
+        hint: 'action',
+        run: () => void window.ccmon?.refreshLimits(),
+      },
+      {
+        id: 'pricing',
+        title: 'Refresh pricing',
+        hint: 'action',
+        run: () => void window.ccmon?.refreshPricing(),
+      },
+      {
+        id: 'currency',
+        title: 'Refresh currency rates',
+        hint: 'action',
+        run: () => void window.ccmon?.refreshCurrency(),
+      },
+      {
+        id: 'datadir',
+        title: 'Open data folder',
+        hint: 'action',
+        run: () => void window.ccmon?.openDataDir(),
+      },
+      {
+        id: 'csv-days',
+        title: 'Export daily CSV',
+        hint: 'export',
+        run: () => void window.ccmon?.exportCsv('days'),
+      },
+      {
+        id: 'csv-sessions',
+        title: 'Export sessions CSV',
+        hint: 'export',
+        run: () => void window.ccmon?.exportCsv('sessions'),
+      },
+      {
+        id: 'csv-projects',
+        title: 'Export projects CSV',
+        hint: 'export',
+        run: () => void window.ccmon?.exportCsv('projects'),
+      },
+      {
+        id: 'csv-models',
+        title: 'Export models CSV',
+        hint: 'export',
+        run: () => void window.ccmon?.exportCsv('models'),
+      },
     ];
     return [...nav, ...actions];
   }, [setView]);

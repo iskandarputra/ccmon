@@ -46,29 +46,40 @@ export function Hint({ label = 'why?', children }: HintProps) {
         </button>
       </div>
 
-      {open && createPortal(
-        <div className="hint-overlay" onClick={() => setOpen(false)}>
-          <div className="hint-popup panel" onClick={(e) => e.stopPropagation()}>
-            <div className="hint-popup-header">
-              <h3 className="hint-popup-title">{label}</h3>
-              <button 
-                type="button"
-                className="hint-close-btn" 
-                onClick={() => setOpen(false)} 
-                aria-label="Close"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 3L3 9M3 3L9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
+      {open &&
+        createPortal(
+          <div className="hint-overlay" onClick={() => setOpen(false)}>
+            <div className="hint-popup panel" onClick={(e) => e.stopPropagation()}>
+              <div className="hint-popup-header">
+                <h3 className="hint-popup-title">{label}</h3>
+                <button
+                  type="button"
+                  className="hint-close-btn"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M9 3L3 9M3 3L9 9"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div className="hint-popup-body">{children}</div>
             </div>
-            <div className="hint-popup-body">
-              {children}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

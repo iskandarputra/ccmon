@@ -1,46 +1,46 @@
 {
- "deepseek-chat": {
-  "cost": {
-   "cache_read": 0.0028,
-   "input": 0.14,
-   "output": 0.28
+  "deepseek-chat": {
+    "cost": {
+      "cache_read": 0.0028,
+      "input": 0.14,
+      "output": 0.28
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 384000
+    }
   },
-  "limit": {
-   "context": 1000000,
-   "output": 384000
-  }
- },
- "deepseek-reasoner": {
-  "cost": {
-   "cache_read": 0.0028,
-   "input": 0.14,
-   "output": 0.28
+  "deepseek-reasoner": {
+    "cost": {
+      "cache_read": 0.0028,
+      "input": 0.14,
+      "output": 0.28
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 384000
+    }
   },
-  "limit": {
-   "context": 1000000,
-   "output": 384000
-  }
- },
- "deepseek-v4-flash": {
-  "cost": {
-   "cache_read": 0.0028,
-   "input": 0.14,
-   "output": 0.28
+  "deepseek-v4-flash": {
+    "cost": {
+      "cache_read": 0.0028,
+      "input": 0.14,
+      "output": 0.28
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 384000
+    }
   },
-  "limit": {
-   "context": 1000000,
-   "output": 384000
+  "deepseek-v4-pro": {
+    "cost": {
+      "cache_read": 0.003625,
+      "input": 0.435,
+      "output": 0.87
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 384000
+    }
   }
- },
- "deepseek-v4-pro": {
-  "cost": {
-   "cache_read": 0.003625,
-   "input": 0.435,
-   "output": 0.87
-  },
-  "limit": {
-   "context": 1000000,
-   "output": 384000
-  }
- }
 }

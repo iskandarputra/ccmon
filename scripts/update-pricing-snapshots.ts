@@ -58,15 +58,15 @@ async function fetchJson(url: string): Promise<unknown> {
 
 interface ModelsDevApi {
   [provider: string]: {
-    models?: Record<
-      string,
-      { cost?: Record<string, number>; limit?: Record<string, number> }
-    >;
+    models?: Record<string, { cost?: Record<string, number>; limit?: Record<string, number> }>;
   };
 }
 
 /** models.dev api → provider models compacted to { cost, limit }. */
-export function compactModelsDev(api: ModelsDevApi, provider: string): Record<string, ModelsDevEntry> {
+export function compactModelsDev(
+  api: ModelsDevApi,
+  provider: string,
+): Record<string, ModelsDevEntry> {
   const models = api?.[provider]?.models || {};
   const out: Record<string, ModelsDevEntry> = {};
   for (const [key, m] of Object.entries(models)) {
@@ -188,7 +188,9 @@ async function main(): Promise<void> {
     const file = path.join(DATA_DIR, split.file);
     const compacted = compactModelsDev(api, split.provider);
     if (!Object.keys(compacted).length) {
-      console.warn(`WARNING: models.dev ${split.file} yielded 0 models — skipping (keeping existing)`);
+      console.warn(
+        `WARNING: models.dev ${split.file} yielded 0 models — skipping (keeping existing)`,
+      );
       continue;
     }
     const { merged, retained } = mergeRetaining(readSnapshot(file), compacted, prune);

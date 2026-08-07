@@ -134,7 +134,7 @@ describe('watcher — adapter routing', () => {
     expect(entries.some((e) => e.read === 3792)).toBe(true);
   });
 
-  it('honours the adapter\'s `owns` — a sibling log is not usage', async () => {
+  it("honours the adapter's `owns` — a sibling log is not usage", async () => {
     const root = path.join(tmp, 'mixed');
     fs.mkdirSync(root, { recursive: true });
     fs.writeFileSync(path.join(root, 'a.usage.jsonl'), `${usageLine()}\n`);

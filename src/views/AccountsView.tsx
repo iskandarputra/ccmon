@@ -203,7 +203,16 @@ const avatarStyle = (label: string, accent: string) => {
 };
 
 /** One account: identity, login state, live limit windows, plan price. */
-function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }: AccountCardProps) {
+function AccountCard({
+  dir,
+  acct,
+  limit,
+  spend,
+  inScope,
+  canScope,
+  accent,
+  now,
+}: AccountCardProps) {
   const label = sourceLabel(dir);
   const price = planPriceUSD(acct?.plan ?? null, acct?.tier ?? null);
   const loggedIn = acct?.hasCredentials ?? false;
@@ -224,7 +233,11 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
 
   const root = accountRoot(dir);
   const isDefault = isDefaultAccountRoot(root);
-  const currentSuffix = root.split(/[\\/]/).pop()?.replace(/^\.claude-?/, '') ?? '';
+  const currentSuffix =
+    root
+      .split(/[\\/]/)
+      .pop()
+      ?.replace(/^\.claude-?/, '') ?? '';
   // the wrapper file must list EVERY account, hidden included — hiding is a
   // ccmon view preference and must never quietly rewrite the user's shell
   const allSourceDirs = useUsageStore((s) => s.allSourceDirs);
@@ -520,8 +533,8 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
           <>
             It disappears from this dashboard, the scope picker and the live limits poll, and its
             usage drops out of every total. <b>Nothing is deleted</b> — transcripts, login and the{' '}
-            <code>{wrapperName}</code> shell command at <code>{tildify(root)}</code> all stay exactly
-            as they are, and you can unhide it from the bar at the top of this view.
+            <code>{wrapperName}</code> shell command at <code>{tildify(root)}</code> all stay
+            exactly as they are, and you can unhide it from the bar at the top of this view.
             <br />
             <br />
             ccmon has no delete-account: that folder holds every transcript the app reads, so
@@ -770,20 +783,16 @@ function HeadroomBanner() {
       </div>
 
       <Hint label="how this works">
-        ccmon polls every account's real limits, so it can see one login nearing
-        a cap while another sits idle. The command copies the chosen session
-        into the other account's config dir and relaunches{' '}
-        <code>claude --resume</code> there — your billing switches to that
-        account from then on. It's always available, not just when a cap looms:
-        the highest-usage account is the source and every other logged-in
-        account is a target, so you can switch at any utilization (targets with
-        genuine headroom are flagged). It needs the{' '}
-        <code>claude-cross-resume</code> helper, which the setup panel below
-        installs to <code>~/.local/bin</code> — the command is spelled with that
-        path, so it works whether or not the directory is on your PATH (macOS
-        does not add it). Windows gets the same thing as a PowerShell script
-        under <code>~/.config/ccmon</code>. ccmon never moves or launches a
-        session itself.
+        ccmon polls every account's real limits, so it can see one login nearing a cap while another
+        sits idle. The command copies the chosen session into the other account's config dir and
+        relaunches <code>claude --resume</code> there — your billing switches to that account from
+        then on. It's always available, not just when a cap looms: the highest-usage account is the
+        source and every other logged-in account is a target, so you can switch at any utilization
+        (targets with genuine headroom are flagged). It needs the <code>claude-cross-resume</code>{' '}
+        helper, which the setup panel below installs to <code>~/.local/bin</code> — the command is
+        spelled with that path, so it works whether or not the directory is on your PATH (macOS does
+        not add it). Windows gets the same thing as a PowerShell script under{' '}
+        <code>~/.config/ccmon</code>. ccmon never moves or launches a session itself.
       </Hint>
     </Panel>
   );
@@ -804,14 +813,15 @@ export function AccountsView() {
   const hidden = allSourceDirs.filter((d) => !sourceDirs.includes(d));
   const unhide = (dir: string) => {
     const root = accountRoot(dir);
-    updateSettings({ accountWrapperPrefs: { ...prefs, [root]: { ...prefs[root], hidden: false } } });
+    updateSettings({
+      accountWrapperPrefs: { ...prefs, [root]: { ...prefs[root], hidden: false } },
+    });
   };
 
   // DeepSeek isn't an account root — it's a key against a prepaid balance —
   // so the card only appears for users it means something to: those already
   // running DeepSeek models, or those who have connected a key.
-  const showDeepseek =
-    deepseekConnected || usesDeepseek((models ?? []).map((m) => m.model));
+  const showDeepseek = deepseekConnected || usesDeepseek((models ?? []).map((m) => m.model));
 
   const scopedSet = new Set(scoped);
   const canScope = sourceDirs.length > 1;

@@ -116,7 +116,9 @@ describe('crossAccountAdvice — weekly window', () => {
   it('advises on the weekly window too', () => {
     const limits: LimitsMap = { [PERSONAL]: ok(20, 91), [WORK]: ok(5, 8) };
     const a = crossAccountAdvice(accounts, limits);
-    expect(a.some((x) => x.kind === 'week' && x.fromDir === PERSONAL && x.toDir === WORK)).toBe(true);
+    expect(a.some((x) => x.kind === 'week' && x.fromDir === PERSONAL && x.toDir === WORK)).toBe(
+      true,
+    );
   });
 });
 

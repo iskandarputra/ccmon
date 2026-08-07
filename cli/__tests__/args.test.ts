@@ -113,9 +113,7 @@ describe('parseArgs — options', () => {
 
   it('rejects contradictory or inverted ranges', () => {
     expect(bad(['json', '--range', '7d', '--since', '20260101'])).toContain('cannot be combined');
-    expect(bad(['json', '--since', '2026-02-01', '--until', '2026-01-01'])).toContain(
-      'is after',
-    );
+    expect(bad(['json', '--since', '2026-02-01', '--until', '2026-01-01'])).toContain('is after');
   });
 });
 

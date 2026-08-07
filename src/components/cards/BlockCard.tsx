@@ -35,9 +35,7 @@ export function BlockCard() {
     return (
       <div className="panel stat-card">
         <div className="stat-label">current 5h block</div>
-        <div className={`stat-value${limited ? '' : ' dim'}`}>
-          {limited ? 'limited' : '—'}
-        </div>
+        <div className={`stat-value${limited ? '' : ' dim'}`}>{limited ? 'limited' : '—'}</div>
         <div className="stat-foot">
           <span className="stat-sub">
             {limited
@@ -67,9 +65,7 @@ export function BlockCard() {
       </div>
       <div className="stat-foot">
         <span className="stat-sub">
-          {sessionPct != null
-            ? `session ${Math.round(sessionPct)}% · `
-            : ''}
+          {sessionPct != null ? `session ${Math.round(sessionPct)}% · ` : ''}
           {fmtTok(block.in + block.out)} tok · {block.entries} msgs
           {block.burn && sessionPct == null
             ? ` · ${fmtTok(block.burn.tokensPerMinIndicator)}/min`
@@ -83,7 +79,8 @@ export function BlockCard() {
         </span>
       </div>
       <Hint label="how blocks work">
-        Anthropic enforces a dynamic rate limit over a rolling 5-hour window. This component tracks your progress, cost, and token burn rate through the active window until it resets.
+        Anthropic enforces a dynamic rate limit over a rolling 5-hour window. This component tracks
+        your progress, cost, and token burn rate through the active window until it resets.
       </Hint>
     </div>
   );

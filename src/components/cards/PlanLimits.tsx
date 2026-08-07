@@ -25,13 +25,19 @@ function isAuthIssue(err: string | undefined): boolean {
 function fmtErr(err: string | undefined): string {
   if (!err) return '';
   const lower = err.toLowerCase();
-  if (lower.includes('429') || lower.includes('rate_limit') || lower.includes('too many requests')) {
+  if (
+    lower.includes('429') ||
+    lower.includes('rate_limit') ||
+    lower.includes('too many requests')
+  ) {
     return 'rate limited by anthropic';
   }
   if (lower.includes('401') || lower.includes('403')) return 'auth failed — log in';
-  if (lower.includes('500') || lower.includes('502') || lower.includes('503')) return 'anthropic api down';
-  if (lower.includes('fetch') || lower.includes('econn') || lower.includes('timeout')) return 'network error';
-  
+  if (lower.includes('500') || lower.includes('502') || lower.includes('503'))
+    return 'anthropic api down';
+  if (lower.includes('fetch') || lower.includes('econn') || lower.includes('timeout'))
+    return 'network error';
+
   // Try to cleanly cut off raw JSON or parenthesis
   const brace = err.indexOf('{');
   const paren = err.indexOf('(');
@@ -40,7 +46,7 @@ function fmtErr(err: string | undefined): string {
     const clean = err.substring(0, cut).replace(/—\s*$/, '').trim();
     if (clean) return clean;
   }
-  
+
   return err.length > 50 ? err.substring(0, 47) + '...' : err;
 }
 
@@ -168,12 +174,7 @@ export function PlanLimits() {
       right={
         <div className="dc-head">
           <span className="panel-note">your real anthropic limits · 60s refresh</span>
-          <button
-            type="button"
-            className="plim-refresh"
-            onClick={refresh}
-            disabled={refreshing}
-          >
+          <button type="button" className="plim-refresh" onClick={refresh} disabled={refreshing}>
             {refreshing ? 'refreshing…' : 'refresh now'}
           </button>
         </div>
@@ -194,7 +195,9 @@ export function PlanLimits() {
                 {acct?.plan && (
                   <span
                     className="plim-plan"
-                    style={cssVars({ '--pc': planBadgeColor(acct.plan, acct.tier) ?? 'var(--amber)' })}
+                    style={cssVars({
+                      '--pc': planBadgeColor(acct.plan, acct.tier) ?? 'var(--amber)',
+                    })}
                   >
                     {acct.plan}
                     {acct.tier ? ` · ${acct.tier}` : ''}
@@ -211,8 +214,18 @@ export function PlanLimits() {
               {r?.ok && (
                 <>
                   <div className="plim-wins">
-                    <WindowTile label="session · 5h" win={r.session} forecast={r.forecast?.session} now={now} />
-                    <WindowTile label="week · all models" win={r.week} forecast={r.forecast?.week} now={now} />
+                    <WindowTile
+                      label="session · 5h"
+                      win={r.session}
+                      forecast={r.forecast?.session}
+                      now={now}
+                    />
+                    <WindowTile
+                      label="week · all models"
+                      win={r.week}
+                      forecast={r.forecast?.week}
+                      now={now}
+                    />
                     <WindowTile label="week · opus" win={r.weekOpus} now={now} />
                     <WindowTile label="week · sonnet" win={r.weekSonnet} now={now} />
                   </div>
@@ -223,7 +236,8 @@ export function PlanLimits() {
                         className="plim-caps"
                         title="resets observed in the retained poll history (7 days); capped = the window was ≥95% when it reset"
                       >
-                        7d resets — session {r.caps.session.capped} of {r.caps.session.resets} capped
+                        7d resets — session {r.caps.session.capped} of {r.caps.session.resets}{' '}
+                        capped
                         {r.caps.week.resets > 0
                           ? ` · week ${r.caps.week.capped} of ${r.caps.week.resets} capped`
                           : ''}
@@ -243,11 +257,10 @@ export function PlanLimits() {
         })}
       </div>
       <Hint label="about these numbers">
-        utilization comes live from anthropic's usage endpoint via your stored
-        Claude Code login — read-only, tokens are never refreshed. "caps ~…"
-        is a linear fit over the recent polls, shown only when the pace would
-        hit 100% before the window resets; the sparkline is the weekly
-        utilization over the last 7 days of polls.
+        utilization comes live from anthropic's usage endpoint via your stored Claude Code login —
+        read-only, tokens are never refreshed. "caps ~…" is a linear fit over the recent polls,
+        shown only when the pace would hit 100% before the window resets; the sparkline is the
+        weekly utilization over the last 7 days of polls.
       </Hint>
     </Panel>
   );

@@ -133,10 +133,7 @@ function adviceForKind(
  * want to switch, not only when a cap looms. Empty only when there's nowhere
  * to switch to (one account, or no other logged-in account).
  */
-export function crossAccountAdvice(
-  accounts: AccountsMap,
-  limits: LimitsMap,
-): CrossAccountAdvice[] {
+export function crossAccountAdvice(accounts: AccountsMap, limits: LimitsMap): CrossAccountAdvice[] {
   const out: CrossAccountAdvice[] = [];
   for (const kind of ['session', 'week'] as const) {
     const a = adviceForKind(accounts, limits, kind);

@@ -71,7 +71,11 @@ export function DeepseekConnect() {
         <button type="button" className="ds-link" onClick={disconnect} disabled={busy}>
           {busy ? 'disconnecting…' : 'disconnect'}
         </button>
-        {error && <span className="ds-err" title={error}>{error}</span>}
+        {error && (
+          <span className="ds-err" title={error}>
+            {error}
+          </span>
+        )}
       </div>
     );
   }
@@ -91,7 +95,11 @@ export function DeepseekConnect() {
           saving stores it encrypted so the balance keeps working when ccmon starts without that
           shell
         </span>
-        {error && <span className="ds-err" title={error}>{error}</span>}
+        {error && (
+          <span className="ds-err" title={error}>
+            {error}
+          </span>
+        )}
       </div>
     );
   }
@@ -141,10 +149,14 @@ export function DeepseekConnect() {
           onClick={() => window.ccmon?.openUrl('https://platform.deepseek.com/api_keys')}
         >
           platform.deepseek.com/api_keys
-        </button>
-        {' '}· the key is verified, then stored encrypted on this machine
+        </button>{' '}
+        · the key is verified, then stored encrypted on this machine
       </span>
-      {error && <span className="ds-err" title={error}>{error}</span>}
+      {error && (
+        <span className="ds-err" title={error}>
+          {error}
+        </span>
+      )}
     </div>
   );
 }

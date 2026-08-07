@@ -20,9 +20,7 @@ describe('APP_NAME', () => {
 describe('appDataRoot', () => {
   it('follows the platform convention', () => {
     expect(appDataRoot('linux', {}, HOME)).toBe(path.join(HOME, '.config'));
-    expect(appDataRoot('darwin', {}, HOME)).toBe(
-      path.join(HOME, 'Library', 'Application Support'),
-    );
+    expect(appDataRoot('darwin', {}, HOME)).toBe(path.join(HOME, 'Library', 'Application Support'));
     expect(appDataRoot('win32', {}, HOME)).toBe(path.join(HOME, 'AppData', 'Roaming'));
   });
 

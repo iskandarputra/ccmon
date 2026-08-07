@@ -92,7 +92,11 @@ describe('mergeTokens', () => {
   };
 
   it('rotates tokens, recomputes expiry, and adopts the granted scope', () => {
-    const next = mergeTokens(prev, { access_token: 'A2', refresh_token: 'R2', expires_in: 3600, scope: 'a b' }, 10_000);
+    const next = mergeTokens(
+      prev,
+      { access_token: 'A2', refresh_token: 'R2', expires_in: 3600, scope: 'a b' },
+      10_000,
+    );
     expect(next.accessToken).toBe('A2');
     expect(next.refreshToken).toBe('R2');
     expect(next.expiresAt).toBe(10_000 + 3600 * 1000);
@@ -122,18 +126,29 @@ describe('refresh', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const r = await refresh(projectDir);
-    expect(r).toEqual({ ok: false, needsBrowser: true, error: expect.stringContaining('no stored refresh token') });
+    expect(r).toEqual({
+      ok: false,
+      needsBrowser: true,
+      error: expect.stringContaining('no stored refresh token'),
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('persists the rotated pair atomically on success, preserving siblings', async () => {
     seedCreds(
-      { accessToken: 'A1', refreshToken: 'R1', subscriptionType: 'max', rateLimitTier: 'default_claude_max_20x' },
+      {
+        accessToken: 'A1',
+        refreshToken: 'R1',
+        subscriptionType: 'max',
+        rateLimitTier: 'default_claude_max_20x',
+      },
       { someOtherKey: 42 },
     );
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse({ access_token: 'A2', refresh_token: 'R2', expires_in: 3600, scope: 'a b' })),
+      vi.fn(async () =>
+        jsonResponse({ access_token: 'A2', refresh_token: 'R2', expires_in: 3600, scope: 'a b' }),
+      ),
     );
     const r = await refresh(projectDir);
     expect(r.ok).toBe(true);
@@ -153,14 +168,20 @@ describe('refresh', () => {
 
   it('flags needsBrowser on a dead refresh token (invalid_grant)', async () => {
     seedCreds({ refreshToken: 'DEAD' });
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: 'invalid_grant' }, 400)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ error: 'invalid_grant' }, 400)),
+    );
     const r = await refresh(projectDir);
     expect(r).toMatchObject({ ok: false, needsBrowser: true });
   });
 
   it('does NOT flag needsBrowser on a transient server error', async () => {
     seedCreds({ refreshToken: 'R1' });
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse('upstream down', 503)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse('upstream down', 503)),
+    );
     const r = await refresh(projectDir);
     expect(r).toMatchObject({ ok: false, needsBrowser: false });
   });
@@ -200,7 +221,10 @@ describe('completeBrowserLogin', () => {
 
 describe('beginBrowserLogin', () => {
   it('reuses the existing login scopes so a re-login never downgrades them', () => {
-    seedCreds({ accessToken: 'A1', scopes: ['org:create_api_key', 'user:profile', 'user:inference', 'user:mcp_servers'] });
+    seedCreds({
+      accessToken: 'A1',
+      scopes: ['org:create_api_key', 'user:profile', 'user:inference', 'user:mcp_servers'],
+    });
     const { url } = beginBrowserLogin(projectDir);
     expect(new URL(url).searchParams.get('scope')).toBe(
       'org:create_api_key user:profile user:inference user:mcp_servers',
@@ -209,7 +233,9 @@ describe('beginBrowserLogin', () => {
 
   it('falls back to default scopes for a from-scratch login', () => {
     const { url, pending } = beginBrowserLogin(projectDir);
-    expect(new URL(url).searchParams.get('scope')).toBe('org:create_api_key user:profile user:inference');
+    expect(new URL(url).searchParams.get('scope')).toBe(
+      'org:create_api_key user:profile user:inference',
+    );
     expect(pending.verifier).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 });

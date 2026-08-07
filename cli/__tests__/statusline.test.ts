@@ -122,8 +122,10 @@ describe('formatStatusline', () => {
     expect(line).not.toContain('/hr');
   });
 
-  it('prefers the hook context window over ccmon\'s inferred gauge', () => {
-    const s = snap({ sessions: [session({ context: { tokens: 1000, limit: 200_000, pct: 0.5 } })] });
+  it("prefers the hook context window over ccmon's inferred gauge", () => {
+    const s = snap({
+      sessions: [session({ context: { tokens: 1000, limit: 200_000, pct: 0.5 } })],
+    });
     const line = formatStatusline(s, {
       session_id: 'sess-1',
       context_window: { used_tokens: 48_000, max_tokens: 200_000 },
@@ -168,7 +170,11 @@ describe('formatStatusline', () => {
 
 describe('formatStatusline — privacy mode', () => {
   it('masks money and leaves everything else readable', () => {
-    const line = formatStatusline(snap(), { session_id: 'sess-1', model: { display_name: 'Opus 5' } }, true);
+    const line = formatStatusline(
+      snap(),
+      { session_id: 'sess-1', model: { display_name: 'Opus 5' } },
+      true,
+    );
     expect(line).not.toMatch(/\d+\.\d\d/);
     expect(line).toContain('$••• session');
     expect(line).toContain('$••• today');

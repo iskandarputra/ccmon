@@ -134,7 +134,9 @@ function NavItem({ view, index, active, onSelect }: NavItemProps) {
         {ICONS[view.id]}
       </svg>
       <span className="nav-label">{view.label}</span>
-      <span className="nav-key">{index + 1 <= 9 ? index + 1 : index === 9 ? '0' : index === 10 ? '-' : '='}</span>
+      <span className="nav-key">
+        {index + 1 <= 9 ? index + 1 : index === 9 ? '0' : index === 10 ? '-' : '='}
+      </span>
     </button>
   );
 }
@@ -172,12 +174,7 @@ export function Sidebar() {
       ))}
       <div className="nav-spacer" />
       <div className="nav-group nav-group-system">
-        <NavItem
-          view={systemView}
-          index={11}
-          active={view === systemView.id}
-          onSelect={setView}
-        />
+        <NavItem view={systemView} index={11} active={view === systemView.id} onSelect={setView} />
       </div>
     </nav>
   );

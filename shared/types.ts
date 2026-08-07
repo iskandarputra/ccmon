@@ -93,11 +93,7 @@ export interface ToolResultMarker {
 export type ToolResultByDay = Map<string, { count: number; chars: number }>;
 
 export type ParsedLine =
-  | ({ kind: 'entry' } & UsageEntry)
-  | ResetMarker
-  | CompactMarker
-  | ToolResultMarker
-  | null;
+  ({ kind: 'entry' } & UsageEntry) | ResetMarker | CompactMarker | ToolResultMarker | null;
 
 /** Token splits accepted by the pricing engine's cost(). */
 export interface TokenCounts {
@@ -610,15 +606,7 @@ export interface SnapshotTotals {
  * cache, what-if, tools, insights). Live plan limits and per-account spend are
  * separate paths and never range-scoped.
  */
-export type RangePreset =
-  | 'today'
-  | '7d'
-  | '30d'
-  | '90d'
-  | 'month'
-  | 'lastMonth'
-  | 'all'
-  | 'custom';
+export type RangePreset = 'today' | '7d' | '30d' | '90d' | 'month' | 'lastMonth' | 'all' | 'custom';
 
 export interface TimeRange {
   preset: RangePreset;
@@ -788,7 +776,12 @@ export interface AdvisorMessage {
 export type AdvisorResult = { ok: true; answer: string } | { ok: false; error: string };
 
 /** Candidate models offered in Settings for the advisor. */
-export const ADVISOR_MODELS = ['claude-opus-4-8', 'claude-sonnet-5', 'claude-sonnet-4-6', 'claude-haiku-4-5'] as const;
+export const ADVISOR_MODELS = [
+  'claude-opus-4-8',
+  'claude-sonnet-5',
+  'claude-sonnet-4-6',
+  'claude-haiku-4-5',
+] as const;
 
 // ---- CSV export -------------------------------------------------------------
 
@@ -797,8 +790,7 @@ export type ExportKind = 'days' | 'sessions' | 'projects' | 'models';
 
 /** Result of a CSV export: written path, user cancellation, or a failure. */
 export type ExportResult =
-  | { ok: true; path: string; rows: number }
-  | { ok: false; canceled?: boolean; error?: string };
+  { ok: true; path: string; rows: number } | { ok: false; canceled?: boolean; error?: string };
 
 /** One ranked contributor to a day's spend (project / model / session). */
 export interface DayContributor {
@@ -934,9 +926,7 @@ export type LimitsMap = Record<string, LimitsResult>;
  * is 'error' with a verbose reason.
  */
 export type LoginResult =
-  | { status: 'refreshed' }
-  | { status: 'awaiting-code' }
-  | { status: 'error'; error: string };
+  { status: 'refreshed' } | { status: 'awaiting-code' } | { status: 'error'; error: string };
 
 /** Outcome of submitting the pasted authorization code to finish a browser login. */
 export interface LoginCodeResult {

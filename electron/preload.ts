@@ -6,7 +6,13 @@
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { CcmonApi } from '../shared/ipc';
-import type { AccountSpec, AdvisorMessage, AppSettings, SetupOptions, TimeRange } from '../shared/types';
+import type {
+  AccountSpec,
+  AdvisorMessage,
+  AppSettings,
+  SetupOptions,
+  TimeRange,
+} from '../shared/types';
 
 /** Subscribe helper — returns an unsubscribe function. */
 const on =

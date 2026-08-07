@@ -72,8 +72,7 @@ export interface PendingLogin {
 }
 
 export type RefreshOutcome =
-  | { ok: true; expiresAt: number }
-  | { ok: false; needsBrowser: boolean; error: string };
+  { ok: true; expiresAt: number } | { ok: false; needsBrowser: boolean; error: string };
 
 export type CodeOutcome = { ok: true; expiresAt: number } | { ok: false; error: string };
 
@@ -214,7 +213,11 @@ const networkError = (err: unknown): string => {
 export async function refresh(projectDir: string): Promise<RefreshOutcome> {
   const creds = readOauth(projectDir);
   if (!creds?.refreshToken) {
-    return { ok: false, needsBrowser: true, error: 'no stored refresh token — sign in with the browser' };
+    return {
+      ok: false,
+      needsBrowser: true,
+      error: 'no stored refresh token — sign in with the browser',
+    };
   }
   try {
     const { res, json, text } = await postToken({

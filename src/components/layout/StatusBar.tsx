@@ -7,14 +7,7 @@
 import { useUsageStore } from '../../store/useUsageStore';
 import { useNow } from '../../hooks/useNow';
 import { updateSettings } from '../../bootstrap';
-import {
-  fmtInt,
-  relTime,
-  tildify,
-  shortModel,
-  sourceLabel,
-  primarySource,
-} from '../../lib/format';
+import { fmtInt, relTime, tildify, shortModel, sourceLabel, primarySource } from '../../lib/format';
 
 interface SourceScopeProps {
   sourceDirs: string[];
@@ -26,9 +19,7 @@ interface SourceScopeProps {
  * No saved choice means "primary account only" (~/.claude), matching main.
  */
 function SourceScope({ sourceDirs, sources }: SourceScopeProps) {
-  const live = Array.isArray(sources)
-    ? sources.filter((d) => sourceDirs.includes(d))
-    : [];
+  const live = Array.isArray(sources) ? sources.filter((d) => sourceDirs.includes(d)) : [];
   const active = live.length ? live : [primarySource(sourceDirs)];
   const isAll = active.length === sourceDirs.length;
   return (
@@ -82,9 +73,7 @@ export function StatusBar() {
             <span className="sb-sep">·</span>
             <span>{fmtInt(snapshot.entryCount)} entries</span>
             <span className="sb-sep">·</span>
-            <span title="API-equivalent estimates">
-              {snapshot.costMode || 'auto'} cost
-            </span>
+            <span title="API-equivalent estimates">{snapshot.costMode || 'auto'} cost</span>
           </>
         )}
         {pricingMeta && (

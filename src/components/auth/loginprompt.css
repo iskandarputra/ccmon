@@ -34,7 +34,9 @@
   padding: 3px 12px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--amber) 8%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 50%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in srgb, var(--amber) 50%, transparent);
   white-space: nowrap;
   transition: all var(--dur-1) ease;
 }
@@ -61,7 +63,9 @@
 }
 .login-code:focus {
   outline: none;
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent);
+  box-shadow:
+    var(--neu-inset),
+    inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent);
 }
 
 .login-link {

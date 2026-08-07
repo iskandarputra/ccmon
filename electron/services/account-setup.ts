@@ -495,7 +495,8 @@ const helperPath = (home: string, family: Family = 'posix'): string =>
 /** `$HOME`-relative reference to the PowerShell helper, for the generated file. */
 const PS_HELPER_REF = '"$HOME/.config/ccmon/claude-cross-resume.ps1"';
 
-const helperScript = (family: Family) => (family === 'powershell' ? PS_HELPER_SCRIPT : HELPER_SCRIPT);
+const helperScript = (family: Family) =>
+  family === 'powershell' ? PS_HELPER_SCRIPT : HELPER_SCRIPT;
 
 function fileText(file: string): string | null {
   try {
@@ -534,7 +535,11 @@ function shConfigDir(root: string, home: string): string {
  */
 function psConfigDir(root: string, home: string): string {
   const rel =
-    root === home ? '$HOME' : root.startsWith(home + path.sep) ? `$HOME${root.slice(home.length)}` : root;
+    root === home
+      ? '$HOME'
+      : root.startsWith(home + path.sep)
+        ? `$HOME${root.slice(home.length)}`
+        : root;
   return `"${rel.replace(/[\\]/g, '/').replace(/(["`])/g, '`$1')}"`;
 }
 
@@ -747,7 +752,12 @@ export function scanRcForWrappers(
     if (inBlock(i) || lines[i].startsWith(TIDY_PREFIX)) continue;
     for (const name of names) {
       if (defStartRe(name, family).test(lines[i])) {
-        out.push({ name, line: i + 1, text: lines[i].trim(), canTidy: singleLineRe(name, family).test(lines[i]) });
+        out.push({
+          name,
+          line: i + 1,
+          text: lines[i].trim(),
+          canTidy: singleLineRe(name, family).test(lines[i]),
+        });
         break; // one match per line is enough
       }
     }
@@ -790,7 +800,10 @@ function writeAtomic(file: string, content: string): void {
     // (a crash mid-write could truncate) but the alternative is a setup that
     // just refuses to apply. POSIX errors still propagate untouched.
     const code = (e as NodeJS.ErrnoException).code;
-    if (process.platform !== 'win32' || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) {
+    if (
+      process.platform !== 'win32' ||
+      (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')
+    ) {
       try {
         fs.unlinkSync(tmp);
       } catch {
@@ -833,7 +846,11 @@ export function detectShells(env: SetupEnv = defaultEnv()): ShellDetection {
           exists,
           detected: true,
           linked,
-          note: linked ? 'already linked' : exists ? 'your PowerShell profile' : 'profile would be created',
+          note: linked
+            ? 'already linked'
+            : exists
+              ? 'your PowerShell profile'
+              : 'profile would be created',
         },
       ],
     };
@@ -863,7 +880,8 @@ export function detectShells(env: SetupEnv = defaultEnv()): ShellDetection {
         : exists
           ? 'rc present'
           : `~/${d.alsoRc} present · creates ~/${d.rc}`;
-    const inPlay = detected || exists || (d.alsoRc ? fileExists(path.join(env.home, d.alsoRc)) : false);
+    const inPlay =
+      detected || exists || (d.alsoRc ? fileExists(path.join(env.home, d.alsoRc)) : false);
     return { shell: d.shell, family: 'posix', rcPath, exists, detected, linked, note, inPlay };
   });
   // Only surface shells the user actually uses: the login shell, or any with
@@ -879,7 +897,9 @@ export function detectShells(env: SetupEnv = defaultEnv()): ShellDetection {
   if (!shells.length) {
     const fallback = all.find((s) => s.shell === (mac ? 'zsh' : 'bash'))!;
     const { inPlay: _inPlay, ...target } = fallback;
-    shells = [{ ...target, note: `no login shell detected · creates ~/${path.basename(target.rcPath)}` }];
+    shells = [
+      { ...target, note: `no login shell detected · creates ~/${path.basename(target.rcPath)}` },
+    ];
   }
   return { platform: env.platform, shells };
 }
@@ -933,8 +953,10 @@ function validateAccounts(accounts: AccountSpec[]): string[] {
     seen.add(a.name);
     if (!a.root || !path.isAbsolute(a.root)) problems.push(`"${a.name}" has no config dir`);
     for (const [k, v] of Object.entries(a.env ?? {})) {
-      if (!ENV_NAME_RE.test(k)) problems.push(`"${a.name}": invalid environment variable name "${k}"`);
-      else if (RESERVED_ENV.has(k)) problems.push(`"${a.name}": ${k} comes from the config dir — remove it`);
+      if (!ENV_NAME_RE.test(k))
+        problems.push(`"${a.name}": invalid environment variable name "${k}"`);
+      else if (RESERVED_ENV.has(k))
+        problems.push(`"${a.name}": ${k} comes from the config dir — remove it`);
       // Both generators emit fully-literal quoting, so a value can hold
       // anything printable; a newline is the one thing that would break out of
       // the single line it is written on.
@@ -980,7 +1002,9 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
         `${display} already defines ${existing.map((e) => e.name).join(', ')} by hand — ` +
           (opts.tidyExisting
             ? `tidy will comment out ${tidyable} single-line def${tidyable === 1 ? '' : 's'}` +
-              (manual ? `; ${manual} multi-line def${manual === 1 ? '' : 's'} need manual removal` : '')
+              (manual
+                ? `; ${manual} multi-line def${manual === 1 ? '' : 's'} need manual removal`
+                : '')
             : `they'd be shadowed by the managed file (identical → harmless). Enable tidy to comment them out`),
       );
     }
@@ -1017,7 +1041,15 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
 export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): SetupReport {
   const problems = validate(opts);
   if (problems.length) {
-    return { ok: false, wroteManaged: false, linkedRc: [], tidiedRc: [], helperInstalled: false, reloadHint: '', errors: problems };
+    return {
+      ok: false,
+      wroteManaged: false,
+      linkedRc: [],
+      tidiedRc: [],
+      helperInstalled: false,
+      reloadHint: '',
+      errors: problems,
+    };
   }
   const { home } = env;
   const family = familyOf(env.platform);
@@ -1029,7 +1061,9 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
     fs.mkdirSync(path.dirname(managedPath), { recursive: true });
     // 0600: an account's env may carry a provider API token, and this file is
     // only ever read by the user's own shell.
-    fs.writeFileSync(managedPath, renderManagedScript(opts.accounts, home, family), { mode: 0o600 });
+    fs.writeFileSync(managedPath, renderManagedScript(opts.accounts, home, family), {
+      mode: 0o600,
+    });
     if (process.platform !== 'win32') fs.chmodSync(managedPath, 0o600); // umask cannot loosen it
     wroteManaged = true;
   } catch (e) {
@@ -1100,7 +1134,15 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
     ? `run: ${reloadTargets.map((t) => `${sourceVerb} ${t}`).join('   ')}  (or open a new terminal)`
     : 'open a new terminal to load the wrappers';
 
-  return { ok: errors.length === 0, wroteManaged, linkedRc, tidiedRc, helperInstalled, reloadHint, errors };
+  return {
+    ok: errors.length === 0,
+    wroteManaged,
+    linkedRc,
+    tidiedRc,
+    helperInstalled,
+    reloadHint,
+    errors,
+  };
 }
 
 /**

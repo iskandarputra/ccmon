@@ -43,10 +43,17 @@
   --neu-light-1: rgba(255, 255, 255, 0.025);
   --neu-edge: var(--line);
 
-  --neu-raised: 0 1px 3px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 0 0 1px var(--line);
-  --neu-raised-sm: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.04), 0 0 0 1px var(--line);
-  --neu-inset: inset 0 1.5px 3px rgba(0, 0, 0, 0.35), inset 0 -1px 0 0 rgba(255, 255, 255, 0.03), 0 0 0 1px var(--line-soft);
-  --neu-inset-deep: inset 0 2.5px 5px rgba(0, 0, 0, 0.45), inset 0 -1px 0 0 rgba(255, 255, 255, 0.02), 0 0 0 1px var(--line);
+  --neu-raised:
+    0 1px 3px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 0 0 1px var(--line);
+  --neu-raised-sm:
+    0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.04), 0 0 0 1px var(--line);
+  --neu-inset:
+    inset 0 1.5px 3px rgba(0, 0, 0, 0.35), inset 0 -1px 0 0 rgba(255, 255, 255, 0.03),
+    0 0 0 1px var(--line-soft);
+  --neu-inset-deep:
+    inset 0 2.5px 5px rgba(0, 0, 0, 0.45), inset 0 -1px 0 0 rgba(255, 255, 255, 0.02),
+    0 0 0 1px var(--line);
 }
 
 * {
@@ -170,7 +177,10 @@ button {
   font-weight: 500;
   color: var(--text-dim);
   text-align: left;
-  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
   border: 1px solid transparent;
 }
 
@@ -207,7 +217,9 @@ button {
   color: var(--text-faint);
   transition: color 0.15s ease;
 }
-.nav-item:hover .nav-icon { color: var(--text-dim); }
+.nav-item:hover .nav-icon {
+  color: var(--text-dim);
+}
 .nav-item.is-active .nav-icon {
   color: var(--amber);
 }
@@ -245,13 +257,27 @@ button {
   margin: 0 auto;
 }
 
-.g3 { grid-column: span 3; }
-.g4 { grid-column: span 4; }
-.g5 { grid-column: span 5; }
-.g6 { grid-column: span 6; }
-.g7 { grid-column: span 7; }
-.g8 { grid-column: span 8; }
-.g12 { grid-column: span 12; }
+.g3 {
+  grid-column: span 3;
+}
+.g4 {
+  grid-column: span 4;
+}
+.g5 {
+  grid-column: span 5;
+}
+.g6 {
+  grid-column: span 6;
+}
+.g7 {
+  grid-column: span 7;
+}
+.g8 {
+  grid-column: span 8;
+}
+.g12 {
+  grid-column: span 12;
+}
 
 /* ── titlebar ────────────────────────────────────────────────────────────── */
 
@@ -286,9 +312,18 @@ button {
   border-radius: 2px;
   display: block;
 }
-.tb-glyph i:nth-child(1) { height: 7px;  background: var(--sage); }
-.tb-glyph i:nth-child(2) { height: 12px; background: var(--amber); }
-.tb-glyph i:nth-child(3) { height: 5px;  background: var(--rose); }
+.tb-glyph i:nth-child(1) {
+  height: 7px;
+  background: var(--sage);
+}
+.tb-glyph i:nth-child(2) {
+  height: 12px;
+  background: var(--amber);
+}
+.tb-glyph i:nth-child(3) {
+  height: 5px;
+  background: var(--rose);
+}
 
 .tb-name {
   font-family: var(--sans);
@@ -355,7 +390,9 @@ button {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-dim);
-  transition: color 0.12s ease, border-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease;
   -webkit-app-region: no-drag;
 }
 .tb-ds:hover {
@@ -401,7 +438,9 @@ button {
   border-radius: 50%;
   background: var(--text-faint);
 }
-.tb-live.is-live { color: var(--sage); }
+.tb-live.is-live {
+  color: var(--sage);
+}
 .tb-live.is-live .dot {
   background: var(--sage);
 }
@@ -438,7 +477,9 @@ button {
   height: 28px;
   border-radius: 6px;
   color: var(--text-faint);
-  transition: color 0.12s ease, background-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    background-color 0.12s ease;
   -webkit-app-region: no-drag;
 }
 .tb-github:hover {
@@ -479,13 +520,20 @@ button {
   flex-direction: column;
   min-width: 0;
   border: 1px solid var(--line);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.15), 0 1px 2px -1px rgba(0, 0, 0, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.03);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.15),
+    0 1px 2px -1px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.03);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .panel:hover {
   border-color: color-mix(in srgb, var(--text-dim) 40%, var(--line));
-  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.2), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 4px 12px -2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
 }
 
 .panel-head {
@@ -652,7 +700,9 @@ button {
   color: var(--text);
   font-weight: 600;
   border-color: var(--line);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
 }
 
 /* ── charts ──────────────────────────────────────────────────────────────── */
@@ -751,7 +801,9 @@ button {
   color: var(--text-dim);
   flex: 1;
 }
-.ml-val { color: var(--text); }
+.ml-val {
+  color: var(--text);
+}
 .ml-pct {
   color: var(--text-faint);
   font-size: 11px;
@@ -871,7 +923,9 @@ button {
   border-color: var(--line);
 }
 
-.f-time { color: var(--text-faint); }
+.f-time {
+  color: var(--text-faint);
+}
 .f-proj {
   color: var(--text);
   white-space: nowrap;
@@ -879,8 +933,12 @@ button {
   text-overflow: ellipsis;
   font-weight: 500;
 }
-.f-model { color: var(--blue); }
-.f-model.is-side { color: var(--text-faint); }
+.f-model {
+  color: var(--blue);
+}
+.f-model.is-side {
+  color: var(--text-faint);
+}
 .f-tok {
   color: var(--text-dim);
   text-align: right;
@@ -949,7 +1007,9 @@ button {
   color: var(--text-dim);
   white-space: nowrap;
   border-bottom: 1px solid var(--line-soft);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 .tbl td.t-name {
   color: var(--text);
@@ -993,7 +1053,9 @@ button {
   min-width: 0;
 }
 
-.sb-sep { opacity: 0.45; }
+.sb-sep {
+  opacity: 0.45;
+}
 
 .sb-link {
   color: var(--text-faint);
@@ -1004,9 +1066,13 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sb-link:hover { color: var(--text-dim); }
+.sb-link:hover {
+  color: var(--text-dim);
+}
 
-.sb-warn { color: var(--rose); }
+.sb-warn {
+  color: var(--rose);
+}
 
 .sb-scope {
   padding: 2px;
@@ -1024,7 +1090,9 @@ button {
   padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid var(--line);
-  transition: color 0.12s ease, background-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    background-color 0.12s ease;
 }
 .sb-btn:hover {
   color: var(--text);
@@ -1140,8 +1208,12 @@ button {
 }
 
 @keyframes ov-slide {
-  0%   { margin-left: -30%; }
-  100% { margin-left: 100%; }
+  0% {
+    margin-left: -30%;
+  }
+  100% {
+    margin-left: 100%;
+  }
 }
 
 .ov-telemetry {
@@ -1175,27 +1247,58 @@ button {
 }
 
 @media (max-width: 1200px) {
-  .g4, .g5, .g7, .g8 { grid-column: span 12; }
+  .g4,
+  .g5,
+  .g7,
+  .g8 {
+    grid-column: span 12;
+  }
 }
 
 @media (max-width: 1040px) {
-  .g3 { grid-column: span 6; }
-  .g6 { grid-column: span 12; }
-  .sidebar { width: 56px; padding: 12px 6px; }
-  .nav-item { justify-content: center; padding: 8px 0; }
-  .nav-label, .nav-key { display: none; }
-  .nav-icon { width: 16px; height: 16px; }
+  .g3 {
+    grid-column: span 6;
+  }
+  .g6 {
+    grid-column: span 12;
+  }
+  .sidebar {
+    width: 56px;
+    padding: 12px 6px;
+  }
+  .nav-item {
+    justify-content: center;
+    padding: 8px 0;
+  }
+  .nav-label,
+  .nav-key {
+    display: none;
+  }
+  .nav-icon {
+    width: 16px;
+    height: 16px;
+  }
 }
 
 @media (max-width: 900px) {
-  .tb-live { display: none; }
-  .tb-search-placeholder { display: none; }
+  .tb-live {
+    display: none;
+  }
+  .tb-search-placeholder {
+    display: none;
+  }
 }
 
 @media (max-width: 720px) {
-  .g3 { grid-column: span 12; }
-  .mix-wrap { flex-direction: column; }
-  .tb-ds-name { display: none; }
+  .g3 {
+    grid-column: span 12;
+  }
+  .mix-wrap {
+    flex-direction: column;
+  }
+  .tb-ds-name {
+    display: none;
+  }
 }
 
 :root {
@@ -1205,11 +1308,19 @@ button {
   --dur-3: 300ms;
 }
 
-.view-anim { animation: view-in var(--dur-3) var(--ease-out); }
-@keyframes view-in { from { opacity: 0; } }
+.view-anim {
+  animation: view-in var(--dur-3) var(--ease-out);
+}
+@keyframes view-in {
+  from {
+    opacity: 0;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -1281,4 +1392,3 @@ button {
   align-items: center;
   gap: 10px;
 }
-

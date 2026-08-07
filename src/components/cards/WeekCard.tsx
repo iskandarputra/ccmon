@@ -57,7 +57,8 @@ export function WeekCard() {
         )}
       </div>
       <Hint label="why 7d?">
-        Your Anthropic account is subject to a hard weekly spend limit. This tracks your rolling 7-day cost and resets at the exact hour specified.
+        Your Anthropic account is subject to a hard weekly spend limit. This tracks your rolling
+        7-day cost and resets at the exact hour specified.
       </Hint>
     </div>
   );

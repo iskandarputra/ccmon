@@ -15,7 +15,8 @@ import type {
 } from '../../shared/types';
 
 /** Compact USD/token formatters (service-local — the renderer has its own). */
-const fmtUsd = (v: number): string => `$${(v || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+const fmtUsd = (v: number): string =>
+  `$${(v || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 const fmtTokShort = (n: number): string => {
   const v = n || 0;
   if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
@@ -47,7 +48,7 @@ const FETCH_TIMEOUT_MS = 60_000;
 
 const ADVISOR_PREAMBLE = [
   'You are acting as a usage & cost advisor inside "ccmon", a local monitor for',
-  'Claude Code usage. Below is a privacy-preserving SUMMARY of the user\'s usage',
+  "Claude Code usage. Below is a privacy-preserving SUMMARY of the user's usage",
   '(aggregates only — no transcripts). Answer their questions about spend, cost',
   'drivers, cache efficiency, plan-limit headroom, and how to use Claude Code',
   'more cost-effectively. Be concrete and cite the numbers from the summary.',
@@ -93,13 +94,20 @@ export function buildUsageContext(
     }
   }
   if (s.toolUse.rows.length) {
-    const tools = s.toolUse.rows.slice(0, 6).map((t) => `${t.name}×${t.invocations}`).join(', ');
-    lines.push(`\nTool use: ${s.toolUse.invocations} calls over ${s.toolUse.turns} turns — ${tools}.`);
+    const tools = s.toolUse.rows
+      .slice(0, 6)
+      .map((t) => `${t.name}×${t.invocations}`)
+      .join(', ');
+    lines.push(
+      `\nTool use: ${s.toolUse.invocations} calls over ${s.toolUse.turns} turns — ${tools}.`,
+    );
   }
   if (s.whatIf.length) {
     lines.push('\nWhat-if (all traffic re-priced onto one model):');
     for (const w of s.whatIf.slice(0, 4)) {
-      lines.push(`- ${w.model}: ${fmtUsd(w.totalCost)} (${w.delta >= 0 ? '+' : ''}${fmtUsd(w.delta)} vs actual)`);
+      lines.push(
+        `- ${w.model}: ${fmtUsd(w.totalCost)} (${w.delta >= 0 ? '+' : ''}${fmtUsd(w.delta)} vs actual)`,
+      );
     }
   }
 
@@ -110,7 +118,8 @@ export function buildUsageContext(
     const parts: string[] = [];
     if (r.session?.pct != null) parts.push(`session ${r.session.pct.toFixed(0)}%`);
     if (r.week?.pct != null) parts.push(`week ${r.week.pct.toFixed(0)}%`);
-    if (r.forecast?.week?.etaTs) parts.push(`week caps ~${new Date(r.forecast.week.etaTs).toISOString()}`);
+    if (r.forecast?.week?.etaTs)
+      parts.push(`week caps ~${new Date(r.forecast.week.etaTs).toISOString()}`);
     if (parts.length) limitLines.push(`- ${label}: ${parts.join(', ')}`);
   }
   if (limitLines.length) {
@@ -155,7 +164,10 @@ export async function askAdvisor(opts: {
   const { token, model, question, history, context } = opts;
   const messages = [
     { role: 'user' as const, content: `${ADVISOR_PREAMBLE}\n\n${context}` },
-    { role: 'assistant' as const, content: 'Got it — I have your usage summary. What would you like to know?' },
+    {
+      role: 'assistant' as const,
+      content: 'Got it — I have your usage summary. What would you like to know?',
+    },
     ...history,
     { role: 'user' as const, content: question },
   ];
@@ -171,7 +183,12 @@ export async function askAdvisor(opts: {
         'anthropic-beta': OAUTH_BETA,
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ model, max_tokens: MAX_TOKENS, system: CLAUDE_CODE_IDENTITY, messages }),
+      body: JSON.stringify({
+        model,
+        max_tokens: MAX_TOKENS,
+        system: CLAUDE_CODE_IDENTITY,
+        messages,
+      }),
       signal: ctl.signal,
     });
     const text = await res.text();
@@ -183,7 +200,10 @@ export async function askAdvisor(opts: {
     }
     if (!res.ok) {
       const detail = json?.error?.message || text.slice(0, 160).replace(/\s+/g, ' ').trim();
-      return { ok: false, error: `${reason(res.status)} (HTTP ${res.status}${detail ? ` · ${detail}` : ''})` };
+      return {
+        ok: false,
+        error: `${reason(res.status)} (HTTP ${res.status}${detail ? ` · ${detail}` : ''})`,
+      };
     }
     const answer = (json?.content || [])
       .filter((b) => b.type === 'text' && b.text)
@@ -196,7 +216,10 @@ export async function askAdvisor(opts: {
     const e = err as Error;
     return {
       ok: false,
-      error: e.name === 'AbortError' ? 'timed out waiting for the model' : `network error (${e.message})`,
+      error:
+        e.name === 'AbortError'
+          ? 'timed out waiting for the model'
+          : `network error (${e.message})`,
     };
   } finally {
     clearTimeout(timer);

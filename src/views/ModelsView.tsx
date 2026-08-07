@@ -261,8 +261,7 @@ function CacheEconomics({ cache, totalCost }: CacheEconomicsProps) {
   if (!cache) {
     return <p className="view-placeholder">no cache data yet</p>;
   }
-  const paidPct =
-    cache.wouldHaveCostUSD > 0 ? (totalCost / cache.wouldHaveCostUSD) * 100 : null;
+  const paidPct = cache.wouldHaveCostUSD > 0 ? (totalCost / cache.wouldHaveCostUSD) * 100 : null;
   const savedPct = paidPct == null ? null : 100 - paidPct;
   return (
     <div className="mdl-cache">
@@ -361,11 +360,10 @@ function WhatIfPanel({ rows, actual }: WhatIfPanelProps) {
       {rows.map((r) => {
         const cheaper = r.delta < 0;
         return (
-          <div
-            className={`mdl-wi-row ${cheaper ? 'is-cheaper' : 'is-pricier'}`}
-            key={r.model}
-          >
-            <span className="mdl-wi-name" title={r.model}>{modelLabel(r.model)}</span>
+          <div className={`mdl-wi-row ${cheaper ? 'is-cheaper' : 'is-pricier'}`} key={r.model}>
+            <span className="mdl-wi-name" title={r.model}>
+              {modelLabel(r.model)}
+            </span>
             <div className="mdl-wi-track">
               <i
                 style={{
@@ -375,11 +373,9 @@ function WhatIfPanel({ rows, actual }: WhatIfPanelProps) {
               />
             </div>
             <b>{fmtUSD(r.totalCost)}</b>
-            <span
-              className="mdl-wi-delta"
-              style={{ color: cheaper ? 'var(--ok)' : 'var(--rose)' }}
-            >
-              {cheaper ? '−' : '+'}{fmtUSD(Math.abs(r.delta))}
+            <span className="mdl-wi-delta" style={{ color: cheaper ? 'var(--ok)' : 'var(--rose)' }}>
+              {cheaper ? '−' : '+'}
+              {fmtUSD(Math.abs(r.delta))}
             </span>
           </div>
         );
@@ -415,8 +411,12 @@ function ModelsTable({ models, now }: ModelsTableProps) {
             <th title="cache hit: read ÷ (read + uncached input)">hit</th>
             {haveRates && (
               <>
-                <th title="resolved input price per million tokens (pure rate, not blended)">{currencySymbol()}/mtok in</th>
-                <th title="resolved output price per million tokens (pure rate, not blended)">{currencySymbol()}/mtok out</th>
+                <th title="resolved input price per million tokens (pure rate, not blended)">
+                  {currencySymbol()}/mtok in
+                </th>
+                <th title="resolved output price per million tokens (pure rate, not blended)">
+                  {currencySymbol()}/mtok out
+                </th>
               </>
             )}
             <th title="blended: total cost ÷ output Mtok">blended</th>
@@ -476,7 +476,15 @@ export function ModelsView() {
     <div className="grid">
       <div className="g8">
         <Panel
-          title={<>daily cost by model <Hint label="how to read this">Shows your estimated spend over the selected range, stacked by model. The top 5 models are shown individually, while the rest are grouped into "other".</Hint></>}
+          title={
+            <>
+              daily cost by model{' '}
+              <Hint label="how to read this">
+                Shows your estimated spend over the selected range, stacked by model. The top 5
+                models are shown individually, while the rest are grouped into "other".
+              </Hint>
+            </>
+          }
           right={<span className="panel-note">est cost · {isAll ? '35 days' : rangeLabel}</span>}
         >
           <CostByModelChart days={dailyData} series={series} />
@@ -484,14 +492,32 @@ export function ModelsView() {
       </div>
 
       <div className="g4">
-        <Panel title={<>cost share <Hint label="what is this?">A breakdown of your spend by model over the selected range.</Hint></>} right={<span className="panel-note">{rangeLabel}</span>}>
+        <Panel
+          title={
+            <>
+              cost share{' '}
+              <Hint label="what is this?">
+                A breakdown of your spend by model over the selected range.
+              </Hint>
+            </>
+          }
+          right={<span className="panel-note">{rangeLabel}</span>}
+        >
           <CostDonut models={models} rangeLabel={rangeLabel} />
         </Panel>
       </div>
 
       <div className="g12">
         <Panel
-          title={<>cache economics <Hint label="how it's computed">Shows how much you paid versus how much you saved because of prompt caching. Hit rate is cache read tokens divided by total input tokens.</Hint></>}
+          title={
+            <>
+              cache economics{' '}
+              <Hint label="how it's computed">
+                Shows how much you paid versus how much you saved because of prompt caching. Hit
+                rate is cache read tokens divided by total input tokens.
+              </Hint>
+            </>
+          }
           right={<span className="panel-note">prompt caching</span>}
         >
           <CacheEconomics cache={snapshot.cache} totalCost={snapshot.totals?.cost || 0} />
@@ -500,7 +526,17 @@ export function ModelsView() {
 
       <div className="g12">
         <Panel
-          title={<>what-if · all traffic on one model <Hint label="how it's computed">every recorded request is re-priced onto each model with its exact token splits (input / output / cache read / cache write) and tier rules — the same engine that prices your real usage. quality differences between models are not priced in; this is the bill, not the value.</Hint></>}
+          title={
+            <>
+              what-if · all traffic on one model{' '}
+              <Hint label="how it's computed">
+                every recorded request is re-priced onto each model with its exact token splits
+                (input / output / cache read / cache write) and tier rules — the same engine that
+                prices your real usage. quality differences between models are not priced in; this
+                is the bill, not the value.
+              </Hint>
+            </>
+          }
           right={<span className="panel-note">entry-exact re-pricing · {rangeLabel}</span>}
         >
           <WhatIfPanel rows={snapshot.whatIf || []} actual={snapshot.totals?.cost || 0} />
@@ -509,8 +545,19 @@ export function ModelsView() {
 
       <div className="g12">
         <Panel
-          title={<>models <Hint label="what is this?">A comprehensive list of every model you've used, sorted by total cost.</Hint></>}
-          right={<span className="panel-note">{models.length} model{models.length === 1 ? '' : 's'}</span>}
+          title={
+            <>
+              models{' '}
+              <Hint label="what is this?">
+                A comprehensive list of every model you've used, sorted by total cost.
+              </Hint>
+            </>
+          }
+          right={
+            <span className="panel-note">
+              {models.length} model{models.length === 1 ? '' : 's'}
+            </span>
+          }
         >
           <ModelsTable models={models} now={now} />
         </Panel>

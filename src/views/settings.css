@@ -89,7 +89,9 @@
 .set-theme-card.is-active {
   background: var(--bg1);
   border-color: var(--amber);
-  box-shadow: 0 0 0 1px var(--amber), 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 0 0 1px var(--amber),
+    0 4px 16px rgba(0, 0, 0, 0.3);
 }
 .set-theme-card:focus-visible {
   outline: 2px solid var(--amber);
@@ -275,7 +277,9 @@
   height: 12px;
   border-radius: 50%;
   background: var(--text-faint);
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 .set-toggle input:checked + .set-toggle-track {
   background: color-mix(in srgb, var(--amber) 20%, var(--bg0));

@@ -5,14 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  compactTokens,
-  humanDuration,
-  money,
-  nearestCap,
-  trayText,
-  usd,
-} from '../status-text';
+import { compactTokens, humanDuration, money, nearestCap, trayText, usd } from '../status-text';
 import type { ActiveBlock, LimitsMap, Snapshot } from '../../../shared/types';
 
 const NOW = Date.parse('2026-07-30T12:00:00Z');
@@ -153,10 +146,20 @@ describe('trayText', () => {
   });
 
   it('surfaces an exhausted quota and ignores a stale reset marker', () => {
-    const hit = trayText(snap({ block: block({ usageLimitResetTs: NOW + 900_000 }) }), {}, label, NOW);
+    const hit = trayText(
+      snap({ block: block({ usageLimitResetTs: NOW + 900_000 }) }),
+      {},
+      label,
+      NOW,
+    );
     expect(hit.lines).toContain('limit  resets in 15m');
 
-    const past = trayText(snap({ block: block({ usageLimitResetTs: NOW - 900_000 }) }), {}, label, NOW);
+    const past = trayText(
+      snap({ block: block({ usageLimitResetTs: NOW - 900_000 }) }),
+      {},
+      label,
+      NOW,
+    );
     expect(past.lines.some((l) => l.startsWith('limit'))).toBe(false);
   });
 

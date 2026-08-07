@@ -162,7 +162,10 @@ export interface CcmonApi {
    * the default `~/.claude` root. Requires an app relaunch afterward for
    * live file-watching to pick up the new path.
    */
-  renameAccount(root: string, suffix: string): Promise<{ ok: boolean; root: string; error?: string }>;
+  renameAccount(
+    root: string,
+    suffix: string,
+  ): Promise<{ ok: boolean; root: string; error?: string }>;
   /**
    * Rewrite just the managed wrapper file to this exact account list — used
    * by the Accounts view's rename / remove-from-shell controls. Never

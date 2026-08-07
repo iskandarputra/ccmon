@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-cli
+dist-electron
+release
+build
+promo
+package-lock.json
+
+# Fixture corpora are captured data, not source: reformatting a .jsonl would
+# change the bytes the parser is being tested against.
+scripts/fixtures
+
+# Prose is authored, not generated. Reflowing Markdown rewrites hand-tuned
+# tables and wraps code spans across list continuations for no benefit.
+*.md

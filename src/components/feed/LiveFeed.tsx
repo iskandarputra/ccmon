@@ -26,11 +26,16 @@ export function LiveFeed() {
           {feed.map((e) => (
             <li className="feed-item" key={e.key}>
               <span className="f-time">{feedTime(e.ts)}</span>
-              <span className="f-proj" title={e.project}>{projectName(e.project)}</span>
+              <span className="f-proj" title={e.project}>
+                {projectName(e.project)}
+              </span>
               <span className={`f-model ${e.sidechain ? 'is-side' : ''}`} title={e.model}>
                 {shortModel(e.model)}
               </span>
-              <span className="f-tok" title={`cache: ${fmtTok(e.read)} read · ${fmtTok(e.write)} write`}>
+              <span
+                className="f-tok"
+                title={`cache: ${fmtTok(e.read)} read · ${fmtTok(e.write)} write`}
+              >
                 {fmtTok(e.in)} in · {fmtTok(e.out)} out
               </span>
               <span className="f-cost">{fmtUSDPrecise(e.cost)}</span>

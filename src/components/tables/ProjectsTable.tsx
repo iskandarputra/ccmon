@@ -42,7 +42,9 @@ export function ProjectsTable() {
           <tbody>
             {projects.map((p) => (
               <tr key={p.path}>
-                <td className="t-name" title={tildify(p.path)}>{projectName(p.path)}</td>
+                <td className="t-name" title={tildify(p.path)}>
+                  {projectName(p.path)}
+                </td>
                 <td>{relTime(p.lastTs, now)}</td>
                 <td>{p.todayCost > 0 ? fmtUSD(p.todayCost) : '—'}</td>
                 <td>{p.weekCost > 0 ? fmtUSD(p.weekCost) : '—'}</td>

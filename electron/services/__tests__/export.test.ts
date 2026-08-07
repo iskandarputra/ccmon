@@ -11,8 +11,13 @@ import { makeEntry, HOUR } from './helpers';
 
 const NOW = Date.parse('2026-06-10T12:00:00');
 
-const snap = (entries = [makeEntry({ ts: NOW - HOUR, in: 100, out: 50, costUSD: 3, project: '/p/a, b' })]) =>
-  buildSnapshot([...entries].sort((a, b) => a.ts - b.ts), { now: NOW, settings: { startOfWeek: 'monday' } });
+const snap = (
+  entries = [makeEntry({ ts: NOW - HOUR, in: 100, out: 50, costUSD: 3, project: '/p/a, b' })],
+) =>
+  buildSnapshot(
+    [...entries].sort((a, b) => a.ts - b.ts),
+    { now: NOW, settings: { startOfWeek: 'monday' } },
+  );
 
 describe('snapshotToCsv', () => {
   it('emits a header row + one row per record for each kind', () => {

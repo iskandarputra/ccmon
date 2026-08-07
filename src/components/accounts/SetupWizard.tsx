@@ -92,7 +92,9 @@ export function SetupWizard() {
       const only = found.shells.length === 1;
       setShells(found.shells);
       setPlatform(found.platform);
-      setPicked(new Set(found.shells.filter((s) => only || s.detected || s.linked).map((s) => s.rcPath)));
+      setPicked(
+        new Set(found.shells.filter((s) => only || s.detected || s.linked).map((s) => s.rcPath)),
+      );
     });
     return () => {
       alive = false;
@@ -320,7 +322,9 @@ export function SetupWizard() {
                       // grows with the content: a provider preset is ~11 lines,
                       // and a 3-row box hides all but the first two of them
                       rows={Math.min(12, Math.max(3, (envText[root] ?? '').split('\n').length))}
-                      placeholder={'ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic\nANTHROPIC_AUTH_TOKEN=sk-…'}
+                      placeholder={
+                        'ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic\nANTHROPIC_AUTH_TOKEN=sk-…'
+                      }
                       value={envText[root] ?? ''}
                       onChange={(e) => {
                         setEnvText((p) => ({ ...p, [root]: e.target.value }));
@@ -356,7 +360,8 @@ export function SetupWizard() {
         {/* Step 2 Column */}
         <div className="wiz-col">
           <div className="wiz-step-label">
-            2 · shell to link {platform && <span className="wiz-os">· {osLabel(platform)} detected</span>}
+            2 · shell to link{' '}
+            {platform && <span className="wiz-os">· {osLabel(platform)} detected</span>}
           </div>
           <div className="wiz-shells">
             {shells.map((s) => (
@@ -377,10 +382,9 @@ export function SetupWizard() {
           </div>
           {platform === 'win32' ? (
             <div className="wiz-os-note">
-              on Windows ccmon writes a PowerShell <code>function</code> per account and
-              dot-sources them from your <code>$PROFILE</code>. The bash{' '}
-              <code>claude-cross-resume</code> helper is Unix-only, so cross-account resume from
-              the dashboard needs WSL or Git Bash.
+              on Windows ccmon writes a PowerShell <code>function</code> per account and dot-sources
+              them from your <code>$PROFILE</code>. The bash <code>claude-cross-resume</code> helper
+              is Unix-only, so cross-account resume from the dashboard needs WSL or Git Bash.
             </div>
           ) : (
             <label className="wiz-toggle">
@@ -409,8 +413,8 @@ export function SetupWizard() {
             />
             <span className="wiz-toggle-track" aria-hidden="true" />
             <span className="wiz-toggle-text">
-              tidy up: comment out any existing hand-written <code>claude-*</code> defs the
-              managed file replaces (single-line only · shown in preview)
+              tidy up: comment out any existing hand-written <code>claude-*</code> defs the managed
+              file replaces (single-line only · shown in preview)
             </span>
           </label>
         </div>
@@ -459,11 +463,7 @@ export function SetupWizard() {
                     {e.existing.map((x) => (
                       <div className="wiz-conflict" key={x.line}>
                         <span className="wiz-conflict-tag">
-                          {tidy
-                            ? x.canTidy
-                              ? 'comment out'
-                              : 'remove by hand'
-                            : 'shadowed'}
+                          {tidy ? (x.canTidy ? 'comment out' : 'remove by hand') : 'shadowed'}
                         </span>
                         <code className="wiz-conflict-line">
                           L{x.line}: {x.text}
@@ -492,8 +492,7 @@ export function SetupWizard() {
             <div className="wiz-report-head">{report.ok ? 'done ✓' : 'finished with errors'}</div>
             {report.tidiedRc.length > 0 && (
               <div className="wiz-report-line">
-                commented out superseded defs in{' '}
-                {report.tidiedRc.map((p) => tildify(p)).join(', ')}
+                commented out superseded defs in {report.tidiedRc.map((p) => tildify(p)).join(', ')}
               </div>
             )}
             {report.reloadHint && <div className="wiz-report-line">{report.reloadHint}</div>}
@@ -507,31 +506,30 @@ export function SetupWizard() {
       </div>
 
       <Hint label="what this writes (and won't break)">
-        ccmon writes one file it owns — <code>~/.config/ccmon/claude-accounts.sh</code> — with
-        a <code>claude-&lt;name&gt;</code> launcher per account (each sets{' '}
-        <code>CLAUDE_CONFIG_DIR</code> in a subshell) plus the cross-account resume helpers. It
-        then appends a single guarded <code>source</code> line to the shell rc you pick.
-        Re-running is safe: the guarded block is added at most once (never duplicated), and your
-        rc is only ever appended to — unless you tick <b>tidy up</b>, the one option that edits
-        existing lines, and even then only to comment out single-line <code>claude-*</code>{' '}
-        definitions the managed file replaces (shown in the preview, reversible, written
-        atomically). If you already have hand-written wrappers, the preview flags them so you
-        choose: leave them (the managed copies are identical, so they just shadow) or tidy them
-        away. Remove the <code>ccmon managed</code> block to uninstall. Nothing runs until you
-        open a new shell and call a wrapper.
+        ccmon writes one file it owns — <code>~/.config/ccmon/claude-accounts.sh</code> — with a{' '}
+        <code>claude-&lt;name&gt;</code> launcher per account (each sets{' '}
+        <code>CLAUDE_CONFIG_DIR</code> in a subshell) plus the cross-account resume helpers. It then
+        appends a single guarded <code>source</code> line to the shell rc you pick. Re-running is
+        safe: the guarded block is added at most once (never duplicated), and your rc is only ever
+        appended to — unless you tick <b>tidy up</b>, the one option that edits existing lines, and
+        even then only to comment out single-line <code>claude-*</code> definitions the managed file
+        replaces (shown in the preview, reversible, written atomically). If you already have
+        hand-written wrappers, the preview flags them so you choose: leave them (the managed copies
+        are identical, so they just shadow) or tidy them away. Remove the <code>ccmon managed</code>{' '}
+        block to uninstall. Nothing runs until you open a new shell and call a wrapper.
       </Hint>
       <Hint label="env: running an account on another provider">
         <code>+ env</code> adds variables the wrapper exports alongside{' '}
-        <code>CLAUDE_CONFIG_DIR</code>, which is what an alternate-provider account needs —
-        Claude Code pointed at DeepSeek is <code>ANTHROPIC_BASE_URL</code> +{' '}
+        <code>CLAUDE_CONFIG_DIR</code>, which is what an alternate-provider account needs — Claude
+        Code pointed at DeepSeek is <code>ANTHROPIC_BASE_URL</code> +{' '}
         <code>ANTHROPIC_AUTH_TOKEN</code> + a model mapping, none of which is a config dir. Give
         that account its own root (<code>~/.claude-deepseek</code>) so its usage stays separate:
-        ccmon prices every model it finds, but transcripts written into{' '}
-        <code>~/.claude</code> belong to that account. Values are exported in a subshell (on
-        Windows, restored afterwards) so they never leak into your session, and the cross-resume
-        wrappers re-export the destination's env — resuming into a DeepSeek account keeps
-        DeepSeek. A token typed here is stored in the generated wrapper file and in ccmon's
-        settings, both written <code>0600</code>: private to your user, not encrypted.
+        ccmon prices every model it finds, but transcripts written into <code>~/.claude</code>{' '}
+        belong to that account. Values are exported in a subshell (on Windows, restored afterwards)
+        so they never leak into your session, and the cross-resume wrappers re-export the
+        destination's env — resuming into a DeepSeek account keeps DeepSeek. A token typed here is
+        stored in the generated wrapper file and in ccmon's settings, both written <code>0600</code>
+        : private to your user, not encrypted.
       </Hint>
     </Panel>
   );

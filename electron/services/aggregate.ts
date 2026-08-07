@@ -85,7 +85,11 @@ function dayKeysForRange(range: ResolvedRange | null, now: number, zone: Zone = 
   const end = range.endKey ? dateAtNoon(range.endKey) : dateAtNoon(dayKeyFor(now, zone));
   const start = range.startKey
     ? dateAtNoon(range.startKey)
-    : (() => { const d = new Date(end); d.setDate(d.getDate() - (DAYS_WINDOW - 1)); return d; })();
+    : (() => {
+        const d = new Date(end);
+        d.setDate(d.getDate() - (DAYS_WINDOW - 1));
+        return d;
+      })();
   const keys: string[] = [];
   const cur = new Date(end);
   while (cur.getTime() >= start.getTime() && keys.length < MAX_RANGE_DAYS) {
@@ -247,22 +251,46 @@ export function accountSpend(
   const weekCut = now - 7 * DAY_MS;
   const monthCut = now - 30 * DAY_MS;
   interface Acc {
-    cost: number; in: number; out: number; read: number; write: number;
-    entries: number; sessions: Set<string>;
-    firstTs: number; lastTs: number; today: number; week: number; month: number;
+    cost: number;
+    in: number;
+    out: number;
+    read: number;
+    write: number;
+    entries: number;
+    sessions: Set<string>;
+    firstTs: number;
+    lastTs: number;
+    today: number;
+    week: number;
+    month: number;
   }
   const map = new Map<string, Acc>();
   for (const e of entries) {
     const src = e.source ?? '';
     let a = map.get(src);
     if (!a) {
-      a = { cost: 0, in: 0, out: 0, read: 0, write: 0, entries: 0, sessions: new Set(),
-            firstTs: e.ts, lastTs: e.ts, today: 0, week: 0, month: 0 };
+      a = {
+        cost: 0,
+        in: 0,
+        out: 0,
+        read: 0,
+        write: 0,
+        entries: 0,
+        sessions: new Set(),
+        firstTs: e.ts,
+        lastTs: e.ts,
+        today: 0,
+        week: 0,
+        month: 0,
+      };
       map.set(src, a);
     }
     const cost = costOf(e);
     a.cost += cost;
-    a.in += e.in; a.out += e.out; a.read += e.read; a.write += e.w5m + e.w1h;
+    a.in += e.in;
+    a.out += e.out;
+    a.read += e.read;
+    a.write += e.w5m + e.w1h;
     a.entries += 1;
     a.sessions.add(e.sessionId);
     if (e.ts < a.firstTs) a.firstTs = e.ts;
@@ -447,8 +475,12 @@ export function buildSnapshot(
   const costOfMemo = (e: UsageEntry) => costMemo.get(e) ?? costOf(e);
 
   // resolved range carried onto the snapshot for labels; 'all' when none given
-  const resolvedRange: ResolvedRange =
-    range ?? { preset: 'all', startKey: null, endKey: null, label: 'all time' };
+  const resolvedRange: ResolvedRange = range ?? {
+    preset: 'all',
+    startKey: null,
+    endKey: null,
+    label: 'all time',
+  };
   // restrict the historical body to the range. Markers (compactions / tool
   // results) are filtered to match so their counts track the same window.
   // accountEntries (per-account spend) and live limits are NOT range-scoped.
@@ -475,9 +507,10 @@ export function buildSnapshot(
   const projDaySet = new Set(projDayKeys);
   const weekSet = new Set(dayKeys.slice(-7));
   // heat window follows the range when bounded, else the rolling 30-day rhythm
-  const heatCutoff = bounded && resolvedRange.startKey
-    ? dateAtNoon(resolvedRange.startKey).getTime()
-    : now - HEAT_DAYS * DAY_MS;
+  const heatCutoff =
+    bounded && resolvedRange.startKey
+      ? dateAtNoon(resolvedRange.startKey).getTime()
+      : now - HEAT_DAYS * DAY_MS;
 
   const totals = { cost: 0, in: 0, out: 0, read: 0, write: 0 };
   const allSessions = new Set<string>();
@@ -493,7 +526,10 @@ export function buildSnapshot(
   let cacheSavedUSD = 0;
   const idle = { events: 0, tokens: 0, extraUSD: 0 };
   const sidechain = { cost: 0, entries: 0 };
-  const toolMap = new Map<string, { name: string; invocations: number; entries: number; cost: number }>();
+  const toolMap = new Map<
+    string,
+    { name: string; invocations: number; entries: number; cost: number }
+  >();
   const toolDayMap = new Map<string, number[]>(); // tool → invocations per window day
   let toolTurns = 0;
   let toolInvocations = 0;
@@ -716,7 +752,8 @@ export function buildSnapshot(
           const r = pricing?.rates(e.model);
           if (r) {
             if (w5) idle.extraUSD += w5 * Math.max(0, r.cacheCreate - r.cacheRead);
-            if (w1) idle.extraUSD += w1 * Math.max(0, (r.cacheCreate1h ?? r.input * 2) - r.cacheRead);
+            if (w1)
+              idle.extraUSD += w1 * Math.max(0, (r.cacheCreate1h ?? r.input * 2) - r.cacheRead);
           }
         }
       }
@@ -760,8 +797,17 @@ export function buildSnapshot(
     const d = dayMap.get(k);
     if (!d) {
       return {
-        date: k, cost: 0, in: 0, out: 0, read: 0, write: 0,
-        tokens: 0, allTokens: 0, entries: 0, sessions: 0, models: [],
+        date: k,
+        cost: 0,
+        in: 0,
+        out: 0,
+        read: 0,
+        write: 0,
+        tokens: 0,
+        allTokens: 0,
+        entries: 0,
+        sessions: 0,
+        models: [],
       };
     }
     return {
@@ -785,10 +831,12 @@ export function buildSnapshot(
 
   const today = days[days.length - 1];
   const yesterday = days[days.length - 2];
-  const week = days.slice(-7).reduce(
-    (acc, d) => ({ cost: acc.cost + d.cost, tokens: acc.tokens + d.tokens }),
-    { cost: 0, tokens: 0 },
-  );
+  const week = days
+    .slice(-7)
+    .reduce((acc, d) => ({ cost: acc.cost + d.cost, tokens: acc.tokens + d.tokens }), {
+      cost: 0,
+      tokens: 0,
+    });
 
   const weekly: WeeklyRow[] = [...weekMap.entries()]
     .sort((a, b) => (a[0] < b[0] ? -1 : 1))
@@ -922,7 +970,12 @@ export function buildSnapshot(
       }
     }
     candidates.forEach((m, i) =>
-      whatIf.push({ model: m, totalCost: sums[i], delta: sums[i] - totals.cost, daily: dailySums[i] }),
+      whatIf.push({
+        model: m,
+        totalCost: sums[i],
+        delta: sums[i] - totals.cost,
+        daily: dailySums[i],
+      }),
     );
     whatIf.sort((a, b) => a.totalCost - b.totalCost);
   }
@@ -988,8 +1041,7 @@ export function buildSnapshot(
     byModel: [...recByModel.entries()]
       .map(([key, v]) => ({ key, ...v }))
       .sort(
-        (a2, b2) =>
-          Math.abs(b2.calculated - b2.recorded) - Math.abs(a2.calculated - a2.recorded),
+        (a2, b2) => Math.abs(b2.calculated - b2.recorded) - Math.abs(a2.calculated - a2.recorded),
       ),
   };
 
@@ -1065,7 +1117,9 @@ export function buildSnapshot(
     whatIf,
     sidechain,
     toolUse: {
-      rows: [...toolMap.values()].sort((a, b) => b.invocations - a.invocations).slice(0, TOOL_LIMIT),
+      rows: [...toolMap.values()]
+        .sort((a, b) => b.invocations - a.invocations)
+        .slice(0, TOOL_LIMIT),
       daily: [...toolDayMap.entries()]
         .map(([name, days]) => ({ name, days, total: days.reduce((a, b) => a + b, 0) }))
         .sort((a, b) => b.total - a.total)

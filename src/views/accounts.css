@@ -249,7 +249,9 @@
 }
 .acc-card.is-scoped {
   border-color: var(--amber);
-  box-shadow: 0 0 0 1px var(--amber), 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 0 0 1px var(--amber),
+    0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .acc-card.is-scoped::before {
   background: var(--amber);
@@ -965,7 +967,9 @@
   height: 12px;
   border-radius: 50%;
   background: var(--text-faint);
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 .wiz-toggle input:checked + .wiz-toggle-track {
   background: color-mix(in srgb, var(--amber) 20%, var(--bg0));
@@ -1079,10 +1083,14 @@
   box-shadow: var(--neu-raised-sm);
 }
 .wiz-report.is-ok {
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in oklab, var(--ok) 40%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in oklab, var(--ok) 40%, transparent);
 }
 .wiz-report.is-err {
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in oklab, var(--bad) 40%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in oklab, var(--bad) 40%, transparent);
 }
 .wiz-report-head {
   font-family: var(--mono);
@@ -1107,7 +1115,9 @@
   margin-bottom: 8px;
   border-radius: var(--radius-sm);
   background: color-mix(in oklab, var(--warn) 8%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in oklab, var(--warn) 30%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in oklab, var(--warn) 30%, transparent);
 }
 .wiz-conflicts {
   margin: 6px 0 4px;

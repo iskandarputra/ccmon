@@ -81,7 +81,9 @@
     transform var(--dur-1) var(--ease-out);
 }
 .ins-facts li:hover {
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
   transform: translateY(-1px);
 }
 

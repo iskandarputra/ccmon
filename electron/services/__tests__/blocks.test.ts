@@ -5,13 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  BLOCK_MS,
-  MAX_BLOCK_HOURS,
-  MIN_BLOCK_HOURS,
-  blockMsFor,
-  computeBlocks,
-} from '../blocks';
+import { BLOCK_MS, MAX_BLOCK_HOURS, MIN_BLOCK_HOURS, blockMsFor, computeBlocks } from '../blocks';
 import { HOUR, MIN, makeEntry } from './helpers';
 
 const T0 = Date.parse('2026-06-01T10:20:00Z'); // floors to 10:00
@@ -118,7 +112,7 @@ describe('computeBlocks — active block, burn, projection, limit', () => {
 });
 
 describe('computeBlocks — configurable window length', () => {
-  it('defaults to Anthropic\'s 5 hours', () => {
+  it("defaults to Anthropic's 5 hours", () => {
     expect(blockMsFor(null)).toBe(BLOCK_MS);
     expect(blockMsFor(undefined)).toBe(BLOCK_MS);
     expect(blockMsFor(5)).toBe(BLOCK_MS);
