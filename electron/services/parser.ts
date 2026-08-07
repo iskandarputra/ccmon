@@ -89,6 +89,26 @@ export function mayCarryData(raw: string): boolean {
 }
 
 /**
+ * The same gate, one step earlier: applied to the RAW BYTES before the line is
+ * decoded to a string at all.
+ *
+ * Markers are pure ASCII, so a byte scan and a character scan agree exactly —
+ * a UTF-8 multibyte sequence can never contain an ASCII byte, so there are no
+ * false positives from mid-character matches. `Buffer.indexOf` is a native
+ * memmem, so the scan never touches the JS heap.
+ *
+ * Kept next to {@link mayCarryData} and driven by the same `LINE_MARKERS`
+ * array precisely so the two cannot drift: adding a parse branch means adding
+ * its field to that one list, and both gates follow.
+ */
+const LINE_MARKER_BYTES = LINE_MARKERS.map((m) => Buffer.from(m, 'ascii'));
+
+export function mayCarryDataBytes(line: Buffer): boolean {
+  for (const m of LINE_MARKER_BYTES) if (line.indexOf(m) !== -1) return true;
+  return false;
+}
+
+/**
  * Character length of a tool_result `content` field, which is either a plain
  * string or an array of content blocks (text / image / nested). Text blocks
  * count their text; anything else counts its serialized length as a fallback.
@@ -159,7 +179,25 @@ export function parseLine(
   zone: Zone = null,
 ): ParsedLine {
   if (!mayCarryData(raw)) return null;
+  return parseLineChecked(raw, file, lineNo, zone);
+}
 
+/**
+ * {@link parseLine} without the marker gate, for callers that already applied
+ * it — i.e. the watcher, which runs {@link mayCarryDataBytes} on the raw bytes
+ * before decoding. Re-scanning the decoded string costs ~180 ms per 290 MB of
+ * surviving lines for an answer already known to be yes.
+ *
+ * Only call this when the gate provably ran. An adapter earns that right by
+ * declaring `SourceAdapter.mayCarryData`; anything else should call
+ * {@link parseLine}.
+ */
+export function parseLineChecked(
+  raw: string,
+  file: string,
+  lineNo: number,
+  zone: Zone = null,
+): ParsedLine {
   let j: TranscriptLine;
   try {
     j = JSON.parse(raw) as TranscriptLine;

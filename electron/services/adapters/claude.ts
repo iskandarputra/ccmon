@@ -9,7 +9,7 @@
  */
 
 import { detectProjectDirs } from '../paths';
-import { parseLine } from '../parser';
+import { mayCarryDataBytes, parseLineChecked } from '../parser';
 import type { Zone } from '../../../shared/daykey';
 import type { ParsedLine } from '../../../shared/types';
 import type { SourceAdapter } from './types';
@@ -29,7 +29,13 @@ export const claudeAdapter: SourceAdapter = {
     return file.endsWith('.jsonl');
   },
 
+  // Same marker list as the string gate inside `parseLine`, one step earlier.
+  mayCarryData: mayCarryDataBytes,
+
+  // `parseLineChecked`, not `parseLine`: declaring `mayCarryData` above is the
+  // contract that the watcher already applied the gate on the raw bytes, so
+  // re-scanning the decoded string would be pure duplicated work.
   parseLine(raw: string, file: string, lineNo: number, zone: Zone): ParsedLine {
-    return parseLine(raw, file, lineNo, zone);
+    return parseLineChecked(raw, file, lineNo, zone);
   },
 };

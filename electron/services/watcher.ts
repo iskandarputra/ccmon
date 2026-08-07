@@ -7,7 +7,6 @@
 import fs from 'fs';
 import path from 'path';
 import { EventEmitter } from 'events';
-import { StringDecoder } from 'string_decoder';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { dayKeyFor } from '../../shared/daykey';
 import { claudeAdapter } from './adapters/claude';
@@ -18,6 +17,9 @@ import type { ScanProgress } from '../../shared/ipc';
 const fsp = fs.promises;
 
 const CHUNK = 1 << 20; // 1 MiB read window
+const NEWLINE = 0x0a;
+const CR = 0x0d;
+const EMPTY = Buffer.alloc(0);
 const SCAN_CONCURRENCY = 8; // parallel files during the initial index
 const MAX_TREE_DEPTH = 8; //  projects/<proj>/<session>/subagents/workflows/wf_x/…
 /** Transcripts untouched for this long are indexed once but not watched. */
@@ -63,10 +65,23 @@ export interface UsageWatcherOptions {
   timezone?: string | null;
 }
 
-/* typed EventEmitter surface — same runtime class, precise payloads */
+/**
+ * Typed EventEmitter surface — same runtime class, precise payloads.
+ *
+ * The interface/class merge below is the standard way to give `EventEmitter`
+ * per-event payload types without wrapping it. ESLint's
+ * `no-unsafe-declaration-merging` exists to catch a merge that PROMISES
+ * members the class does not implement; here every merged member is an
+ * `EventEmitter` method already present at runtime, narrowed rather than
+ * invented, so the hazard the rule guards cannot occur.
+ */
+/* eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging */
 export interface UsageWatcher {
   on<K extends keyof WatcherEvents>(event: K, listener: (payload: WatcherEvents[K]) => void): this;
-  once<K extends keyof WatcherEvents>(event: K, listener: (payload: WatcherEvents[K]) => void): this;
+  once<K extends keyof WatcherEvents>(
+    event: K,
+    listener: (payload: WatcherEvents[K]) => void,
+  ): this;
   emit<K extends keyof WatcherEvents>(event: K, payload: WatcherEvents[K]): boolean;
 }
 
@@ -82,6 +97,7 @@ export interface UsageWatcher {
  * fast-flagged. Merges mutate the stored object in place, so aggregate
  * recomputes see the upgraded counts without re-sorting.
  */
+/* eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- see the interface above */
 export class UsageWatcher extends EventEmitter {
   /** roots paired with the adapter that understands each one */
   readonly roots: SourceRoot[];
@@ -89,9 +105,23 @@ export class UsageWatcher extends EventEmitter {
   readonly dirs: string[];
   private readonly watchEnabled: boolean;
   private readonly offsets = new Map<string, number>(); //    file → bytes consumed
-  private readonly remainders = new Map<string, string>(); // file → trailing partial line
+  /**
+   * file → trailing partial line, as BYTES.
+   *
+   * Splitting on the 0x0A byte is safe without a StringDecoder: every byte of
+   * a UTF-8 multibyte sequence has its high bit set, so a newline byte can
+   * never appear inside a character. That is what lets the whole read path
+   * stay on Buffers and decode only the lines that survive the prefilter.
+   */
+  private readonly remainders = new Map<string, Buffer>();
   private readonly lineNos = new Map<string, number>(); //    file → lines consumed (fallback keys)
   private readonly fileSource = new Map<string, string | null>(); // file → owning root dir
+  /**
+   * file → the adapter's per-file parse state (see `SourceAdapter.createState`).
+   * Held here, not in the adapter, because adapters are shared singletons and
+   * the state must live exactly as long as this watcher's view of the file.
+   */
+  private readonly fileStates = new Map<string, unknown>();
   private readonly byKey = new Map<string, UsageEntry>(); //  dedupe key → stored entry
   private readonly byMsg = new Map<string, UsageEntry[]>(); // messageId → stored entries
   /** latest "usage limit reached" reset time (ms) */
@@ -116,9 +146,7 @@ export class UsageWatcher extends EventEmitter {
 
   constructor({ dirs, watch = true, sinceMs = null, timezone = null }: UsageWatcherOptions) {
     super();
-    this.roots = dirs.map((d) =>
-      typeof d === 'string' ? { dir: d, adapter: claudeAdapter } : d,
-    );
+    this.roots = dirs.map((d) => (typeof d === 'string' ? { dir: d, adapter: claudeAdapter } : d));
     this.dirs = this.roots.map((r) => r.dir);
     this.watchEnabled = watch;
     this.sinceMs = sinceMs;
@@ -235,8 +263,13 @@ export class UsageWatcher extends EventEmitter {
   // real billable usage.
   async listFiles(): Promise<string[]> {
     const files: string[] = [];
-    let owns: (file: string) => boolean = claudeAdapter.owns;
-    const walk = async (dir: string, depth: number): Promise<void> => {
+    // `owns` is a parameter, not a captured mutable — a shared binding would
+    // silently cross-assign adapters now that siblings are walked concurrently.
+    const walk = async (
+      dir: string,
+      depth: number,
+      owns: (file: string) => boolean,
+    ): Promise<void> => {
       if (depth > MAX_TREE_DEPTH) return;
       let ents;
       try {
@@ -244,27 +277,42 @@ export class UsageWatcher extends EventEmitter {
       } catch {
         return;
       }
+      // Sibling subdirectories are walked CONCURRENTLY. The old serial `await`
+      // per entry made discovery one long chain of round-trips on a tree that
+      // is thousands of directories wide, and every one of them was waiting on
+      // the libuv threadpool alone rather than keeping it fed. Fan-out is
+      // bounded by the width of one directory, and the threadpool serialises
+      // the actual syscalls, so this cannot run the process out of handles.
+      const subdirs: string[] = [];
+      const candidates: string[] = [];
       for (const d of ents) {
         const p = path.join(dir, d.name);
-        if (d.isDirectory()) await walk(p, depth + 1);
-        else if (d.isFile() && owns(p)) {
-          // one stat per candidate is orders of magnitude cheaper than reading
-          // it, so the filter pays for itself the moment anything is skipped
-          if (this.sinceMs != null) {
-            try {
-              if ((await fsp.stat(p)).mtimeMs < this.sinceMs) continue;
-            } catch {
-              continue; // vanished between readdir and stat
-            }
-          }
-          files.push(p);
+        if (d.isDirectory()) subdirs.push(p);
+        else if (d.isFile() && owns(p)) candidates.push(p);
+      }
+
+      if (this.sinceMs == null) {
+        for (const p of candidates) files.push(p);
+      } else {
+        // one stat per candidate is orders of magnitude cheaper than reading
+        // it, so the filter pays for itself the moment anything is skipped
+        const mtimes = await Promise.all(
+          candidates.map((p) =>
+            fsp.stat(p).then(
+              (st) => st.mtimeMs,
+              () => null, // vanished between readdir and stat
+            ),
+          ),
+        );
+        for (let i = 0; i < candidates.length; i++) {
+          const m = mtimes[i];
+          if (m != null && m >= this.sinceMs) files.push(candidates[i]);
         }
       }
+
+      await Promise.all(subdirs.map((p) => walk(p, depth + 1, owns)));
     };
-    for (const root of this.roots) {
-      owns = (f) => root.adapter.owns(f);
-      await walk(root.dir, 0);
-    }
+    await Promise.all(this.roots.map((root) => walk(root.dir, 0, (f) => root.adapter.owns(f))));
     return files;
   }
 
@@ -287,25 +335,49 @@ export class UsageWatcher extends EventEmitter {
     const out: UsageEntry[] = [];
     let merged = 0;
     const adapter = this.adapterOf(file);
+    // Created on first read and kept across tails: a stateful adapter needs the
+    // model/tier it learned from lines that arrived in an EARLIER chunk.
+    let state = this.fileStates.get(file);
+    if (state === undefined && adapter.createState) {
+      state = adapter.createState();
+      this.fileStates.set(file, state);
+    }
     const fh = await fsp.open(file, 'r');
     try {
-      const decoder = new StringDecoder('utf8');
       const buf = Buffer.alloc(Math.min(CHUNK, st.size - prevOff));
       let pos = prevOff;
-      let acc = this.remainders.get(file) || '';
+      let acc = this.remainders.get(file) ?? EMPTY;
+      let lineNo = this.lineNos.get(file) || 0;
       while (pos < st.size) {
         const { bytesRead } = await fh.read(buf, 0, Math.min(buf.length, st.size - pos), pos);
         if (bytesRead <= 0) break;
         pos += bytesRead;
-        acc += decoder.write(bytesRead === buf.length ? buf : buf.subarray(0, bytesRead));
-        let nl;
-        while ((nl = acc.indexOf('\n')) !== -1) {
-          const line = acc.slice(0, nl).replace(/\r$/, '');
-          acc = acc.slice(nl + 1);
-          const lineNo = (this.lineNos.get(file) || 0) + 1;
-          this.lineNos.set(file, lineNo);
-          if (!line) continue;
-          const parsed = adapter.parseLine(line, file, lineNo, this.timezone);
+        const chunk = bytesRead === buf.length ? buf : buf.subarray(0, bytesRead);
+        // `chunk` aliases the reusable read buffer. That is fine for the rest
+        // of this iteration — every complete line is consumed before the next
+        // read — but the leftover MUST be copied out below, or the next read
+        // overwrites the partial line still waiting for its newline.
+        acc = acc.length ? Buffer.concat([acc, chunk]) : chunk;
+
+        let start = 0;
+        let nl: number;
+        while ((nl = acc.indexOf(NEWLINE, start)) !== -1) {
+          let end = nl;
+          if (end > start && acc[end - 1] === CR) end--; // CRLF
+          lineNo += 1;
+          const raw = acc.subarray(start, end);
+          start = nl + 1;
+          if (!raw.length) continue;
+          // THE hot gate: reject on raw bytes so a line that cannot carry data
+          // is never decoded, never allocated as a string, never parsed.
+          if (adapter.mayCarryData && !adapter.mayCarryData(raw)) continue;
+          const parsed = adapter.parseLine(
+            raw.toString('utf8'),
+            file,
+            lineNo,
+            this.timezone,
+            state,
+          );
           if (!parsed) continue;
           if (parsed.kind === 'reset') {
             if (!this.resetTs || parsed.resetTs > this.resetTs) this.resetTs = parsed.resetTs;
@@ -320,7 +392,7 @@ export class UsageWatcher extends EventEmitter {
             const src = this.sourceOf(file) ?? '';
             const day = dayKeyFor(parsed.ts, this.timezone);
             let byDay = this.toolResultBuckets.get(src);
-            if (!byDay) this.toolResultBuckets.set(src, (byDay = new Map()));
+            if (!byDay) this.toolResultBuckets.set(src, (byDay = new Map() as ToolResultByDay));
             const b = byDay.get(day);
             if (b) {
               b.count += 1;
@@ -337,8 +409,11 @@ export class UsageWatcher extends EventEmitter {
           if (verdict === 'new') out.push(parsed);
           else if (verdict === 'merged') merged += 1;
         }
+        // Copy, never retain a view: `acc` may alias the read buffer.
+        acc = start < acc.length ? Buffer.from(acc.subarray(start)) : EMPTY;
       }
-      this.remainders.set(file, acc + decoder.end());
+      this.remainders.set(file, acc);
+      this.lineNos.set(file, lineNo);
       this.offsets.set(file, pos);
     } finally {
       await fh.close();
@@ -393,7 +468,11 @@ export class UsageWatcher extends EventEmitter {
 
   watch(): void {
     const cutoff = Date.now() - WATCH_HORIZON_MS;
-    for (const dir of this.dirs) {
+    // Iterate roots, not bare dirs: the live filter must ask the SAME adapter
+    // that indexed the root whether a file carries usage. Hardcoding a suffix
+    // here would let a foreign format index once at startup and then never see
+    // another append — silently, with no error to point at.
+    for (const { dir, adapter } of this.roots) {
       const w = chokidar.watch(dir, {
         ignoreInitial: true,
         depth: MAX_TREE_DEPTH,
@@ -402,16 +481,16 @@ export class UsageWatcher extends EventEmitter {
         // Old transcripts never change again — skipping them keeps the
         // inotify watch count proportional to recent sessions, not history.
         // (chokidar's anymatch typings omit the (path, stats) form, hence the cast)
-        ignored: ((p: string, stats?: fs.Stats) => {
+        ignored: (p: string, stats?: fs.Stats) => {
           if (stats && stats.isFile()) {
-            return !p.endsWith('.jsonl') || stats.mtimeMs < cutoff;
+            return !adapter.owns(p) || stats.mtimeMs < cutoff;
           }
           return false;
-        }) as unknown as (p: string) => boolean,
+        },
       });
       w.on('add', (p) => void this.tail(p));
       w.on('change', (p) => void this.tail(p));
-      w.on('error', (err) => this.emit('error', err as Error));
+      w.on('error', (err) => this.emit('error', err));
       this.watchers.push(w);
     }
   }
@@ -429,6 +508,7 @@ export class UsageWatcher extends EventEmitter {
         this.remainders.clear();
         this.lineNos.clear();
         this.fileSource.clear();
+        this.fileStates.clear();
         this.byKey.clear();
         this.byMsg.clear();
         this.resetTs = null;

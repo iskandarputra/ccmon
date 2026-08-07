@@ -47,11 +47,54 @@ export interface SourceAdapter {
   owns(file: string): boolean;
 
   /**
+   * Fresh per-file parse state, for formats whose lines are not
+   * self-describing. Omit it when every line stands alone.
+   *
+   * Claude Code needs nothing here: a transcript line carries its own model,
+   * timestamp and token split. Codex does not — the model arrives on an
+   * earlier `turn_context` line and the speed tier on an earlier
+   * `thread_settings_applied`, so a usage line read in isolation cannot be
+   * priced. That second format is what proved this hook necessary; it was not
+   * designed in advance.
+   *
+   * The WATCHER owns the lifetime: one state per file, created on first use,
+   * carried across incremental tails, dropped on rescan. An adapter must never
+   * keep this in module scope — `ADAPTERS` holds singletons shared by the app
+   * and the CLI, so two watchers would corrupt each other's parse.
+   */
+  createState?(): unknown;
+
+  /**
+   * Byte-level reject for a line that cannot possibly carry data, applied by
+   * the watcher BEFORE the line is decoded to a string.
+   *
+   * This is the single hottest decision in the whole pipeline: read-and-parse
+   * is ~97% of scan time, and most lines in a transcript are prose, thinking
+   * blocks or system chatter that can never produce a result. Answering "no"
+   * here skips a UTF-8 decode, a string allocation and a `JSON.parse` — the
+   * same trick ccusage plays with its SIMD `memmem` prefilter.
+   * `Buffer.indexOf` is a native memmem, so this stays off the JS heap.
+   *
+   * MUST NOT produce false negatives: returning false for a line that
+   * `parseLine` would have accepted silently loses usage. False positives only
+   * cost the parse that would have happened anyway. Omit it entirely and every
+   * line gets decoded, which is merely slower.
+   *
+   * Declaring this is also a contract in the other direction: `parseLine` will
+   * only ever be called with lines that passed, so it need not re-check them.
+   */
+  mayCarryData?(line: Buffer): boolean;
+
+  /**
    * Parse one line. Returns an entry, a marker, or null for anything that
    * carries no usage. Must not throw on malformed input — a corrupt line is
    * normal in a file being appended to concurrently.
+   *
+   * `state` is whatever {@link createState} returned for this file, or
+   * undefined for adapters that declared none. Lines arrive in file order, so
+   * a stateful adapter may rely on having seen everything before them.
    */
-  parseLine(raw: string, file: string, lineNo: number, zone: Zone): ParsedLine;
+  parseLine(raw: string, file: string, lineNo: number, zone: Zone, state?: unknown): ParsedLine;
 }
 
 /** One data root paired with the adapter that understands it. */
