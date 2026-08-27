@@ -486,16 +486,18 @@ export function SetupWizard() {
                 )}
               </div>
             ))}
-            <div className="wiz-pre-label">
-              {tildify(plan.helperDest)}{' '}
-              <span className="wiz-dim">
-                {!installHelper
-                  ? '(skipped)'
-                  : plan.helperInstalled
-                    ? '(already current)'
-                    : '(install, chmod +x)'}
-              </span>
-            </div>
+            {plan.helpers.map((h) => (
+              <div className="wiz-pre-label" key={h.dest}>
+                {tildify(h.dest)}{' '}
+                <span className="wiz-dim">
+                  {!installHelper
+                    ? '(skipped)'
+                    : h.installed
+                      ? '(already current)'
+                      : '(install, chmod +x)'}
+                </span>
+              </div>
+            ))}
           </div>
         )}
 

@@ -659,7 +659,9 @@ describe('PowerShell (Windows) setup', () => {
   it('warns about the execution policy, which the wizard cannot change itself', () => {
     const p = planSetup(winOpts({ installHelper: true }), winEnv());
     expect(p.warnings.some((w) => w.includes('Set-ExecutionPolicy'))).toBe(true);
-    expect(p.helperDest).toBe(path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1'));
+    expect(p.helpers.map((h) => h.dest)).toEqual([
+      path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1'),
+    ]);
   });
 
   it('detects and tidies a pre-existing PowerShell function def', () => {
@@ -981,5 +983,86 @@ describe('rc block — in-place replacement', () => {
     expect(edit.alreadyLinked).toBe(true);
     expect(edit.blockReplaces).toBe(false);
     expect(edit.blockToAdd).toBe('');
+  });
+});
+
+describe('codex-cross-resume helper', () => {
+  it('is installed beside the Claude one, executable', () => {
+    const report = applySetup(mixedOpts(), env);
+    expect(report.ok).toBe(true);
+    const dest = path.join(home, '.local', 'bin', 'codex-cross-resume');
+    expect(fs.existsSync(dest)).toBe(true);
+    expect(fs.statSync(dest).mode & 0o777).toBe(0o755);
+    expect(fs.existsSync(path.join(home, '.local', 'bin', 'claude-cross-resume'))).toBe(true);
+  });
+
+  it('is not installed when no Codex account exists', () => {
+    applySetup(opts(), env);
+    expect(fs.existsSync(path.join(home, '.local', 'bin', 'codex-cross-resume'))).toBe(false);
+    expect(fs.existsSync(path.join(home, '.local', 'bin', 'claude-cross-resume'))).toBe(true);
+  });
+
+  it('resolves the session by the uuid INSIDE the filename, not the basename', () => {
+    applySetup(mixedOpts(), env);
+    const script = fs.readFileSync(path.join(home, '.local', 'bin', 'codex-cross-resume'), 'utf8');
+    expect(script).toContain('rollout-*-${id}.jsonl');
+    // both live and archived rollouts are resumable
+    expect(script).toContain('archived_sessions');
+    // the date-nested path must survive the copy or `codex resume` cannot find it
+    expect(script).toContain('rel="${src_file#$src/$src_base/}"');
+    expect(script).toContain('exec codex resume');
+    expect(script).toContain('export CODEX_HOME="$dst"');
+  });
+
+  it('the generated wrapper calls the codex helper, not the claude one', () => {
+    const out = renderManagedScript(mixedOpts().accounts, home, 'posix', 'codex');
+    expect(out).toContain('"$HOME/.local/bin/codex-cross-resume"');
+    expect(out).not.toContain('claude-cross-resume');
+  });
+
+  it('plans one helper per tool in use', () => {
+    expect(planSetup(mixedOpts(), env).helpers.map((h) => h.tool)).toEqual(['claude', 'codex']);
+    expect(planSetup(opts(), env).helpers.map((h) => h.tool)).toEqual(['claude']);
+  });
+
+  it('reports both helpers as current on a second plan', () => {
+    applySetup(mixedOpts(), env);
+    expect(planSetup(mixedOpts(), env).helpers.every((h) => h.installed)).toBe(true);
+  });
+});
+
+describe('codex-cross-resume — PowerShell', () => {
+  const winEnv = (h: string): SetupEnv => ({
+    home: h,
+    loginShell: null,
+    platform: 'win32',
+    psProfile: path.join(h, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'),
+  });
+
+  it('installs the .ps1 beside the managed file', () => {
+    const e = winEnv(home);
+    const report = applySetup({ ...mixedOpts(), rcPaths: [e.psProfile!] }, e);
+    expect(report.ok).toBe(true);
+    expect(fs.existsSync(path.join(home, '.config', 'ccmon', 'codex-cross-resume.ps1'))).toBe(true);
+  });
+
+  it('stays PowerShell 5.1-compatible', () => {
+    // Windows ships 5.1; a script that only parses under pwsh 7 is useless on
+    // a stock box. The three-OS CI matrix is what actually runs the parser.
+    const e = winEnv(home);
+    applySetup({ ...mixedOpts(), rcPaths: [e.psProfile!] }, e);
+    const script = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'codex-cross-resume.ps1'),
+      'utf8',
+    );
+    expect(script).not.toMatch(/\?\?/); // null-coalescing: 7+ only
+    expect(script).toContain('$env:CODEX_HOME');
+    expect(script).toContain('codex resume');
+  });
+
+  it('the generated PS wrapper points at the codex helper', () => {
+    const out = renderManagedScript(mixedOpts().accounts, home, 'powershell', 'codex');
+    expect(out).toContain('codex-cross-resume.ps1');
+    expect(out).not.toContain('claude-cross-resume.ps1');
   });
 });

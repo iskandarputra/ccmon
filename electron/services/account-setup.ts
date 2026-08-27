@@ -10,6 +10,7 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import { SECRET_REF_RE } from '../../shared/providerPresets';
 import { TOOLS, toolById, toolForRoot, type ToolProfile } from '../../shared/tools';
+import { CODEX_HELPER_SCRIPT, CODEX_PS_HELPER_SCRIPT } from './tools/codex-resume';
 import type {
   AccountSpec,
   AccountWrapperPrefs,
@@ -495,16 +496,20 @@ const managedScriptPath = (tool: ToolProfile, home: string, family: Family) =>
  * it on PATH). Windows has no such convention and no executable bit, so the
  * `.ps1` sits next to the managed wrapper file that calls it.
  */
-const helperPath = (home: string, family: Family = 'posix'): string =>
+const helperPath = (tool: ToolProfile, home: string, family: Family = 'posix'): string =>
   family === 'powershell'
-    ? path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1')
-    : path.join(home, '.local', 'bin', 'claude-cross-resume');
+    ? path.join(home, '.config', 'ccmon', `${tool.helperName}.ps1`)
+    : path.join(home, '.local', 'bin', tool.helperName);
 
 // The `$HOME`-relative PowerShell helper reference is now derived per tool
 // inside renderManagedScript, from `ToolProfile.helperName`.
 
-const helperScript = (family: Family) =>
-  family === 'powershell' ? PS_HELPER_SCRIPT : HELPER_SCRIPT;
+const helperScript = (tool: ToolProfile, family: Family): string => {
+  if (tool.id === 'codex') {
+    return family === 'powershell' ? CODEX_PS_HELPER_SCRIPT : CODEX_HELPER_SCRIPT;
+  }
+  return family === 'powershell' ? PS_HELPER_SCRIPT : HELPER_SCRIPT;
+};
 
 function fileText(file: string): string | null {
   try {
@@ -1035,7 +1040,12 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
   const { home } = env;
   const family = familyOf(env.platform);
   const block = rcSourceBlock(family);
-  const helperDest = helperPath(home, family);
+  // one helper per tool that has accounts — a Claude-only setup never installs
+  // codex-cross-resume, and vice versa
+  const helpers = TOOLS.filter((t) => opts.accounts.some((a) => a.tool === t.id)).map((t) => {
+    const dest = helperPath(t, home, family);
+    return { tool: t.id, dest, installed: fileEquals(dest, helperScript(t, family)) };
+  });
   const names = managedNames(opts.accounts);
   const warnings: string[] = [];
 
@@ -1088,8 +1098,7 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
   return {
     managed,
     rcEdits,
-    helperDest,
-    helperInstalled: fileEquals(helperDest, helperScript(family)),
+    helpers,
     problems: validate(opts),
     warnings,
   };
@@ -1179,25 +1188,29 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
     }
   }
 
-  // the cross-resume helper ships per family: a bash script for POSIX, a
-  // PowerShell script for Windows. Both are idempotent (content-compared).
+  // A cross-resume helper per TOOL, each shipping per family: a bash script
+  // for POSIX, a PowerShell script for Windows. All idempotent
+  // (content-compared), and only installed for a tool that has accounts.
   let helperInstalled = false;
   if (opts.installHelper) {
-    const dest = helperPath(home, family);
-    const script = helperScript(family);
-    try {
-      if (!fileEquals(dest, script)) {
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        if (family === 'powershell') {
-          fs.writeFileSync(dest, script);
-        } else {
-          fs.writeFileSync(dest, script, { mode: 0o755 });
-          fs.chmodSync(dest, 0o755); // writeFileSync mode is masked by umask — force it
+    for (const tool of TOOLS) {
+      if (!opts.accounts.some((a) => a.tool === tool.id)) continue;
+      const dest = helperPath(tool, home, family);
+      const script = helperScript(tool, family);
+      try {
+        if (!fileEquals(dest, script)) {
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          if (family === 'powershell') {
+            fs.writeFileSync(dest, script);
+          } else {
+            fs.writeFileSync(dest, script, { mode: 0o755 });
+            fs.chmodSync(dest, 0o755); // writeFileSync mode is masked by umask — force it
+          }
         }
+        helperInstalled = true;
+      } catch (e) {
+        errors.push(`helper (${tool.id}): ${msg(e)}`);
       }
-      helperInstalled = true;
-    } catch (e) {
-      errors.push(`helper: ${msg(e)}`);
     }
   }
 

@@ -1136,9 +1136,12 @@ export interface SetupPlan {
     blockReplaces: boolean;
     existing: RcExisting[];
   }>;
-  /** where the cross-resume helper goes, and whether it's already current */
-  helperDest: string;
-  helperInstalled: boolean;
+  /**
+   * Where each tool's cross-resume helper goes and whether it is already
+   * current — one entry per tool that has accounts, so a Claude-only setup
+   * never mentions codex-cross-resume.
+   */
+  helpers: Array<{ tool: ToolId; dest: string; installed: boolean }>;
   /** validation problems that block apply (bad name, no rc selected, …) */
   problems: string[];
   /** non-blocking advisories (shadowed hand-written wrappers, …) */
