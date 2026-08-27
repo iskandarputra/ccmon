@@ -137,12 +137,26 @@ The layered sources (later layers consulted only on miss, ccusage parity):
    plus `fetchedAt` to `<cacheDir>/pricing-cache.json`. On startup use the
    cache if under 24 h old, else refresh in the background (never block
    scanning). Failures keep the previous layer silently.
-3. **Bundled models.dev snapshot**
-   `electron/services/data/modelsdev-anthropic.json` (committed; per-MTOK
-   costs ÷ 1e6 on load: `{cost: {input, output, cache_read, cache_write},
-   limit: {context}}`).
+3. **Bundled models.dev snapshots** —
+   `modelsdev-anthropic.json`, `modelsdev-deepseek.json`,
+   `modelsdev-openai.json` (committed; per-MTOK costs ÷ 1e6 on load:
+   `{cost: {input, output, cache_read, cache_write, tiers}, limit: {context}}`).
+
+   **OpenAI lives here and NOWHERE ELSE, and that placement is load-bearing.**
+   Every LiteLLM layer is consulted before models.dev, and LiteLLM does not
+   publish the gpt-5.x long-context bands — so a LiteLLM OpenAI split would
+   resolve `gpt-5.6-terra` to base rates and silently drop its 272K tier. Until
+   the `openai` provider was added, ccmon carried no OpenAI prices at all and
+   every Codex token billed at $0.
+
+   `cost.tiers[]` carries above-threshold bands. Only the first band whose
+   `tier.type === 'context'` is read, because the engine bills a request
+   entirely at ONE rate rather than splitting it across bands. Its
+   `tier.size` becomes `RateRow.tierAt` — the threshold is per-MODEL, since
+   OpenAI's starts at 272K where Anthropic's is 200K, and a global constant
+   double-billed a 250K gpt-5.6 turn.
 4. **User overrides** (regex pattern keys, case-insensitive, per-MTok
-   values: `{in, out, w5m, w1h, read, tier: {in, out, w5m, read},
+   values: `{in, out, w5m, w1h, read, tier: {in, out, w5m, read}, tierAt,
    contextLimit, fast}`) — always win. Overrides reach EVERY field the engine
    consumes, so a private deployment or proxy can declare its own above-200k
    tier, context window and fast multiplier; a model with no `tier` block

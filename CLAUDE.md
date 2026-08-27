@@ -11,7 +11,7 @@ user-initiated. Codex adds none: it has no limits endpoint ccmon can read.
 | Command | What | When to run |
 |---|---|---|
 | `npm run dev` | esbuild + Vite + Electron, hot reload | developing |
-| `npm test` | vitest, 732 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
+| `npm test` | vitest, 750 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
 | `npm run lint` | eslint (correctness rules only; Prettier owns formatting) | before every commit |
 | `npm run format` | prettier over everything but Markdown and fixtures | before every commit |
 | `npm run smoke` | full pipeline against real `~/.claude` data, no Electron | after touching `electron/services/` |
@@ -213,11 +213,29 @@ exercised only against mocks on Linux. `build.yml` cuts releases on tags.
   `in = input_tokens − cached_input_tokens` — billing the raw input
   double-charges every cached prompt token, which on a long session is most of
   the input. Codex bills no cache writes, and its dedupe key is
-  content-addressed (timestamp + running total) rather than file position,
-  because an `archived_sessions` copy and a MultiAgent subagent replay both
-  re-emit the same events verbatim and a streaming tailer cannot pre-scan a
-  file to notice. Known gap: Codex's long-context pricing tier is not modelled,
-  so a very long turn is priced slightly low — tokens are unaffected.
+  content-addressed (timestamp + running total) rather than file position, so
+  an `archived_sessions` copy of a live rollout — which is byte-identical —
+  collapses for free.
+- **A forked Codex rollout replays its parent's turns, REWRITTEN to the fork
+  instant.** That rewrite is what defeats the content key: same token counts,
+  different timestamp, no collision, parent's whole history billed twice. (An
+  earlier note here claimed these replays "re-emit the same events verbatim" —
+  wrong on the timestamp, and the reason the bug existed.)
+  `adapters/codex-replay.ts` catches it by matching TOKEN VALUES rather than
+  timestamps, which is why a rewrite cannot defeat it. Two anchors: the
+  parent's own stream, found by the uuid embedded in its filename — a targeted
+  read of ONE file, not a corpus pre-scan — and failing that the burst Codex
+  writes at the fork instant (a run of usage events ≤1 s apart, against the
+  5.8–15.3 s pause before the child's first real turn), read from the child's
+  head alone. Both are gated on `session_meta` DECLARING a parent
+  (`forked_from_id`, or `source.subagent.thread_spawn.parent_thread_id`): an
+  ordinary session must never meet the burst heuristic, where two quick turns
+  in a row are simply two turns. `createState` takes the file path for this —
+  the seam's second widening for this format, for the same reason as the first.
+- **Codex long-context tiers ARE modelled.** models.dev publishes a 272K
+  context band for the gpt-5.x models; `RateRow.tierAt` carries the per-model
+  threshold so the engine stops assuming Anthropic's 200K, and a long turn
+  bills ENTIRELY at the tier rate rather than only its excess.
 - **Scan anatomy — read+parse is ~97% of indexing; everything else is noise.**
   Measured 2026-08-06 on 335 files / 342 MB / 121,841 lines:
 
@@ -271,9 +289,22 @@ exercised only against mocks on Linux. `build.yml` cuts releases on tags.
   roadmap and is nearer to load-bearing than its placement there suggests.
   Don't add per-entry passes casually, and re-measure with `smoke` if you do.
 - Pricing is layered: bundled LiteLLM → 24h-cached refetch → models.dev →
-  user regex overrides (always win; they reach tier rates, `contextLimit`
-  and the `-fast` multiplier, not just the five base rates). Plan prices are
-  NOT fetchable — they live as a dated table in `shared/plans.ts`.
+  user regex overrides (always win; they reach tier rates, `tierAt`,
+  `contextLimit` and the `-fast` multiplier, not just the five base rates).
+  Plan prices are NOT fetchable — they live as a dated table in
+  `shared/plans.ts`.
+- **OpenAI models come from models.dev ONLY, and that is load-bearing.** Every
+  LiteLLM layer is consulted BEFORE models.dev, and LiteLLM does not publish
+  the gpt-5.x long-context bands — so adding a LiteLLM OpenAI split would
+  resolve `gpt-5.6-terra` to its base rates and silently drop the 272K tier.
+  Do not add one. Until the `openai` provider was added to `MODELSDEV_SPLITS`
+  ccmon carried no OpenAI prices at all: Codex tokens were counted perfectly
+  and billed at **$0**.
+- **The tier threshold is per-model, not a constant.** `TIER_THRESHOLD`
+  (200_000) is Anthropic's and remains the default; `RateRow.tierAt` overrides
+  it where a catalog states one. A global constant billed a 250K gpt-5.6 turn
+  at double rate. `compactModelsDev` must keep carrying the first CONTEXT band
+  through, or the threshold has nothing to apply.
 - `pricing:update` MERGES, never replaces: both upstreams prune retired
   models (models.dev dropped the whole Claude 3.5 family), and dropping a
   retired price only un-prices transcripts a user chose to keep. Retained
