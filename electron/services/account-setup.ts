@@ -750,6 +750,34 @@ function managedBlockRange(lines: string[]): [number, number] | null {
 }
 
 /**
+ * Swap ccmon's managed block for `block`, or append it when absent. Returns
+ * the text UNCHANGED when the block is already exactly right, so a caller can
+ * use identity to decide whether anything needs writing at all.
+ *
+ * Replacement — rather than the old append-only behaviour — is what lets the
+ * block's contents evolve. When Codex support added a second source line,
+ * every already-linked user would otherwise have kept a block that loads only
+ * the Claude wrappers: their Codex wrappers would be written and never
+ * sourced, with no error anywhere to point at.
+ *
+ * Only the marker-delimited region is touched. Everything outside it is
+ * preserved verbatim, in place — this is the one thing in the module that
+ * rewrites a file ccmon did not create, so it stays as narrow as possible and
+ * goes through `writeAtomic`.
+ */
+function upsertManagedBlock(text: string, block: string): string {
+  const lines = text.split('\n');
+  const range = managedBlockRange(lines);
+  if (!range) {
+    const lead = text && !text.endsWith('\n') ? '\n' : '';
+    return `${text}${lead}\n${block}\n`;
+  }
+  const [start, end] = range;
+  if (lines.slice(start, end).join('\n') === block) return text;
+  return [...lines.slice(0, start), ...block.split('\n'), ...lines.slice(end)].join('\n');
+}
+
+/**
  * Pre-existing hand-written definitions of any managed wrapper found in `rc`,
  * OUTSIDE ccmon's own managed block. These would be shadowed by the managed
  * file (identical → harmless, but redundant); the UI surfaces them and the
@@ -1028,7 +1056,17 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
             : `they'd be shadowed by the managed file (identical → harmless). Enable tidy to comment them out`),
       );
     }
-    return { rcPath, alreadyLinked, blockToAdd: alreadyLinked ? '' : block, existing };
+    // A STALE block still needs writing, so the preview must show it rather
+    // than reporting "already linked" while apply quietly rewrites the file.
+    const current = fileText(rcPath) ?? '';
+    const changes = upsertManagedBlock(current, block) !== current;
+    return {
+      rcPath,
+      alreadyLinked,
+      blockToAdd: changes ? block : '',
+      blockReplaces: alreadyLinked && changes,
+      existing,
+    };
   });
 
   if (family === 'powershell' && opts.installHelper) {
@@ -1127,9 +1165,10 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
         }
       }
 
-      if (!body.includes(MARK_BEGIN)) {
-        const lead = body && !body.endsWith('\n') ? '\n' : '';
-        body = `${body}${lead}\n${block}\n`;
+      // append when absent, replace when stale, no-op when already current
+      const withBlock = upsertManagedBlock(body, block);
+      if (withBlock !== body) {
+        body = withBlock;
         mutated = true;
         linkedRc.push(rcPath);
       }

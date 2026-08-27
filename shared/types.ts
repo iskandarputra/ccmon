@@ -1126,7 +1126,14 @@ export interface SetupPlan {
   rcEdits: Array<{
     rcPath: string;
     alreadyLinked: boolean;
+    /** the block to write — empty when the file is already current */
     blockToAdd: string;
+    /**
+     * True when a ccmon block is already there but its contents are stale, so
+     * apply will REPLACE it in place rather than append. Distinct from
+     * `alreadyLinked`, which only says a block exists.
+     */
+    blockReplaces: boolean;
     existing: RcExisting[];
   }>;
   /** where the cross-resume helper goes, and whether it's already current */

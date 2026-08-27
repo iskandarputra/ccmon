@@ -457,10 +457,16 @@ export function SetupWizard() {
                 <div className="wiz-pre-label">
                   {tildify(e.rcPath)}{' '}
                   <span className="wiz-dim">
-                    {e.alreadyLinked ? '(already linked — no change)' : '(append)'}
+                    {e.blockReplaces
+                      ? '(update the existing ccmon block — it predates Codex support)'
+                      : e.alreadyLinked
+                        ? '(already linked — no change)'
+                        : '(append)'}
                   </span>
                 </div>
-                {!e.alreadyLinked && <pre className="wiz-pre wiz-pre-sm">{e.blockToAdd}</pre>}
+                {/* show the block whenever it will actually be written, so a
+                    replacement is previewed rather than happening silently */}
+                {e.blockToAdd && <pre className="wiz-pre wiz-pre-sm">{e.blockToAdd}</pre>}
                 {e.existing.length > 0 && (
                   <div className="wiz-conflicts">
                     <div className="wiz-conflicts-head">

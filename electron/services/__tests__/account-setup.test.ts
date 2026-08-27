@@ -360,12 +360,30 @@ describe('planSetup — validation', () => {
     expect(p.problems).toContain('pick at least one shell to link');
   });
 
-  it('marks an already-linked rc as no-change', () => {
+  it('marks an rc whose block is already current as no-change', () => {
+    const rc = path.join(home, '.bashrc');
+    applySetup(opts(), env); // writes the real, current block
+    const p = planSetup(opts(), env);
+    expect(p.rcEdits[0].rcPath).toBe(rc);
+    expect(p.rcEdits[0].alreadyLinked).toBe(true);
+    expect(p.rcEdits[0].blockReplaces).toBe(false);
+    expect(p.rcEdits[0].blockToAdd).toBe('');
+  });
+
+  it('repairs a truncated block rather than treating the marker as done', () => {
+    // A lone MARK_BEGIN — an interrupted write, or a half-deleted block. The
+    // old rule was "any marker means linked", which left this broken forever.
     const rc = path.join(home, '.bashrc');
     fs.writeFileSync(rc, '# >>> ccmon managed >>>\n');
     const p = planSetup(opts(), env);
     expect(p.rcEdits[0].alreadyLinked).toBe(true);
-    expect(p.rcEdits[0].blockToAdd).toBe('');
+    expect(p.rcEdits[0].blockReplaces).toBe(true);
+    expect(p.rcEdits[0].blockToAdd).toContain('<<< ccmon managed <<<');
+
+    applySetup(opts(), env);
+    const text = fs.readFileSync(rc, 'utf8');
+    expect(text).toContain('<<< ccmon managed <<<');
+    expect(text.match(/>>> ccmon managed >>>/g)).toHaveLength(1);
   });
 });
 
@@ -881,5 +899,87 @@ describe('validateAccounts — a tool home env var is reserved', () => {
       env,
     );
     expect(plan.problems.join(' ')).toContain('CLAUDE_CONFIG_DIR comes from the config dir');
+  });
+});
+
+describe('rc block — sources every tool file, unconditionally', () => {
+  it('emits a guarded source line per tool regardless of which accounts exist', () => {
+    applySetup(opts(), env); // claude only
+    const rc = fs.readFileSync(path.join(home, '.bashrc'), 'utf8');
+    expect(rc).toContain('claude-accounts.sh');
+    // present but [ -f ]-guarded, so the block's content never depends on
+    // which accounts exist and never has to change again
+    expect(rc).toContain('codex-accounts.sh');
+    expect(rc).toContain('[ -f "$HOME/.config/ccmon/codex-accounts.sh" ]');
+  });
+});
+
+describe('rc block — in-place replacement', () => {
+  /** The block shape ccmon wrote before Codex support: one source line. */
+  const OLD_BLOCK = [
+    '# >>> ccmon managed >>>',
+    '# Claude Code multi-account wrappers, managed by ccmon. Remove this block',
+    '# (and $HOME/.config/ccmon/claude-accounts.sh) to uninstall.',
+    '[ -f "$HOME/.config/ccmon/claude-accounts.sh" ] && . "$HOME/.config/ccmon/claude-accounts.sh"',
+    '# <<< ccmon managed <<<',
+  ].join('\n');
+
+  it('replaces a stale block instead of leaving it or appending a second one', () => {
+    const rc = path.join(home, '.bashrc');
+    fs.writeFileSync(rc, `# user stuff\nalias ll='ls -l'\n\n${OLD_BLOCK}\n\n# after\n`);
+
+    applySetup(mixedOpts(), env);
+
+    const text = fs.readFileSync(rc, 'utf8');
+    expect(text.match(/>>> ccmon managed >>>/g)).toHaveLength(1);
+    expect(text).toContain('codex-accounts.sh');
+    // everything outside the markers survives, in place and in order
+    expect(text).toContain("alias ll='ls -l'");
+    expect(text).toContain('# after');
+    expect(text.indexOf("alias ll='ls -l'")).toBeLessThan(text.indexOf('>>> ccmon managed'));
+    expect(text.indexOf('# after')).toBeGreaterThan(text.indexOf('<<< ccmon managed'));
+  });
+
+  it('is idempotent — a second apply changes nothing', () => {
+    const rc = path.join(home, '.bashrc');
+    applySetup(mixedOpts(), env);
+    const first = fs.readFileSync(rc, 'utf8');
+    applySetup(mixedOpts(), env);
+    expect(fs.readFileSync(rc, 'utf8')).toBe(first);
+  });
+
+  it('never touches a hand-written line outside the markers', () => {
+    const rc = path.join(home, '.bashrc');
+    fs.writeFileSync(rc, `${OLD_BLOCK}\nexport EDITOR=vim\n`);
+    applySetup(mixedOpts(), env);
+    expect(fs.readFileSync(rc, 'utf8')).toContain('export EDITOR=vim');
+  });
+
+  it('still appends when there is no block at all', () => {
+    const rc = path.join(home, '.bashrc');
+    fs.writeFileSync(rc, '# just my stuff\n');
+    const report = applySetup(mixedOpts(), env);
+    expect(report.linkedRc).toEqual([rc]);
+    const text = fs.readFileSync(rc, 'utf8');
+    expect(text).toContain('# just my stuff');
+    expect(text).toContain('>>> ccmon managed >>>');
+  });
+
+  it('reports the replacement in the preview rather than calling it a no-op', () => {
+    const rc = path.join(home, '.bashrc');
+    fs.writeFileSync(rc, `${OLD_BLOCK}\n`);
+    const plan = planSetup(mixedOpts(), env);
+    const edit = plan.rcEdits[0];
+    expect(edit.alreadyLinked).toBe(true);
+    expect(edit.blockReplaces).toBe(true);
+    expect(edit.blockToAdd).toContain('codex-accounts.sh');
+  });
+
+  it('reports nothing to do when the block is already current', () => {
+    applySetup(mixedOpts(), env);
+    const edit = planSetup(mixedOpts(), env).rcEdits[0];
+    expect(edit.alreadyLinked).toBe(true);
+    expect(edit.blockReplaces).toBe(false);
+    expect(edit.blockToAdd).toBe('');
   });
 });
