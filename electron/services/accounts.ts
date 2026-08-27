@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { keychainReason, readKeychainSecret } from './keychain';
 import { accountRootFor, toolForRoot } from '../../shared/tools';
-import { identityFor, registerClaudeIdentity } from './tools/identity';
+import { identityFor, isPersonalPlan, registerClaudeIdentity } from './tools/identity';
 import type { AccountInfo, AccountsMap, LimitsResult, LimitWindow } from '../../shared/types';
 
 /**
@@ -184,7 +184,10 @@ export function claudeIdentity(root: string): AccountInfo | null {
     // while the seat's real Max 5x sits in `userRateLimitTier`.
     tier: tierOf(oauth?.userRateLimitTier) ?? tierOf(creds?.rateLimitTier),
     email: oauth?.emailAddress || null,
-    organization: oauth?.organizationName || null,
+    // Same rule as Codex: a personal Claude subscription reports the account
+    // holder's own name as `organizationName`, which is a billing artifact
+    // rather than an organisation. Only Team/Enterprise keep one.
+    organization: isPersonalPlan(plan) ? null : oauth?.organizationName || null,
     hasCredentials: !!creds?.accessToken,
     authMode: null, // Claude Code has exactly one auth mode
     cleanupPeriodDays: cleanupPeriodDays(root),

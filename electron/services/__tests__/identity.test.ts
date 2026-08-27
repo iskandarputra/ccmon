@@ -38,7 +38,7 @@ describe('codexIdentity — ChatGPT login', () => {
           email: 'dev@example.com',
           name: 'A Dev',
           'https://api.openai.com/auth': {
-            chatgpt_plan_type: 'pro',
+            chatgpt_plan_type: 'business',
             organizations: [{ id: 'org-1', title: 'Acme Inc', is_default: true, role: 'owner' }],
           },
         }),
@@ -50,7 +50,7 @@ describe('codexIdentity — ChatGPT login', () => {
 
     expect(codexIdentity(root)).toEqual({
       tool: 'codex',
-      plan: 'pro',
+      plan: 'business',
       tier: null,
       email: 'dev@example.com',
       organization: 'Acme Inc',
@@ -68,7 +68,7 @@ describe('codexIdentity — ChatGPT login', () => {
         id_token: jwt({
           email: 'dev@example.com',
           'https://api.openai.com/auth': {
-            chatgpt_plan_type: 'plus',
+            chatgpt_plan_type: 'enterprise',
             organizations: [
               { title: 'Side Project', is_default: false },
               { title: 'Day Job', is_default: true },
@@ -78,6 +78,29 @@ describe('codexIdentity — ChatGPT login', () => {
       },
     });
     expect(codexIdentity(root)?.organization).toBe('Day Job');
+  });
+
+  it('does NOT show the auto-created "Personal" org of a solo account', () => {
+    // OpenAI gives every personal ChatGPT account a one-person org titled
+    // "Personal" and makes you its owner. Truthful, and a useless row on the
+    // card — it names the person already reading the screen.
+    for (const plan of ['free', 'plus', 'pro']) {
+      const root = writeAuth(path.join(home, `.codex-${plan}`), {
+        auth_mode: 'chatgpt',
+        tokens: {
+          access_token: 'at',
+          id_token: jwt({
+            email: 'solo@example.com',
+            'https://api.openai.com/auth': {
+              chatgpt_plan_type: plan,
+              organizations: [{ title: 'Personal', is_default: true, role: 'owner' }],
+            },
+          }),
+        },
+      });
+      expect(codexIdentity(root)?.organization, plan).toBeNull();
+      expect(codexIdentity(root)?.plan, plan).toBe(plan);
+    }
   });
 
   it('leaves organization null when the claim carries none', () => {

@@ -160,6 +160,26 @@ describe('plan tier — a Team seat can be upgraded past its org', () => {
     expect(accountInfo(dir)).toMatchObject({ plan: 'max', tier: '20x' });
   });
 
+  it("does not show a personal account's own name as its organization", () => {
+    // A personal Claude subscription reports the ACCOUNT HOLDER as
+    // `organizationName` — the same billing artifact OpenAI titles "Personal".
+    const dir = account(
+      path.join(home, '.claude-me'),
+      { organizationType: 'claude_max', organizationName: 'Mohd Iskandar Putra' },
+      { subscriptionType: 'max', rateLimitTier: 'default_claude_max_5x' },
+    );
+    expect(accountInfo(dir)).toMatchObject({ plan: 'max', tier: '5x', organization: null });
+  });
+
+  it('keeps the organization for a real Team org', () => {
+    const dir = account(
+      path.join(home, '.claude-org'),
+      { organizationType: 'claude_team', organizationName: 'Pingspace' },
+      { subscriptionType: 'team' },
+    );
+    expect(accountInfo(dir)).toMatchObject({ plan: 'team', organization: 'Pingspace' });
+  });
+
   it('reports no tier when neither field carries a multiplier', () => {
     const dir = account(
       path.join(home, '.claude-pro'),
