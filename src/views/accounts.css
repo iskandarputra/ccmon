@@ -565,6 +565,20 @@
   flex: none;
   animation: acc-pulse 2.4s var(--ease-out) infinite;
 }
+/* A reading taken from the session log rather than polled: hollow and still,
+   because the pulsing green dot means "this number is current" and this one
+   is only as current as the user's last turn. */
+.acc-recorded {
+  color: var(--text-dim);
+}
+.acc-recorded-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--text-faint);
+  background: transparent;
+  flex: none;
+}
 @keyframes acc-pulse {
   0% {
     box-shadow: 0 0 0 0 color-mix(in oklab, var(--ok) 55%, transparent);

@@ -933,6 +933,8 @@ ipcMain.handle('app:getState', (): AppState => ({
   pricingMeta: state.pricingMeta,
   accounts: state.accounts,
   limits: state.limits,
+  // limits the TOOL recorded in its own transcript (Codex) — no poll involved
+  toolLimits: Object.fromEntries(state.watcher?.limitsFor(null) ?? []),
   currency: state.currency ? state.currency.get() : null,
   deepseek: state.deepseek,
   deepseekAuth: state.deepseekKey

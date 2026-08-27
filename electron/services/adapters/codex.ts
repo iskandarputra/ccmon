@@ -45,7 +45,7 @@ import os from 'os';
 import path from 'path';
 import { dayKeyFor, type Zone } from '../../../shared/daykey';
 import { splitPathList } from '../paths';
-import type { ParsedLine } from '../../../shared/types';
+import type { LimitWindowReport, LimitsMarker, ParsedLine } from '../../../shared/types';
 import type { SourceAdapter } from './types';
 import {
   detectRewrittenBurst,
@@ -174,6 +174,13 @@ interface RolloutLine {
       last_token_usage?: RawUsage;
       total_token_usage?: RawUsage;
     };
+    // `token_count` only — the tool's own view of its rate limits
+    rate_limits?: {
+      primary?: RawLimitWindow | null;
+      secondary?: RawLimitWindow | null;
+      plan_type?: unknown;
+      credits?: { has_credits?: unknown; unlimited?: unknown; balance?: unknown } | null;
+    } | null;
     // `session_meta` only — where a forked or spawned rollout branched from
     id?: unknown;
     session_id?: unknown;
@@ -205,9 +212,80 @@ function resolveReplayAnchor(st: CodexState): ReplayState {
   return burstStart == null ? { kind: 'done' } : { kind: 'burst', prevTs: burstStart };
 }
 
+/** One `rate_limits` window as Codex writes it. */
+interface RawLimitWindow {
+  used_percent?: unknown;
+  window_minutes?: unknown;
+  resets_at?: unknown;
+}
+
+const limitWindow = (w: RawLimitWindow | null | undefined): LimitWindowReport | null => {
+  if (!w || typeof w.used_percent !== 'number' || !Number.isFinite(w.used_percent)) return null;
+  const mins = typeof w.window_minutes === 'number' ? w.window_minutes : 0;
+  // Codex records `resets_at` in SECONDS; everything downstream is epoch ms.
+  const reset =
+    typeof w.resets_at === 'number' && Number.isFinite(w.resets_at) ? w.resets_at : null;
+  return {
+    usedPercent: w.used_percent,
+    windowMinutes: mins,
+    resetsAt: reset == null ? null : reset * 1000,
+  };
+};
+
 export const codexAdapter: SourceAdapter = {
   id: 'codex',
   label: 'Codex CLI',
+
+  /**
+   * Rate limits, straight out of the transcript.
+   *
+   * Codex attaches `rate_limits` to every `token_count` event, so ccmon reads
+   * them with no network call and no credentials — the opposite of the Claude
+   * path, which polls an authenticated endpoint every 60 s.
+   *
+   * Verified field-for-field against Codex's own `/status` on a free account:
+   * `window_minutes: 43200` is what it labels "Monthly limit",
+   * `used_percent: 99` is what it prints as "0% left" (it shows REMAINING),
+   * and `resets_at: 1789389999` is its "resets 20:46 on 14 Sep". Paid plans
+   * add a 300-minute primary (5 h) and a 10080-minute secondary (weekly).
+   *
+   * The catch a caller must respect: this rides on a real TURN. `/status` and
+   * `/usage` write nothing, so the newest reading on disk can be days older
+   * than the account's true position — hence `observedAt`.
+   */
+  parseLimits(raw: string): LimitsMarker | null {
+    if (!raw.includes('rate_limits')) return null;
+    let j: RolloutLine;
+    try {
+      j = JSON.parse(raw) as RolloutLine;
+    } catch {
+      return null;
+    }
+    const rl = j.payload?.rate_limits;
+    if (!rl) return null;
+    const primary = limitWindow(rl.primary);
+    const secondary = limitWindow(rl.secondary);
+    if (!primary && !secondary) return null; // nothing usable in the block
+    const ts = Date.parse(j.timestamp ?? '');
+    if (!Number.isFinite(ts)) return null;
+
+    const c = rl.credits;
+    return {
+      kind: 'limits',
+      ts,
+      observedAt: ts,
+      primary,
+      secondary,
+      planType: typeof rl.plan_type === 'string' ? rl.plan_type : null,
+      credits: c
+        ? {
+            hasCredits: c.has_credits === true,
+            unlimited: c.unlimited === true,
+            balance: typeof c.balance === 'number' ? c.balance : null,
+          }
+        : null,
+    };
+  },
 
   /**
    * `sessions/` and `archived_sessions/` under each Codex home. Both are

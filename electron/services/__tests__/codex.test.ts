@@ -545,6 +545,141 @@ describe('auto-review fallback model — resolved by session date', () => {
   });
 });
 
+describe('rate limits — recorded in the transcript, not fetched', () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-codexlim-'));
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  /**
+   * Codex writes its own rate limits onto every `token_count` event, so ccmon
+   * reads them with no network call and no credentials. Verified field by
+   * field against what Codex's own `/status` prints for the same account:
+   *
+   *   window_minutes 43200  →  Codex labels it "Monthly limit"
+   *   used_percent   99     →  Codex prints "0% left"  (left = 100 − used)
+   *   resets_at      1789389999 (SECONDS) → "resets 20:46 on 14 Sep"
+   */
+  const withLimits = (rate: Record<string, unknown>, ts = '2026-08-22T14:59:00.000Z') =>
+    JSON.stringify({
+      timestamp: ts,
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: { last_token_usage: { input_tokens: 10, output_tokens: 1 } },
+        rate_limits: rate,
+      },
+    });
+
+  const FREE = {
+    limit_id: 'codex',
+    primary: { used_percent: 99.0, window_minutes: 43200, resets_at: 1789389999 },
+    secondary: null,
+    credits: { has_credits: false, unlimited: false, balance: null },
+    plan_type: 'free',
+  };
+
+  it("reports the free plan's single monthly window", () => {
+    const out = codexAdapter.parseLine(
+      withLimits(FREE),
+      '/c/sessions/rollout-x.jsonl',
+      1,
+      null,
+      state(),
+    );
+    // the usage entry still comes out — limits ride along, they do not replace it
+    expect(out).toMatchObject({ kind: 'entry' });
+
+    const limits = codexAdapter.parseLimits!(withLimits(FREE));
+    expect(limits).toMatchObject({
+      kind: 'limits',
+      planType: 'free',
+      primary: { usedPercent: 99, windowMinutes: 43200 },
+      secondary: null,
+    });
+    // seconds → ms, matching Codex's "resets 20:46 on 14 Sep"
+    expect(limits!.primary!.resetsAt).toBe(1789389999 * 1000);
+  });
+
+  it('reports both windows on a paid plan', () => {
+    const paid = codexAdapter.parseLimits!(
+      withLimits({
+        limit_id: 'codex',
+        primary: { used_percent: 42, window_minutes: 300, resets_at: 1789000000 },
+        secondary: { used_percent: 8, window_minutes: 10080, resets_at: 1789500000 },
+        credits: { has_credits: true, unlimited: false, balance: 766.76 },
+        plan_type: 'pro',
+      }),
+    );
+    expect(paid).toMatchObject({
+      planType: 'pro',
+      primary: { usedPercent: 42, windowMinutes: 300 }, // 5 hours
+      secondary: { usedPercent: 8, windowMinutes: 10080 }, // one week
+      credits: { hasCredits: true, unlimited: false, balance: 766.76 },
+    });
+  });
+
+  it('returns null for a line carrying no rate_limits at all', () => {
+    expect(
+      codexAdapter.parseLimits!(
+        tokenCount({ last_token_usage: { input_tokens: 10, output_tokens: 1 } }),
+      ),
+    ).toBeNull();
+    expect(codexAdapter.parseLimits!(turnContext())).toBeNull();
+  });
+
+  it('survives a partial or malformed rate_limits block', () => {
+    expect(codexAdapter.parseLimits!(withLimits({ primary: null, secondary: null }))).toBeNull();
+    expect(codexAdapter.parseLimits!(withLimits({ primary: { used_percent: 'lots' } }))).toBeNull();
+  });
+
+  it('surfaces the NEWEST reading per root through the watcher', async () => {
+    const root = path.join(tmp, 'sessions');
+    const dir = path.join(root, '2026', '08', '22');
+    fs.mkdirSync(dir, { recursive: true });
+    // written oldest-last on purpose: a rescan walks files in directory order,
+    // so "newest" must mean the recorded timestamp, not arrival
+    fs.writeFileSync(
+      path.join(dir, 'rollout-2026-08-22T14-00-00-newer.jsonl'),
+      `${withLimits({ ...FREE, primary: { used_percent: 99, window_minutes: 43200, resets_at: 1789389999 } }, '2026-08-22T14:59:00.000Z')}\n`,
+    );
+    fs.writeFileSync(
+      path.join(dir, 'rollout-2026-08-22T09-00-00-older.jsonl'),
+      `${withLimits({ ...FREE, primary: { used_percent: 15, window_minutes: 43200, resets_at: 1789389999 } }, '2026-08-22T09:00:00.000Z')}\n`,
+    );
+
+    const w = new UsageWatcher({ dirs: [{ dir: root, adapter: codexAdapter }], watch: false });
+    await w.start();
+
+    const limits = w.limitsFor(null);
+    expect(limits.size).toBe(1);
+    const m = limits.get(root)!;
+    expect(m.primary!.usedPercent).toBe(99); // the later reading, not 15
+    expect(m.planType).toBe('free');
+    expect(m.source).toBe(root);
+  });
+
+  it('reports nothing for a root whose format records no limits', async () => {
+    const root = path.join(tmp, 'projects');
+    fs.mkdirSync(path.join(root, 'p'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'p', 's.jsonl'), '');
+    const w = new UsageWatcher({
+      dirs: [{ dir: root, adapter: adapterById('claude')! }],
+      watch: false,
+    });
+    await w.start();
+    expect(w.limitsFor(null).size).toBe(0);
+  });
+
+  it('stamps when the reading was taken, because it can be days stale', () => {
+    // /status and /usage are not turns and write nothing, so the newest
+    // recorded figure can predate the account's real position by days
+    const l = codexAdapter.parseLimits!(withLimits(FREE, '2026-08-22T14:59:00.000Z'));
+    expect(l!.observedAt).toBe(Date.parse('2026-08-22T14:59:00.000Z'));
+  });
+});
+
 describe('a bare-string root must still reach the right adapter', () => {
   /**
    * The bug this pins cost the app its entire Codex support, silently.

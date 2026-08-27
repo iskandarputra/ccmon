@@ -23,6 +23,7 @@ import type {
   ExportResult,
   FeedEvent,
   LimitsMap,
+  LimitsMarker,
   LoginCodeResult,
   LoginResult,
   PricingMeta,
@@ -73,6 +74,19 @@ export interface AppState {
   pricingMeta: PricingMeta | null;
   accounts: AccountsMap;
   limits: LimitsMap;
+  /**
+   * Rate limits a tool recorded in its OWN transcript, per source dir — kept
+   * separate from `limits` on purpose.
+   *
+   * `LimitsResult` describes a successful poll of an authenticated endpoint,
+   * with Claude's session/week/weekOpus windows. Codex's are duration-labelled
+   * (5h / weekly / monthly depending on plan) and were never fetched — they
+   * were read out of a rollout. Squeezing one into the other would either
+   * mislabel a monthly window as "session" or claim a fetch that never
+   * happened, so they travel side by side and the card renders whichever the
+   * account has.
+   */
+  toolLimits: Record<string, LimitsMarker>;
   currency: CurrencyRates | null;
   /** latest DeepSeek balance, null without a key or before the first poll */
   deepseek: DeepseekResult | null;

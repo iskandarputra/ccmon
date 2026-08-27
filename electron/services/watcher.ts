@@ -13,7 +13,7 @@ import { claudeAdapter } from './adapters/claude';
 import { adapterById } from './adapters';
 import { toolFor } from '../../shared/tools';
 import type { SourceAdapter, SourceRoot } from './adapters/types';
-import type { CompactMarker, ToolResultByDay, UsageEntry } from '../../shared/types';
+import type { CompactMarker, LimitsMarker, ToolResultByDay, UsageEntry } from '../../shared/types';
 import type { ScanProgress } from '../../shared/ipc';
 
 const fsp = fs.promises;
@@ -138,6 +138,13 @@ export class UsageWatcher extends EventEmitter {
   private readonly toolResultBuckets = new Map<string, ToolResultByDay>();
   /** running marker total — a cheap change signal for scopedData's memo key */
   toolResultCount = 0;
+  /**
+   * Newest rate-limit reading per source root, for formats that record their
+   * own (Codex). Latest-wins rather than accumulated: it is the account's
+   * position at a moment, not usage to sum. Only as fresh as the last real
+   * turn — see `LimitsMarker.observedAt`.
+   */
+  private readonly limitsBySource = new Map<string, LimitsMarker>();
   private readonly busy = new Map<string, Promise<void>>(); // file → tail promise chain
   private watchers: FSWatcher[] = [];
   private rescanning = false;
@@ -233,6 +240,21 @@ export class UsageWatcher extends EventEmitter {
    * into a single day → {count, chars} map. Buckets are copied so callers (the
    * range filter in aggregate) never mutate the retained accumulators.
    */
+  /**
+   * The newest self-reported rate limits per source root, scoped.
+   *
+   * Returned per ROOT rather than merged: two accounts have two independent
+   * positions, and averaging them would be meaningless.
+   */
+  limitsFor(scope: Set<string> | null): Map<string, LimitsMarker> {
+    const out = new Map<string, LimitsMarker>();
+    for (const [src, m] of this.limitsBySource) {
+      if (scope && !scope.has(src)) continue;
+      out.set(src, m);
+    }
+    return out;
+  }
+
   toolResultsFor(scope: Set<string> | null): ToolResultByDay {
     const out: ToolResultByDay = new Map();
     for (const [src, byDay] of this.toolResultBuckets) {
@@ -386,13 +408,26 @@ export class UsageWatcher extends EventEmitter {
           // THE hot gate: reject on raw bytes so a line that cannot carry data
           // is never decoded, never allocated as a string, never parsed.
           if (adapter.mayCarryData && !adapter.mayCarryData(raw)) continue;
-          const parsed = adapter.parseLine(
-            raw.toString('utf8'),
-            file,
-            lineNo,
-            this.timezone,
-            state,
-          );
+          const text = raw.toString('utf8');
+          // Limits ride ALONG with a usage line rather than replacing it, so
+          // they are read separately off the same decoded string. Cheap: the
+          // adapter substring-rejects before parsing, and only Codex declares
+          // the hook at all.
+          if (adapter.parseLimits) {
+            const lim = adapter.parseLimits(text);
+            if (lim) {
+              // Latest-wins per root, never summed: this is the account's
+              // position at a moment, not usage. Compared on the RECORDED
+              // timestamp, because a rescan walks files in directory order
+              // and an older rollout can be read last.
+              const src = this.sourceOf(file) ?? '';
+              const prev = this.limitsBySource.get(src);
+              if (!prev || lim.observedAt >= prev.observedAt) {
+                this.limitsBySource.set(src, { ...lim, source: src });
+              }
+            }
+          }
+          const parsed = adapter.parseLine(text, file, lineNo, this.timezone, state);
           if (!parsed) continue;
           if (parsed.kind === 'reset') {
             if (!this.resetTs || parsed.resetTs > this.resetTs) this.resetTs = parsed.resetTs;
@@ -530,6 +565,7 @@ export class UsageWatcher extends EventEmitter {
         this.compactions.length = 0;
         this.toolResultBuckets.clear();
         this.toolResultCount = 0;
+        this.limitsBySource.clear();
         this.busy.clear();
         return this.start();
       })

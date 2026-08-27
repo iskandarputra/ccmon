@@ -60,6 +60,7 @@ export function useBootstrap(): void {
         pricingMeta: s.pricingMeta || null,
         accounts: s.accounts || {},
         limits: s.limits || {},
+        toolLimits: s.toolLimits || {},
         currency: s.currency || null,
         deepseek: s.deepseek || null,
         deepseekAuth: s.deepseekAuth || null,

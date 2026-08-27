@@ -17,7 +17,7 @@ import { useNow } from '../hooks/useNow';
 import { useScopedDirs } from '../hooks/useScopedDirs';
 import { refreshAccounts, updateSettings } from '../bootstrap';
 import { fmtPct, fmtTok, fmtUSD, relTime, sourceLabel, tildify } from '../lib/format';
-import { limitColor } from '../lib/limits';
+import { limitColor, windowLabel } from '../lib/limits';
 import { noPriceReason, planBadgeColor, planPriceUSD } from '../lib/plans';
 import {
   accountRoot,
@@ -34,6 +34,7 @@ import type {
   AccountInfo,
   AccountSpend,
   AccountWrapperPrefs,
+  LimitsMarker,
   LimitsResult,
   LimitWindow,
   RecentSession,
@@ -190,6 +191,8 @@ interface AccountCardProps {
   tool: ToolProfile;
   acct: AccountInfo | undefined;
   limit: LimitsResult | undefined;
+  /** limits the tool recorded itself (Codex) — never fetched, possibly stale */
+  recorded: LimitsMarker | undefined;
   spend: AccountSpend | undefined;
   inScope: boolean;
   canScope: boolean;
@@ -215,6 +218,7 @@ function AccountCard({
   tool,
   acct,
   limit,
+  recorded,
   spend,
   inScope,
   canScope,
@@ -600,7 +604,21 @@ function AccountCard({
         />
       )}
 
-      {loggedIn && limit?.ok ? (
+      {recorded ? (
+        /* Limits the tool wrote into its own transcript. Rendered with an
+           as-of stamp rather than the live dot: this is only ever as fresh as
+           the last real TURN — /status and /usage write nothing — so a figure
+           here can be days behind the account's true position. */
+        <div className="acc-meters">
+          {[recorded.primary, recorded.secondary].filter(Boolean).map((w) => (
+            <WindowMeter
+              key={w!.windowMinutes}
+              label={windowLabel(w!.windowMinutes)}
+              win={{ pct: w!.usedPercent, resetsAt: w!.resetsAt }}
+            />
+          ))}
+        </div>
+      ) : loggedIn && limit?.ok ? (
         <div className="acc-meters">
           <WindowMeter label="session · 5h" win={limit.session} />
           <WindowMeter label="week · all" win={limit.week} />
@@ -620,7 +638,7 @@ function AccountCard({
                 logged in, there is simply nothing to poll. An empty meter
                 would read as "at zero", the opposite of "unknown". */}
             {tool.id !== 'claude'
-              ? `${tool.label} publishes no usage-limit API — spend below is measured from your local logs`
+              ? `${tool.label} records its limits per turn — none seen yet in this account's logs`
               : !loggedIn
                 ? 'no stored login on this account'
                 : limit && !limit.ok
@@ -710,11 +728,21 @@ function AccountCard({
         ) : (
           <span className="acc-price acc-dim">{noPriceReason(acct?.plan ?? null)}</span>
         )}
-        {limit?.ok && (
-          <span className="acc-live">
-            <i className="acc-live-dot" />
-            live · {relTime(limit.fetchedAt, now)}
+        {recorded ? (
+          /* Deliberately NOT the live dot. These were read out of a rollout,
+             so they are only as fresh as the last real turn — /status and
+             /usage write nothing. Say when, not "live". */
+          <span className="acc-live acc-recorded" title="read from the session log, not polled">
+            <i className="acc-recorded-dot" />
+            as of {relTime(recorded.observedAt, now)}
           </span>
+        ) : (
+          limit?.ok && (
+            <span className="acc-live">
+              <i className="acc-live-dot" />
+              live · {relTime(limit.fetchedAt, now)}
+            </span>
+          )
         )}
       </div>
     </Panel>
@@ -829,6 +857,7 @@ function HeadroomBanner() {
 export function AccountsView() {
   const accounts = useUsageStore((s) => s.accounts);
   const limits = useUsageStore((s) => s.limits);
+  const toolLimits = useUsageStore((s) => s.toolLimits);
   const spend = useUsageStore((s) => s.snapshot?.accountSpend);
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
   const allSourceDirs = useUsageStore((s) => s.allSourceDirs);
@@ -917,6 +946,7 @@ export function AccountsView() {
             tool={group.tool}
             acct={accounts[group.dirs[0]]}
             limit={limits[group.dirs[0]]}
+            recorded={group.dirs.map((d) => toolLimits[d]).find(Boolean)}
             spend={spend?.[group.dirs[0]]}
             inScope={group.dirs.some((d) => scopedSet.has(d))}
             canScope={canScope}

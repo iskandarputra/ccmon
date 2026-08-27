@@ -22,7 +22,7 @@
  */
 
 import type { Zone } from '../../../shared/daykey';
-import type { ParsedLine } from '../../../shared/types';
+import type { LimitsMarker, ParsedLine } from '../../../shared/types';
 
 export interface SourceAdapter {
   /** Stable machine id, stamped onto every entry as `agent` (e.g. 'claude'). */
@@ -70,6 +70,19 @@ export interface SourceAdapter {
    * there is something to resolve, never as a corpus-wide pre-scan.
    */
   createState?(file?: string): unknown;
+
+  /**
+   * Rate limits the TOOL recorded in its own transcript, if this format
+   * carries any. Returns null for every line that does not.
+   *
+   * Separate from `parseLine` because limits are not usage: they ride ALONG
+   * with a usage line rather than replacing it, they are a latest-wins
+   * reading rather than something to sum, and they must never touch token
+   * parity. Codex is the only format that has them today — Claude Code
+   * publishes the equivalent over an authenticated endpoint instead, which is
+   * a poller's job, not a parser's.
+   */
+  parseLimits?(raw: string): LimitsMarker | null;
 
   /**
    * Byte-level reject for a line that cannot possibly carry data, applied by
