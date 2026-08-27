@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { noPriceReason, planPriceUSD } from '../plans';
+import { noPriceReason, planLabel, planPriceUSD } from '../plans';
 
 describe('planPriceUSD — Claude', () => {
   it('prices pro and both max tiers', () => {
@@ -71,10 +71,12 @@ describe('noPriceReason — why a card shows no monthly price', () => {
     expect(noPriceReason('free')).toBe('free plan');
   });
 
-  it('says seat-priced only for the plans that actually are', () => {
-    expect(noPriceReason('team')).toBe('seat-priced plan');
-    expect(noPriceReason('business')).toBe('seat-priced plan');
-    expect(noPriceReason('enterprise')).toBe('seat-priced plan');
+  it('says WHO is paying for a seat-priced plan, not just that it is one', () => {
+    // "seat-priced plan" under a chip reading "Team - Pro Max x5" looks like a
+    // contradiction; naming the org explains why there is no figure.
+    expect(noPriceReason('team', 'Pingspace')).toBe('billed per seat by Pingspace');
+    expect(noPriceReason('enterprise', 'Acme')).toBe('billed per seat by Acme');
+    expect(noPriceReason('business')).toBe('billed per seat by your org');
   });
 
   it('admits when no plan was detected at all', () => {
@@ -84,5 +86,40 @@ describe('noPriceReason — why a card shows no monthly price', () => {
 
   it('names an unrecognised plan rather than mislabelling it', () => {
     expect(noPriceReason('edu')).toBe('edu plan · price unknown');
+  });
+});
+
+describe('planLabel — the plan as a person would name it', () => {
+  /**
+   * "team · 5x" described neither half of what is actually going on: a Team
+   * ORG is the billing relationship, and Max 5x is that one seat's rate-limit
+   * entitlement, set per member.
+   */
+  it('names a Team seat with its own entitlement', () => {
+    expect(planLabel('team', '5x')).toBe('Team - Pro Max x5');
+    expect(planLabel('team', '20x')).toBe('Team - Pro Max x20');
+    expect(planLabel('team', null)).toBe('Team - Pro');
+  });
+
+  it('names a personal subscription without an org prefix', () => {
+    expect(planLabel('pro', null)).toBe('Pro');
+    expect(planLabel('max', '5x')).toBe('Pro Max x5');
+    expect(planLabel('max', '20x')).toBe('Pro Max x20');
+    expect(planLabel('max', null)).toBe('Pro Max');
+  });
+
+  it('names an Enterprise seat the same way', () => {
+    expect(planLabel('enterprise', '20x')).toBe('Enterprise - Pro Max x20');
+  });
+
+  it('keeps ChatGPT plans flat — they have no seat/org split', () => {
+    expect(planLabel('free', null, 'codex')).toBe('Free');
+    expect(planLabel('plus', null, 'codex')).toBe('Plus');
+    expect(planLabel('pro', null, 'codex')).toBe('Pro');
+  });
+
+  it('says nothing when no plan was detected', () => {
+    expect(planLabel(null, null)).toBeNull();
+    expect(planLabel('', '5x')).toBeNull();
   });
 });

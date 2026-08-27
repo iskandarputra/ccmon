@@ -27,7 +27,7 @@ import {
   tildify,
 } from '../lib/format';
 import { limitColor, windowLabel } from '../lib/limits';
-import { noPriceReason, planBadgeColor, planPriceUSD } from '../lib/plans';
+import { noPriceReason, planBadgeColor, planLabel, planPriceUSD } from '../lib/plans';
 import {
   accountRoot,
   crossAccountAdvice,
@@ -287,6 +287,8 @@ function AccountCard({
   const wrapperName = prefs[root]?.name || suggestWrapperName(root);
   const wrapperDisabled = prefs[root]?.disabled ?? false;
 
+  /** the running-sessions list, expanded from the count badge */
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [hideOpen, setHideOpen] = useState(false);
   const [wrapperBusy, setWrapperBusy] = useState(false);
@@ -430,23 +432,20 @@ function AccountCard({
               className="acc-plan"
               style={cssVars({ '--pc': planBadgeColor(acct.plan, acct.tier) ?? 'var(--text-dim)' })}
             >
-              {acct.plan}
-              {acct.tier ? ` · ${acct.tier}` : ''}
+              {planLabel(acct.plan, acct.tier, tool.id)}
             </span>
           )}
           {running.length > 0 && (
-            <span
-              className="acc-running"
-              title={running
-                .map(
-                  (r) =>
-                    `${r.label ?? r.id}${r.cwd ? ` · ${r.cwd}` : ''}${r.status ? ` · ${r.status}` : ''}`,
-                )
-                .join('\n')}
+            <button
+              type="button"
+              className={`acc-running${sessionsOpen ? ' is-open' : ''}`}
+              onClick={() => setSessionsOpen((v) => !v)}
+              title="which sessions are running right now"
+              aria-expanded={sessionsOpen}
             >
               <i className="acc-running-dot" />
               {running.length} running
-            </span>
+            </button>
           )}
           {inScope && <span className="acc-scoped-badge">viewing</span>}
         </span>
@@ -473,6 +472,22 @@ function AccountCard({
         {acct?.authMode === 'apikey' && !acct.email && <span className="acc-org">API key</span>}
         <span className="acc-root">{tildify(root)}</span>
       </div>
+
+      {sessionsOpen && running.length > 0 && (
+        <ul className="acc-sessions">
+          {running.map((r) => (
+            <li className="acc-session" key={r.id}>
+              <span
+                className={`acc-session-state is-${r.status ?? 'unknown'}`}
+                title={r.status ?? 'status not reported by this tool'}
+              />
+              <span className="acc-session-name">{r.label ?? r.id.slice(0, 8)}</span>
+              {r.cwd && <code className="acc-session-cwd">{tildify(r.cwd)}</code>}
+              {r.startedAt && <span className="acc-session-age">{relTime(r.startedAt, now)}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="acc-wrapper">
         <span className="acc-wrapper-label">shell:</span>
@@ -768,7 +783,9 @@ function AccountCard({
             <span className="acc-dim"> /mo plan</span>
           </span>
         ) : (
-          <span className="acc-price acc-dim">{noPriceReason(acct?.plan ?? null)}</span>
+          <span className="acc-price acc-dim">
+            {noPriceReason(acct?.plan ?? null, acct?.organization ?? null)}
+          </span>
         )}
         {recorded ? (
           /* Deliberately NOT the live dot. These were read out of a rollout,

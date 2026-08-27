@@ -15,7 +15,7 @@ import { useScopedDirs } from '../../hooks/useScopedDirs';
 import { countdown, fmtPct, relTime, sourceLabel } from '../../lib/format';
 import { limitColor, windowLabel } from '../../lib/limits';
 import { accountGroups, toolFor } from '../../../shared/tools';
-import { planBadgeColor } from '../../lib/plans';
+import { planBadgeColor, planLabel } from '../../lib/plans';
 import type { LimitSample, LimitWindow, WindowForecast } from '../../../shared/types';
 
 /** A failure that re-authenticating would fix — show the in-app Log in control. */
@@ -213,8 +213,7 @@ export function PlanLimits() {
                       '--pc': planBadgeColor(acct.plan, acct.tier) ?? 'var(--amber)',
                     })}
                   >
-                    {acct.plan}
-                    {acct.tier ? ` · ${acct.tier}` : ''}
+                    {planLabel(acct.plan, acct.tier, toolFor(dir).id)}
                   </span>
                 )}
                 {!r?.ok && (
@@ -283,7 +282,7 @@ export function PlanLimits() {
                     style={cssVars({ '--pc': 'var(--text-dim)' })}
                     title="reported by the tool itself, per turn"
                   >
-                    {m.planType || acct?.plan}
+                    {planLabel(m.planType || acct?.plan || null, null, toolFor(dir).id)}
                   </span>
                 )}
                 {/* NOT the live dot: read from a rollout, so only as fresh as

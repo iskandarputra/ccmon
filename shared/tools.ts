@@ -63,10 +63,18 @@ export interface ToolProfile {
 /** Last path segment, tolerant of either separator (Windows paths reach here). */
 const basename = (p: string): string => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
 
-/** Drop everything from the last separator on, keeping the rest verbatim. */
+/**
+ * Drop everything from the last separator on, keeping the rest verbatim.
+ *
+ * A TRAILING separator is stripped first. Discovery never produces one
+ * (`path.join` does not), but a hand-edited `claudeDirs`/`codexDirs` entry
+ * easily can, and without this the parent of `~/.claude/projects/` came back
+ * as `~/.claude/projects` — which then labelled the account "projects".
+ */
 const dirname = (p: string): string => {
-  const cut = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
-  return cut > 0 ? p.slice(0, cut) : p;
+  const trimmed = p.replace(/[\\/]+$/, '');
+  const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  return cut > 0 ? trimmed.slice(0, cut) : trimmed;
 };
 
 /** Shared naming rule: `.<tool>` → `<tool>-personal`, `.<tool>-x` → `<tool>-x`. */

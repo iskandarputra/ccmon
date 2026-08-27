@@ -48,6 +48,11 @@ describe('accountRootFor — source dir → account root', () => {
     expect(accountRootFor('/home/u/.codex/archived_sessions')).toBe('/home/u/.codex');
   });
 
+  it('tolerates a trailing separator, which a hand-edited config can carry', () => {
+    expect(accountRootFor('/home/u/.claude/projects/')).toBe('/home/u/.claude');
+    expect(accountRootFor('/home/u/.codex/sessions/')).toBe('/home/u/.codex');
+  });
+
   it('leaves a path that is not a known data dir alone', () => {
     // A custom root from `claudeDirs` may point straight at a projects dir or
     // at something else entirely; only a recognised data dir gets stripped.

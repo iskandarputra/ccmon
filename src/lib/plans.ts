@@ -38,6 +38,37 @@ export function planPriceUSD(
 }
 
 /**
+ * The plan as a person would name it: "Team - Pro Max x5", not "team · 5x".
+ *
+ * Two facts get combined, and they are genuinely separate. The PLAN is the
+ * billing relationship — a Team org, an Enterprise org, or a personal
+ * subscription. The TIER is the seat's own rate-limit entitlement, which on a
+ * Team org is set per member: `organizationType: 'claude_team'` with
+ * `userRateLimitTier: 'default_claude_max_5x'` is one person on Max 5x inside
+ * a Team, and showing only one half of that describes neither.
+ *
+ * Codex has no such split — ChatGPT plans are flat — so it just gets its plan
+ * name capitalised.
+ */
+export function planLabel(
+  plan: string | null,
+  tier: string | null,
+  tool: ToolId = 'claude',
+): string | null {
+  const p = (plan || '').toLowerCase();
+  if (!p) return null;
+  const title = (v: string) => v.charAt(0).toUpperCase() + v.slice(1);
+
+  if (tool === 'codex') return title(p); // Free · Plus · Pro
+
+  // the seat's entitlement: a tier always means one of the Max plans
+  const seat = tier ? `Pro Max x${tier.replace(/x$/i, '')}` : p.includes('max') ? 'Pro Max' : 'Pro';
+  if (p.includes('team')) return `Team - ${seat}`;
+  if (p.includes('enterprise')) return `Enterprise - ${seat}`;
+  return seat;
+}
+
+/**
  * Why an account shows no monthly price — the three reasons are different and
  * the card used to call all of them "seat-priced plan".
  *
@@ -45,12 +76,16 @@ export function planPriceUSD(
  * was never detected is not seat-priced either, it is unknown. Saying
  * "seat-priced" to a free-tier user is simply false.
  */
-export function noPriceReason(plan: string | null): string {
+export function noPriceReason(plan: string | null, organization?: string | null): string {
   const p = (plan || '').toLowerCase();
   if (!p) return 'no plan detected';
   if (p === 'free') return 'free plan';
   if (p.includes('team') || p.includes('business') || p.includes('enterprise')) {
-    return 'seat-priced plan';
+    // Not "seat-priced plan", which reads as a contradiction under a chip
+    // saying "Team - Pro Max x5". Say who is paying and why there is no
+    // figure: the org negotiates its own per-seat rate, so there is no public
+    // price to compare this account's spend against.
+    return organization ? `billed per seat by ${organization}` : 'billed per seat by your org';
   }
   return `${p} plan · price unknown`;
 }

@@ -1408,3 +1408,71 @@
   flex: none;
   animation: acc-pulse 2.4s var(--ease-out) infinite;
 }
+
+/* The running badge is a control, so it has to read as one. */
+.acc-running {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.acc-running:hover,
+.acc-running.is-open {
+  background: color-mix(in srgb, var(--ok) 20%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+}
+
+/* Expanded list of this account's running sessions. A count answers "is
+   anything going?"; this answers "which one, and where" — the question you
+   actually have when the number is 3 and you expected 1. */
+.acc-sessions {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+.acc-session {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.acc-session-state {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+/* busy is working, idle is waiting on you — a real distinction while you are
+   deciding which window to go back to */
+.acc-session-state.is-busy {
+  background: var(--ok);
+  animation: acc-pulse 2.4s var(--ease-out) infinite;
+}
+.acc-session-state.is-idle {
+  background: var(--text-dim);
+}
+.acc-session-name {
+  color: var(--text);
+  white-space: nowrap;
+}
+.acc-session-cwd {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.acc-session-age {
+  color: var(--text-faint);
+  font-size: 10px;
+  white-space: nowrap;
+}

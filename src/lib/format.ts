@@ -15,6 +15,7 @@ type Numeric = number | null | undefined;
 // so subscribers re-render with the new formatters.
 
 import { aliasFor, type AliasMap } from '../../shared/aliases';
+import { accountRootFor } from '../../shared/tools';
 
 /** Crypto display symbols — these codes can't go through Intl currency style. */
 export const CRYPTO_SYMBOLS: Record<string, string> = {
@@ -265,10 +266,12 @@ export function projectAlias(path: string): string | null {
 
 /** Account label for a source root: '~/.claude-work/projects' → 'claude-work' */
 export const sourceLabel = (dir = ''): string => {
-  const parts = dir.split('/').filter(Boolean);
-  if (parts[parts.length - 1] === 'projects') parts.pop();
-  const name = (parts.pop() || dir).replace(/^\.+/, '');
-  return name || dir;
+  // Strip the tool's DATA DIR, not the literal 'projects'. Codex keeps its
+  // usage in `<home>/sessions`, so the old rule labelled that account
+  // "sessions" — in the card title, the scope picker and the plan-limits
+  // panel alike. `accountRootFor` knows every tool's data dirs.
+  const name = accountRootFor(dir).split(/[\\/]/).filter(Boolean).pop();
+  return (name ?? dir).replace(/^\.+/, '') || dir;
 };
 
 /** The main account's project dir: literal ~/.claude when present, else first. */
