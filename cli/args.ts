@@ -232,7 +232,7 @@ export function parseArgs(argv: string[]): ParseResult {
   return ok(out);
 }
 
-export const HELP = `ccmon — Claude Code usage, headless
+export const HELP = `ccmon — Claude Code and Codex CLI usage, headless
 
 USAGE
   ccmon <command> [options]
@@ -256,7 +256,7 @@ OPTIONS
                           Anthropic's real billing window)
   --scan-days <n>         statusline only: read transcripts touched in the last
                           n days (default ${DEFAULT_SCAN_DAYS}, 0 = whole history)
-  --source <dir>          extra data root (repeatable)
+  --source <dir>          extra data root, Claude or Codex (repeatable)
   --offline               never touch the network for pricing
   --pretty                indent JSON output
   -h, --help / -v, --version

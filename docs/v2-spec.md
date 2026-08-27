@@ -137,12 +137,26 @@ The layered sources (later layers consulted only on miss, ccusage parity):
    plus `fetchedAt` to `<cacheDir>/pricing-cache.json`. On startup use the
    cache if under 24 h old, else refresh in the background (never block
    scanning). Failures keep the previous layer silently.
-3. **Bundled models.dev snapshot**
-   `electron/services/data/modelsdev-anthropic.json` (committed; per-MTOK
-   costs ÷ 1e6 on load: `{cost: {input, output, cache_read, cache_write},
-   limit: {context}}`).
+3. **Bundled models.dev snapshots** —
+   `modelsdev-anthropic.json`, `modelsdev-deepseek.json`,
+   `modelsdev-openai.json` (committed; per-MTOK costs ÷ 1e6 on load:
+   `{cost: {input, output, cache_read, cache_write, tiers}, limit: {context}}`).
+
+   **OpenAI lives here and NOWHERE ELSE, and that placement is load-bearing.**
+   Every LiteLLM layer is consulted before models.dev, and LiteLLM does not
+   publish the gpt-5.x long-context bands — so a LiteLLM OpenAI split would
+   resolve `gpt-5.6-terra` to base rates and silently drop its 272K tier. Until
+   the `openai` provider was added, ccmon carried no OpenAI prices at all and
+   every Codex token billed at $0.
+
+   `cost.tiers[]` carries above-threshold bands. Only the first band whose
+   `tier.type === 'context'` is read, because the engine bills a request
+   entirely at ONE rate rather than splitting it across bands. Its
+   `tier.size` becomes `RateRow.tierAt` — the threshold is per-MODEL, since
+   OpenAI's starts at 272K where Anthropic's is 200K, and a global constant
+   double-billed a 250K gpt-5.6 turn.
 4. **User overrides** (regex pattern keys, case-insensitive, per-MTok
-   values: `{in, out, w5m, w1h, read, tier: {in, out, w5m, read},
+   values: `{in, out, w5m, w1h, read, tier: {in, out, w5m, read}, tierAt,
    contextLimit, fast}`) — always win. Overrides reach EVERY field the engine
    consumes, so a private deployment or proxy can declare its own above-200k
    tier, context window and fast multiplier; a model with no `tier` block
@@ -450,15 +464,63 @@ Identity is read per tool, dispatched by `tools/identity.ts#identityFor`:
   file in the user's own home, the same trust level as `.claude.json`.
   `tier` is always null (no multiplier concept) and so is `cleanupPeriodDays`.
 
-**There are no Codex limits.** OpenAI publishes no usage endpoint reachable
-with these credentials, so `refreshLimits` skips Codex homes entirely rather
-than reporting a Claude-shaped "no stored login", and the card says the tool
-publishes no limits API — an empty gauge would read as "at zero", the opposite
-of "unknown". A Codex account is also excluded from the advisor's login picker
+**Codex limits come from the transcript, not a poll.** Every `token_count`
+event carries a `rate_limits` block, so `SourceAdapter.parseLimits` reads them
+with no network call and no credentials; the watcher keeps the newest per root
+(`limitsFor`) and main publishes them as `AppState.toolLimits`. `refreshLimits`
+still skips Codex homes — there is nothing to poll — but the card now renders
+real meters rather than an apology.
+
+They are kept OUT of `LimitsResult` deliberately. That type means "a poll of an
+authenticated endpoint succeeded" and carries Claude's session/week/weekOpus
+windows; Codex's are duration-labelled (`window_minutes`: 300 = 5 h,
+10080 = weekly, 43200 = monthly, plan-dependent) and were never fetched.
+Reusing it would either mislabel a monthly window as "session" or claim a fetch
+that never happened.
+
+`parseLimits` is a separate seam hook rather than a `ParsedLine` kind because
+one `token_count` line yields BOTH a usage entry and a limits reading.
+
+**Sessions running right now** come from each tool's own registry, exposed as
+`AppState.liveSessions` (dir → `LiveSession[]`) and polled locally every 10 s:
+
+- **claude** — `<root>/sessions/<pid>.json`, one per process, carrying `pid`,
+  `sessionId`, `cwd`, `procStart` and a `status` (busy | idle) the CLI keeps
+  updated.
+- **codex** — `<home>/thread-writer-locks/<id>.lock`, one per running session,
+  removed on exit. `.coordination.lock` is Codex's own and is not a session.
+
+Liveness is `process.kill(pid, 0)` on every platform PLUS, on Linux, a
+`/proc/<pid>` start-time comparison against `procStart`. The second check is
+what rules out a REUSED pid; without it a long-dead session whose number came
+around again reads as running. macOS and Windows cannot make that distinction
+and are documented as such. Codex's count is an upper bound — a crashed
+session leaves its lock behind — while Claude's is exact.
+
+**Freshness is the real constraint.** The block rides on a real TURN — `/status`
+and `/usage` write nothing — so the newest reading on disk can be days behind.
+`LimitsMarker.observedAt` records when it was true, and every surface showing
+these MUST show it: the account card uses a hollow, still dot and "as of",
+never the pulsing "live" one that means a current poll. A Codex account is also excluded from the advisor's login picker
 (`tool === 'claude'` before `hasCredentials`): it HAS credentials, but they are
 an OpenAI token the Anthropic Messages API will reject.
 
 Exposed as `accounts` (dir-keyed) in `app:getState`.
+
+**A plan and a tier are separate facts.** `AccountInfo.plan` is the billing
+relationship (team / enterprise / pro / max, or Codex's free / plus / pro);
+`AccountInfo.tier` is that SEAT's rate-limit multiplier. On a Team org the
+tier is per member, so `claudeIdentity` reads `oauthAccount.userRateLimitTier`
+BEFORE the credentials' `rateLimitTier` — a member upgraded to Max 5x records
+`organizationType: 'claude_team'`, `rateLimitTier: 'default_raven'` (an org
+codename that parses to no multiplier at all) and
+`userRateLimitTier: 'default_claude_max_5x'`. `src/lib/plans.ts#planLabel`
+composes the pair for display ("Team - Pro Max x5").
+
+**`AccountInfo.organization` is null for a personal plan.** Both vendors model
+a solo subscriber as a one-person org — OpenAI titles it "Personal", Anthropic
+uses the account holder's own name — so the field is present, truthful and
+useless. `isPersonalPlan` suppresses it; only team/business/enterprise keep one.
 
 `AccountInfo.cleanupPeriodDays` is `number | null` — NULL for Codex, which has
 no retention setting. Never coerce that null to 0: it would report "deletes

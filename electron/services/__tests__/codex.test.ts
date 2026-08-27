@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { codexAdapter, type CodexState, tierToFast } from '../adapters/codex';
 import { ADAPTERS, adapterById } from '../adapters';
 import { UsageWatcher } from '../watcher';
+import { readParentPrefix } from '../adapters/codex-replay';
 import type { UsageEntry } from '../../../shared/types';
 
 let tmp: string;
@@ -492,5 +493,472 @@ describe('end to end through the watcher', () => {
     const byIn = new Map(entries.map((e) => [e.in, e.model]));
     expect(byIn.get(10)).toBe('model-a');
     expect(byIn.get(20)).toBe('gpt-5');
+  });
+});
+
+describe('auto-review fallback model — resolved by session date', () => {
+  /**
+   * Codex records `codex-auto-review` as the model for an auto-review turn
+   * rather than the model that actually ran. Billing that literal string
+   * prices the turn at $0 (no catalog has it), so it resolves to whichever
+   * model auto-review used at the time — a dated table, like `shared/plans.ts`.
+   */
+  const autoReview = (ts: string) => {
+    const st = codexAdapter.createState!() as CodexState;
+    const line = JSON.stringify({
+      timestamp: ts,
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          model: 'codex-auto-review',
+          last_token_usage: { input_tokens: 100, cached_input_tokens: 0, output_tokens: 10 },
+        },
+      },
+    });
+    const out = parse(line, st);
+    return out && out.kind === 'entry' ? out.model : null;
+  };
+
+  it('picks the model auto-review used on that date', () => {
+    expect(autoReview('2026-05-13T09:00:00.000Z')).toBe('gpt-5.5'); // >= 2026-04-23
+    expect(autoReview('2026-03-10T09:00:00.000Z')).toBe('gpt-5.4'); // >= 2026-03-05
+    expect(autoReview('2026-02-10T09:00:00.000Z')).toBe('gpt-5.3-codex');
+    expect(autoReview('2025-12-20T09:00:00.000Z')).toBe('gpt-5.2-codex');
+    expect(autoReview('2025-11-20T09:00:00.000Z')).toBe('gpt-5.1-codex');
+    expect(autoReview('2025-09-20T09:00:00.000Z')).toBe('gpt-5-codex');
+  });
+
+  it('falls back to gpt-5 before the first dated entry', () => {
+    expect(autoReview('2025-01-01T09:00:00.000Z')).toBe('gpt-5');
+  });
+
+  it('leaves a real model id alone', () => {
+    const st = codexAdapter.createState!() as CodexState;
+    const out = parse(
+      tokenCount({
+        model: 'gpt-5.6-terra',
+        last_token_usage: { input_tokens: 100, cached_input_tokens: 0, output_tokens: 10 },
+      }),
+      st,
+    );
+    expect(out && out.kind === 'entry' ? out.model : null).toBe('gpt-5.6-terra');
+  });
+});
+
+describe('rate limits — recorded in the transcript, not fetched', () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-codexlim-'));
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  /**
+   * Codex writes its own rate limits onto every `token_count` event, so ccmon
+   * reads them with no network call and no credentials. Verified field by
+   * field against what Codex's own `/status` prints for the same account:
+   *
+   *   window_minutes 43200  →  Codex labels it "Monthly limit"
+   *   used_percent   99     →  Codex prints "0% left"  (left = 100 − used)
+   *   resets_at      1789389999 (SECONDS) → "resets 20:46 on 14 Sep"
+   */
+  const withLimits = (rate: Record<string, unknown>, ts = '2026-08-22T14:59:00.000Z') =>
+    JSON.stringify({
+      timestamp: ts,
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: { last_token_usage: { input_tokens: 10, output_tokens: 1 } },
+        rate_limits: rate,
+      },
+    });
+
+  const FREE = {
+    limit_id: 'codex',
+    primary: { used_percent: 99.0, window_minutes: 43200, resets_at: 1789389999 },
+    secondary: null,
+    credits: { has_credits: false, unlimited: false, balance: null },
+    plan_type: 'free',
+  };
+
+  it("reports the free plan's single monthly window", () => {
+    const out = codexAdapter.parseLine(
+      withLimits(FREE),
+      '/c/sessions/rollout-x.jsonl',
+      1,
+      null,
+      state(),
+    );
+    // the usage entry still comes out — limits ride along, they do not replace it
+    expect(out).toMatchObject({ kind: 'entry' });
+
+    const limits = codexAdapter.parseLimits!(withLimits(FREE));
+    expect(limits).toMatchObject({
+      kind: 'limits',
+      planType: 'free',
+      primary: { usedPercent: 99, windowMinutes: 43200 },
+      secondary: null,
+    });
+    // seconds → ms, matching Codex's "resets 20:46 on 14 Sep"
+    expect(limits!.primary!.resetsAt).toBe(1789389999 * 1000);
+  });
+
+  it('reports both windows on a paid plan', () => {
+    const paid = codexAdapter.parseLimits!(
+      withLimits({
+        limit_id: 'codex',
+        primary: { used_percent: 42, window_minutes: 300, resets_at: 1789000000 },
+        secondary: { used_percent: 8, window_minutes: 10080, resets_at: 1789500000 },
+        credits: { has_credits: true, unlimited: false, balance: 766.76 },
+        plan_type: 'pro',
+      }),
+    );
+    expect(paid).toMatchObject({
+      planType: 'pro',
+      primary: { usedPercent: 42, windowMinutes: 300 }, // 5 hours
+      secondary: { usedPercent: 8, windowMinutes: 10080 }, // one week
+      credits: { hasCredits: true, unlimited: false, balance: 766.76 },
+    });
+  });
+
+  it('returns null for a line carrying no rate_limits at all', () => {
+    expect(
+      codexAdapter.parseLimits!(
+        tokenCount({ last_token_usage: { input_tokens: 10, output_tokens: 1 } }),
+      ),
+    ).toBeNull();
+    expect(codexAdapter.parseLimits!(turnContext())).toBeNull();
+  });
+
+  it('survives a partial or malformed rate_limits block', () => {
+    expect(codexAdapter.parseLimits!(withLimits({ primary: null, secondary: null }))).toBeNull();
+    expect(codexAdapter.parseLimits!(withLimits({ primary: { used_percent: 'lots' } }))).toBeNull();
+  });
+
+  it('surfaces the NEWEST reading per root through the watcher', async () => {
+    const root = path.join(tmp, 'sessions');
+    const dir = path.join(root, '2026', '08', '22');
+    fs.mkdirSync(dir, { recursive: true });
+    // written oldest-last on purpose: a rescan walks files in directory order,
+    // so "newest" must mean the recorded timestamp, not arrival
+    fs.writeFileSync(
+      path.join(dir, 'rollout-2026-08-22T14-00-00-newer.jsonl'),
+      `${withLimits({ ...FREE, primary: { used_percent: 99, window_minutes: 43200, resets_at: 1789389999 } }, '2026-08-22T14:59:00.000Z')}\n`,
+    );
+    fs.writeFileSync(
+      path.join(dir, 'rollout-2026-08-22T09-00-00-older.jsonl'),
+      `${withLimits({ ...FREE, primary: { used_percent: 15, window_minutes: 43200, resets_at: 1789389999 } }, '2026-08-22T09:00:00.000Z')}\n`,
+    );
+
+    const w = new UsageWatcher({ dirs: [{ dir: root, adapter: codexAdapter }], watch: false });
+    await w.start();
+
+    const limits = w.limitsFor(null);
+    expect(limits.size).toBe(1);
+    const m = limits.get(root)!;
+    expect(m.primary!.usedPercent).toBe(99); // the later reading, not 15
+    expect(m.planType).toBe('free');
+    expect(m.source).toBe(root);
+  });
+
+  it('reports nothing for a root whose format records no limits', async () => {
+    const root = path.join(tmp, 'projects');
+    fs.mkdirSync(path.join(root, 'p'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'p', 's.jsonl'), '');
+    const w = new UsageWatcher({
+      dirs: [{ dir: root, adapter: adapterById('claude')! }],
+      watch: false,
+    });
+    await w.start();
+    expect(w.limitsFor(null).size).toBe(0);
+  });
+
+  it('stamps when the reading was taken, because it can be days stale', () => {
+    // /status and /usage are not turns and write nothing, so the newest
+    // recorded figure can predate the account's real position by days
+    const l = codexAdapter.parseLimits!(withLimits(FREE, '2026-08-22T14:59:00.000Z'));
+    expect(l!.observedAt).toBe(Date.parse('2026-08-22T14:59:00.000Z'));
+  });
+});
+
+describe('a bare-string root must still reach the right adapter', () => {
+  /**
+   * The bug this pins cost the app its entire Codex support, silently.
+   *
+   * `UsageWatcher` accepts `dirs` as either tagged `SourceRoot`s or bare
+   * strings, and a bare string used to default to the CLAUDE adapter. main.ts
+   * built its watcher from `state.allSourceDirs` — strings, because
+   * `refreshSourceDirs` computed the adapter tags and then dropped them with
+   * `.map(r => r.dir)`. So the GUI parsed every Codex rollout with the Claude
+   * parser, got nothing out, and showed "no usage data yet" for an account
+   * with real spend in it.
+   *
+   * Nothing caught it: the CLI, `npm run smoke` and every other test pass
+   * TAGGED roots, so they all saw Codex fine while the app saw none of it.
+   * The fallback now resolves the adapter from the tool registry by the dir's
+   * own shape, so the seam is right however the caller spells it.
+   */
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-bare-'));
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  const rollout = [
+    turnContext(),
+    tokenCount({
+      model: 'gpt-5.2-codex',
+      last_token_usage: { input_tokens: 1000, cached_input_tokens: 250, output_tokens: 125 },
+    }),
+  ];
+
+  it('indexes a Codex root passed as a plain string', async () => {
+    const sessions = path.join(tmp, 'sessions');
+    fs.mkdirSync(path.join(sessions, '2026', '05', '13'), { recursive: true });
+    fs.writeFileSync(
+      path.join(sessions, '2026', '05', '13', 'rollout-2026-05-13T09-00-00-abc.jsonl'),
+      `${rollout.join('\n')}\n`,
+    );
+
+    // exactly how main.ts builds its watcher — dirs, not tagged roots
+    const entries = await new UsageWatcher({ dirs: [sessions], watch: false }).start();
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ model: 'gpt-5.2-codex', in: 750, read: 250 });
+  });
+
+  it('still treats a Claude projects dir as Claude', async () => {
+    const projects = path.join(tmp, 'projects');
+    fs.mkdirSync(path.join(projects, 'proj'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projects, 'proj', 's.jsonl'),
+      `${JSON.stringify({
+        type: 'assistant',
+        timestamp: '2026-05-13T09:00:00.000Z',
+        message: {
+          id: 'm1',
+          model: 'claude-opus-5',
+          usage: { input_tokens: 5, output_tokens: 2 },
+        },
+        requestId: 'r1',
+      })}\n`,
+    );
+
+    const entries = await new UsageWatcher({ dirs: [projects], watch: false }).start();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ model: 'claude-opus-5' });
+  });
+});
+
+describe('forked sessions — the replayed prefix is not billed twice', () => {
+  /**
+   * A forked or subagent rollout REPLAYS its parent's history before its own
+   * first turn, and Codex REWRITES those events to the fork instant. That
+   * rewrite is what defeats the content-addressed dedupe key: same token
+   * counts, different timestamp, so the key does not collide and the parent's
+   * whole history bills a second time.
+   *
+   * The fix mirrors ccusage: match the child's leading usage against the
+   * parent's, by TOKEN VALUES rather than timestamps, and skip what matches.
+   */
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-codex-fork-'));
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  const meta = (id: string, over: Record<string, unknown> = {}, ts = '2026-05-13T09:00:00.000Z') =>
+    JSON.stringify({
+      timestamp: ts,
+      type: 'session_meta',
+      payload: { id, session_id: id, cwd: '/w/api', ...over },
+    });
+
+  const usage = (input: number, out: number, ts: string) =>
+    JSON.stringify({
+      timestamp: ts,
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          model: 'gpt-5.2-codex',
+          last_token_usage: { input_tokens: input, cached_input_tokens: 0, output_tokens: out },
+        },
+      },
+    });
+
+  const write = (dir: string, name: string, lines: string[]) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, name), `${lines.join('\n')}\n`);
+  };
+
+  const PARENT = 'aaaaaaaa-0000-0000-0000-000000000001';
+  const CHILD = 'bbbbbbbb-0000-0000-0000-000000000002';
+  const sessions = () => path.join(tmp, 'sessions', '2026', '05', '13');
+
+  const run = async () =>
+    new UsageWatcher({
+      dirs: [{ dir: path.join(tmp, 'sessions'), adapter: codexAdapter }],
+      watch: false,
+    }).start();
+
+  it("skips the replayed prefix and keeps the child's own turns", async () => {
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(200, 20, '2026-05-13T09:02:00.000Z'),
+    ]);
+    // the child replays both parent turns, rewritten to the fork instant
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'),
+      usage(200, 20, '2026-05-13T10:00:00.025Z'),
+      usage(300, 30, '2026-05-13T10:00:06.000Z'), // the child's own turn
+    ]);
+
+    const entries = await run();
+    // parent's 2 + the child's 1 — NOT 5
+    expect(entries).toHaveLength(3);
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(100 + 200 + 300);
+  });
+
+  it('recognises a spawned subagent as well as an explicit fork', async () => {
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+    ]);
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(
+        CHILD,
+        { source: { subagent: { thread_spawn: { parent_thread_id: PARENT } } } },
+        '2026-05-13T10:00:00.000Z',
+      ),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'),
+      usage(500, 50, '2026-05-13T10:00:09.000Z'),
+    ]);
+
+    const entries = await run();
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(100 + 500);
+  });
+
+  it('falls back to the rewritten burst when the parent rollout is gone', async () => {
+    // No parent file at all. The burst signature stands in for it: Codex
+    // writes the replayed history in one go (10-40ms) and the child's own
+    // first turn follows a real pause (measured 5.8-15.3s upstream).
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'),
+      usage(200, 20, '2026-05-13T10:00:00.025Z'),
+      usage(300, 30, '2026-05-13T10:00:06.000Z'), // after the pause — the child's
+    ]);
+
+    const entries = await run();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].in).toBe(300);
+  });
+
+  it('bills every turn of a session that declares no parent', async () => {
+    // The burst heuristic must NEVER touch a normal session: two quick turns
+    // in a row are perfectly ordinary when nothing was forked.
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:00:00.010Z'),
+      usage(200, 20, '2026-05-13T09:00:00.020Z'),
+    ]);
+
+    const entries = await run();
+    expect(entries).toHaveLength(2);
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(300);
+  });
+
+  it('ignores a session that names itself as its own parent', async () => {
+    // Would otherwise match its whole stream against itself and drop every
+    // event it recorded.
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT, { forked_from_id: PARENT }),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(200, 20, '2026-05-13T09:02:00.000Z'),
+    ]);
+
+    const entries = await run();
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(300);
+  });
+
+  it('stops skipping as soon as the child diverges from the parent', async () => {
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(200, 20, '2026-05-13T09:02:00.000Z'),
+    ]);
+    // only the FIRST parent turn was replayed; the second differs
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'),
+      usage(999, 99, '2026-05-13T10:00:00.020Z'),
+    ]);
+
+    const entries = await run();
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(100 + 200 + 999);
+  });
+
+  it('finds the burst even when the replayed history is huge', async () => {
+    // The head-window bug. A fork replays the parent's WHOLE conversation —
+    // every response_item, tool output included — before its own first turn,
+    // so the two usage events the burst check needs sit after all of it. A
+    // 64KB window reached them only for a toy parent; for a real one the check
+    // silently found nothing and the entire replayed prefix billed twice.
+    const filler = JSON.stringify({
+      timestamp: '2026-05-13T10:00:00.005Z',
+      type: 'response_item',
+      payload: { type: 'message', text: 'x'.repeat(2000) },
+    });
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      ...Array.from({ length: 60 }, () => filler), // ~120KB before any usage
+      usage(100, 10, '2026-05-13T10:00:00.010Z'), // replayed
+      usage(200, 20, '2026-05-13T10:00:00.025Z'), // replayed
+      usage(300, 30, '2026-05-13T10:00:06.000Z'), // the child's own turn
+    ]);
+
+    const entries = await run();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].in).toBe(300);
+  });
+
+  it('refuses a parent prefix when the fork instant is unreadable', () => {
+    // Tested directly: end-to-end, the burst fallback would mask it. Without a
+    // fork instant there is no boundary, so the prefix would be the parent's
+    // ENTIRE history — including turns recorded after the branch that were
+    // never replayed. stepReplay would then match the child's own first real
+    // turn against one of them and silently drop it.
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(700, 70, '2026-05-13T11:00:00.000Z'), // after a 10:00 fork
+    ]);
+    const parentFile = path.join(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`);
+
+    expect(readParentPrefix(parentFile, Date.parse('2026-05-13T10:00:00.000Z'))).toEqual([
+      { in: 100, cached: 0, out: 10 },
+    ]);
+    expect(readParentPrefix(parentFile, null)).toEqual([]);
+  });
+
+  it('does not replay parent usage recorded AFTER the fork', async () => {
+    // The parent kept working after the branch; those turns were never
+    // replayed into the child and must not mask the child's own events.
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(700, 70, '2026-05-13T11:00:00.000Z'), // after the 10:00 fork
+    ]);
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'), // replayed
+      usage(700, 70, '2026-05-13T10:00:20.000Z'), // the child's own, same shape
+    ]);
+
+    const entries = await run();
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(100 + 700 + 700);
   });
 });

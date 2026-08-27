@@ -99,6 +99,69 @@ export interface ToolResultMarker {
  */
 export type ToolResultByDay = Map<string, { count: number; chars: number }>;
 
+/**
+ * One rate-limit window as the tool itself reported it.
+ *
+ * `usedPercent`, not remaining: Codex's `/status` prints "% left" but the
+ * recorded field is `used_percent`, and storing what was actually written
+ * keeps the conversion in one place (the renderer).
+ */
+export interface LimitWindowReport {
+  usedPercent: number;
+  /** window length in minutes — 300 = 5h, 10080 = week, 43200 = month */
+  windowMinutes: number;
+  /** epoch MS (Codex records seconds; the adapter converts) */
+  resetsAt: number | null;
+}
+
+/**
+ * Rate limits a tool recorded INSIDE its own transcript, rather than an API
+ * ccmon polls.
+ *
+ * Codex writes this on every `token_count` event, which makes it free to read
+ * — no network, no credentials — but also means it is only ever as fresh as
+ * the last real TURN. `/status` and `/usage` are not turns and write nothing,
+ * so a figure here can be days old while the account has moved on. Hence
+ * `observedAt`: any surface showing these MUST show when they were true.
+ */
+export interface LimitsMarker {
+  kind: 'limits';
+  ts: number;
+  /** when this reading was recorded — the same as `ts`, named for the UI */
+  observedAt: number;
+  /** the shorter window on paid plans (5h); the only window on free (monthly) */
+  primary: LimitWindowReport | null;
+  /** the weekly window, on plans that have one */
+  secondary: LimitWindowReport | null;
+  /** plan as the TOOL reports it — fresher than a decoded credential */
+  planType: string | null;
+  /** purchasable overage credits; `balance` is null when the plan has none */
+  credits: { hasCredits: boolean; unlimited: boolean; balance: number | null } | null;
+  /** owning data root, stamped by the watcher (scope filtering) */
+  source?: string | null;
+}
+
+/**
+ * One coding-CLI session running right now, read from the tool's own on-disk
+ * registry rather than guessed from file activity.
+ */
+export interface LiveSession {
+  /** the tool's session id (Claude) or lock id (Codex) */
+  id: string;
+  /** working directory, when the tool records one */
+  cwd: string | null;
+  startedAt: number | null;
+  /** 'busy' | 'idle' as Claude Code reports it; null when unknown */
+  status: 'busy' | 'idle' | null;
+  /** the session's display name, when it has one */
+  label: string | null;
+}
+
+/**
+ * NOT part of `ParsedLine`: a Codex `token_count` line yields BOTH a usage
+ * entry and a limits reading, so it cannot be expressed as one return value.
+ * `SourceAdapter.parseLimits` reads it separately off the same line.
+ */
 export type ParsedLine =
   ({ kind: 'entry' } & UsageEntry) | ResetMarker | CompactMarker | ToolResultMarker | null;
 
@@ -143,6 +206,13 @@ export interface RateRow {
   /** explicit 1h write override only — otherwise 1h bills at input × 2 */
   cacheCreate1h: number | null;
   tiered: TieredRates | null;
+  /**
+   * Token count above which `tiered` applies, when the catalog states one.
+   * Null means the engine's default (Anthropic's 200K). OpenAI's long-context
+   * tier starts at 272K, so a global constant would bill a 250K gpt-5.6 turn
+   * at double rate — the threshold belongs to the model, not the engine.
+   */
+  tierAt: number | null;
   contextLimit: number | null;
   /** fast multiplier available for -fast variants */
   fast: number | null;
@@ -165,7 +235,25 @@ export interface LitellmEntry {
 
 /** Compacted models.dev entry (per-MTok costs, divided by 1e6 on load). */
 export interface ModelsDevEntry {
-  cost?: { input?: number; output?: number; cache_read?: number; cache_write?: number };
+  cost?: {
+    input?: number;
+    output?: number;
+    cache_read?: number;
+    cache_write?: number;
+    /**
+     * Above-threshold rate bands. models.dev publishes these for the OpenAI
+     * long-context models (`tier: {type: 'context', size: 272000}`); only the
+     * FIRST context band is read, because the engine bills a request entirely
+     * at one rate rather than splitting it across bands.
+     */
+    tiers?: Array<{
+      input?: number;
+      output?: number;
+      cache_read?: number;
+      cache_write?: number;
+      tier?: { type?: string; size?: number };
+    }>;
+  };
   limit?: { context?: number; output?: number };
 }
 
@@ -188,6 +276,11 @@ export interface PricingOverride {
     w5m?: number;
     read?: number;
   };
+  /**
+   * Token count above which `tier` applies. Unset keeps the engine default
+   * (200K, Anthropic's threshold); OpenAI's long-context tier starts at 272K.
+   */
+  tierAt?: number;
   /** context window in tokens — drives the per-session context gauge */
   contextLimit?: number;
   /**

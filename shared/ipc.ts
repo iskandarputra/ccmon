@@ -23,6 +23,8 @@ import type {
   ExportResult,
   FeedEvent,
   LimitsMap,
+  LimitsMarker,
+  LiveSession,
   LoginCodeResult,
   LoginResult,
   PricingMeta,
@@ -73,6 +75,26 @@ export interface AppState {
   pricingMeta: PricingMeta | null;
   accounts: AccountsMap;
   limits: LimitsMap;
+  /**
+   * Rate limits a tool recorded in its OWN transcript, per source dir — kept
+   * separate from `limits` on purpose.
+   *
+   * `LimitsResult` describes a successful poll of an authenticated endpoint,
+   * with Claude's session/week/weekOpus windows. Codex's are duration-labelled
+   * (5h / weekly / monthly depending on plan) and were never fetched — they
+   * were read out of a rollout. Squeezing one into the other would either
+   * mislabel a monthly window as "session" or claim a fetch that never
+   * happened, so they travel side by side and the card renders whichever the
+   * account has.
+   */
+  toolLimits: Record<string, LimitsMarker>;
+  /**
+   * Sessions running RIGHT NOW per account root, from each tool's own on-disk
+   * registry (Claude's pid files, Codex's session locks). Polled locally —
+   * no network — because a session starting or ending is not an event ccmon
+   * can subscribe to.
+   */
+  liveSessions: Record<string, LiveSession[]>;
   currency: CurrencyRates | null;
   /** latest DeepSeek balance, null without a key or before the first poll */
   deepseek: DeepseekResult | null;
@@ -187,6 +209,15 @@ export interface CcmonApi {
   onSettings(cb: (settings: AppSettings) => void): Unsubscribe;
   onPricingMeta(cb: (meta: PricingMeta) => void): Unsubscribe;
   onLimits(cb: (limits: LimitsMap) => void): Unsubscribe;
+  /**
+   * Rate limits a tool recorded in its own transcript. Pushed on the snapshot
+   * path, because they ride on a usage line and so change exactly when entries
+   * do — `app:getState` alone is not enough, the renderer calls it once while
+   * the first scan is still running.
+   */
+  onToolLimits(cb: (limits: Record<string, LimitsMarker>) => void): Unsubscribe;
+  /** Running sessions per account root, pushed when the set changes. */
+  onLiveSessions(cb: (sessions: Record<string, LiveSession[]>) => void): Unsubscribe;
   onCurrency(cb: (rates: CurrencyRates) => void): Unsubscribe;
   onDeepseek(cb: (result: DeepseekResult | null) => void): Unsubscribe;
   onDeepseekAuth(cb: (auth: DeepseekAuth) => void): Unsubscribe;

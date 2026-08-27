@@ -55,6 +55,11 @@ const RULES: Rule[] = [
   { test: /^claude[-.]/i, id: 'anthropic', label: 'Anthropic', deployment: 'first-party' },
   { test: /^deepseek[-/.]/i, id: 'deepseek', label: 'DeepSeek', deployment: 'first-party' },
   { test: /^gemini[-.]/i, id: 'google', label: 'Google', deployment: 'first-party' },
+  // Codex CLI. Without a rule these bucketed as "Other" in the provider
+  // breakdown — the same hole Bedrock and Vertex ids used to fall through.
+  // `openai/` covers the prefixed spelling some catalogs use.
+  { test: /^(?:gpt|o[134])[-.]/i, id: 'openai', label: 'OpenAI', deployment: 'first-party' },
+  { test: /^openai\//i, id: 'openai', label: 'OpenAI', deployment: 'first-party' },
 ];
 
 /** Which provider a model id belongs to, or null when unrecognised. */

@@ -31,10 +31,13 @@
  * would double-charge every cached prompt token, and on a long session the
  * cache is most of the input.
  *
- * KNOWN LIMITATION — long-context tiers. Codex prices requests above a context
- * threshold at a higher rate, and ccmon's pricing engine is flat per model, so
- * a very long Codex turn is priced slightly low. Tokens are unaffected; only
- * dollars are, and only for the models that have a long-context tier.
+ * Long-context tiers ARE modelled: models.dev publishes a 272K context band
+ * for the gpt-5.x models and `RateRow.tierAt` carries the per-model threshold,
+ * so a long turn bills entirely at the tier rate rather than the base one.
+ *
+ * Replayed history is handled in `codex-replay.ts` — a forked or spawned
+ * rollout repeats its parent's turns before its own, and Codex rewrites them
+ * to the fork instant.
  */
 
 import fs from 'fs';
@@ -42,14 +45,83 @@ import os from 'os';
 import path from 'path';
 import { dayKeyFor, type Zone } from '../../../shared/daykey';
 import { splitPathList } from '../paths';
-import type { ParsedLine } from '../../../shared/types';
+import type { LimitWindowReport, LimitsMarker, ParsedLine } from '../../../shared/types';
 import type { SourceAdapter } from './types';
+import {
+  detectRewrittenBurst,
+  findRolloutById,
+  forkInfoFrom,
+  readParentPrefix,
+  stepReplay,
+  type ForkInfo,
+  type ReplayState,
+} from './codex-replay';
 
 /** Model billed when a rollout never records one (ccusage uses the same). */
 const FALLBACK_MODEL = 'gpt-5';
 
+/**
+ * The literal model id Codex writes for an auto-review turn. It is not a real
+ * model and no pricing catalog carries it, so billing the string as-is prices
+ * every auto-review turn at $0.
+ */
+const AUTO_REVIEW_MODEL = 'codex-auto-review';
+
+/**
+ * Which model auto-review actually ran, by date — newest first.
+ *
+ * A dated table for the same reason `shared/plans.ts` is one: the mapping is
+ * historical fact, not something any API will tell us, and re-dating it would
+ * rewrite the past. Mirrors ccusage's `codex-auto-review-fallbacks.json`.
+ */
+const AUTO_REVIEW_FALLBACKS: ReadonlyArray<{ releasedOn: string; model: string }> = [
+  { releasedOn: '2026-04-23', model: 'gpt-5.5' },
+  { releasedOn: '2026-03-05', model: 'gpt-5.4' },
+  { releasedOn: '2026-02-05', model: 'gpt-5.3-codex' },
+  { releasedOn: '2025-12-11', model: 'gpt-5.2-codex' },
+  { releasedOn: '2025-11-13', model: 'gpt-5.1-codex' },
+  { releasedOn: '2025-09-15', model: 'gpt-5-codex' },
+  { releasedOn: '2025-08-07', model: 'gpt-5' },
+];
+
+/**
+ * Every id the fallback table can resolve to.
+ *
+ * Exported so a pricing test can assert each one is actually PRICEABLE. The
+ * table exists to stop an auto-review turn billing at $0, and it only achieves
+ * that if the id it maps TO resolves to a rate — models.dev has since retired
+ * the older codex models, so three of these are carried by the committed
+ * snapshot alone.
+ */
+export const AUTO_REVIEW_MODELS: readonly string[] = [
+  ...new Set([...AUTO_REVIEW_FALLBACKS.map((f) => f.model), FALLBACK_MODEL]),
+];
+
+/**
+ * Resolve `codex-auto-review` to the model that ran on `iso`'s date. Any other
+ * model id passes through untouched.
+ *
+ * Compared as `YYYY-MM-DD` strings, which sort lexicographically — and taken
+ * from the raw timestamp rather than a zoned day key, because the release
+ * dates are upstream facts in UTC, not entries in the user's calendar.
+ */
+function resolveAutoReview(model: string, iso: string | undefined): string {
+  if (model !== AUTO_REVIEW_MODEL) return model;
+  const date = iso?.slice(0, 10);
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return FALLBACK_MODEL;
+  return AUTO_REVIEW_FALLBACKS.find((f) => date >= f.releasedOn)?.model ?? FALLBACK_MODEL;
+}
+
 /** Cheap reject before `JSON.parse`, mirroring `parser.mayCarryData`. */
-const LINE_MARKERS = ['token_count', 'turn_context', 'thread_settings_applied'] as const;
+// `session_meta` earns its place here for ONE field: the parent a forked
+// rollout branched from. It appears on line 1 only, so admitting it costs a
+// single extra JSON.parse per file and nothing per usage line.
+const LINE_MARKERS = [
+  'token_count',
+  'turn_context',
+  'thread_settings_applied',
+  'session_meta',
+] as const;
 const LINE_MARKER_BYTES = LINE_MARKERS.map((m) => Buffer.from(m, 'ascii'));
 
 interface RawUsage {
@@ -69,6 +141,16 @@ export interface CodexState {
   fast: boolean | null;
   /** last cumulative totals, for delta recovery when no `last_token_usage` */
   prevTotals: RawUsage | null;
+  /** the rollout this state belongs to — needed to locate a fork's parent */
+  file: string | null;
+  /** what `session_meta` said about a fork, or null when it declared none */
+  fork: ForkInfo | null;
+  /**
+   * Where this rollout is in its replayed prefix. Starts `idle` and resolves
+   * on the FIRST usage event, so a session that declares no fork never pays
+   * for an anchor it does not need.
+   */
+  replay: ReplayState;
 }
 
 const zero = (u: RawUsage | null | undefined, k: keyof RawUsage): number =>
@@ -105,12 +187,118 @@ interface RolloutLine {
       last_token_usage?: RawUsage;
       total_token_usage?: RawUsage;
     };
+    // `token_count` only — the tool's own view of its rate limits
+    rate_limits?: {
+      primary?: RawLimitWindow | null;
+      secondary?: RawLimitWindow | null;
+      plan_type?: unknown;
+      credits?: { has_credits?: unknown; unlimited?: unknown; balance?: unknown } | null;
+    } | null;
+    // `session_meta` only — where a forked or spawned rollout branched from
+    id?: unknown;
+    session_id?: unknown;
+    forked_from_id?: unknown;
+    source?: { subagent?: { thread_spawn?: { parent_thread_id?: unknown } } };
   };
 }
+
+/**
+ * What to skip at the head of this rollout, resolved once on its first usage
+ * event.
+ *
+ * Ordered by trust: the parent's own stream if it can be found, else the burst
+ * Codex wrote at the fork instant, else nothing. A rollout that declared no
+ * parent goes straight to `done` — the burst heuristic must never be applied
+ * to an ordinary session, where two quick turns in a row are just two turns.
+ */
+function resolveReplayAnchor(st: CodexState): ReplayState {
+  const fork = st.fork;
+  if (!fork || !st.file) return { kind: 'done' };
+
+  const parentFile = findRolloutById(st.file, fork.parentId);
+  if (parentFile && parentFile !== st.file) {
+    const prefix = readParentPrefix(parentFile, fork.forkedAt);
+    if (prefix.length) return { kind: 'matching', prefix, index: 0 };
+  }
+  // Parent pruned, or on a machine ccmon never scanned: fall back to shape.
+  const burstStart = detectRewrittenBurst(st.file);
+  return burstStart == null ? { kind: 'done' } : { kind: 'burst', prevTs: burstStart };
+}
+
+/** One `rate_limits` window as Codex writes it. */
+interface RawLimitWindow {
+  used_percent?: unknown;
+  window_minutes?: unknown;
+  resets_at?: unknown;
+}
+
+const limitWindow = (w: RawLimitWindow | null | undefined): LimitWindowReport | null => {
+  if (!w || typeof w.used_percent !== 'number' || !Number.isFinite(w.used_percent)) return null;
+  const mins = typeof w.window_minutes === 'number' ? w.window_minutes : 0;
+  // Codex records `resets_at` in SECONDS; everything downstream is epoch ms.
+  const reset =
+    typeof w.resets_at === 'number' && Number.isFinite(w.resets_at) ? w.resets_at : null;
+  return {
+    usedPercent: w.used_percent,
+    windowMinutes: mins,
+    resetsAt: reset == null ? null : reset * 1000,
+  };
+};
 
 export const codexAdapter: SourceAdapter = {
   id: 'codex',
   label: 'Codex CLI',
+
+  /**
+   * Rate limits, straight out of the transcript.
+   *
+   * Codex attaches `rate_limits` to every `token_count` event, so ccmon reads
+   * them with no network call and no credentials — the opposite of the Claude
+   * path, which polls an authenticated endpoint every 60 s.
+   *
+   * Verified field-for-field against Codex's own `/status` on a free account:
+   * `window_minutes: 43200` is what it labels "Monthly limit",
+   * `used_percent: 99` is what it prints as "0% left" (it shows REMAINING),
+   * and `resets_at: 1789389999` is its "resets 20:46 on 14 Sep". Paid plans
+   * add a 300-minute primary (5 h) and a 10080-minute secondary (weekly).
+   *
+   * The catch a caller must respect: this rides on a real TURN. `/status` and
+   * `/usage` write nothing, so the newest reading on disk can be days older
+   * than the account's true position — hence `observedAt`.
+   */
+  parseLimits(raw: string): LimitsMarker | null {
+    if (!raw.includes('rate_limits')) return null;
+    let j: RolloutLine;
+    try {
+      j = JSON.parse(raw) as RolloutLine;
+    } catch {
+      return null;
+    }
+    const rl = j.payload?.rate_limits;
+    if (!rl) return null;
+    const primary = limitWindow(rl.primary);
+    const secondary = limitWindow(rl.secondary);
+    if (!primary && !secondary) return null; // nothing usable in the block
+    const ts = Date.parse(j.timestamp ?? '');
+    if (!Number.isFinite(ts)) return null;
+
+    const c = rl.credits;
+    return {
+      kind: 'limits',
+      ts,
+      observedAt: ts,
+      primary,
+      secondary,
+      planType: typeof rl.plan_type === 'string' ? rl.plan_type : null,
+      credits: c
+        ? {
+            hasCredits: c.has_credits === true,
+            unlimited: c.unlimited === true,
+            balance: typeof c.balance === 'number' ? c.balance : null,
+          }
+        : null,
+    };
+  },
 
   /**
    * `sessions/` and `archived_sessions/` under each Codex home. Both are
@@ -127,17 +315,36 @@ export const codexAdapter: SourceAdapter = {
     const homes = [...(env.length ? env : [path.join(os.homedir(), '.codex')]), ...extra];
     const out: string[] = [];
     const seen = new Set<string>();
+    const isDir = (p: string) => {
+      try {
+        return fs.statSync(p).isDirectory();
+      } catch {
+        return false; // Codex not installed, or never run — the normal case
+      }
+    };
     for (const home of homes) {
+      let found = false;
       for (const name of ['sessions', 'archived_sessions']) {
         const dir = path.join(home, name);
-        if (seen.has(dir)) continue;
-        try {
-          if (!fs.statSync(dir).isDirectory()) continue;
-        } catch {
-          continue; // Codex not installed, or never run — the normal case
+        if (seen.has(dir)) {
+          // Already claimed by an earlier pass over the SAME home (a repeated
+          // CODEX_HOME entry, or one also listed in codexDirs). Still counts
+          // as FOUND — without this the home fell through to the flat-home
+          // branch below and every rollout was indexed under two source roots.
+          found = true;
+          continue;
         }
+        if (!isDir(dir)) continue;
         seen.add(dir);
         out.push(dir);
+        found = true;
+      }
+      // A home with NEITHER subdir is taken to be a directory of rollouts
+      // itself — an export, a backup, a mounted share. Looking only one level
+      // down found nothing at all for those, silently.
+      if (!found && !seen.has(home) && isDir(home)) {
+        seen.add(home);
+        out.push(home);
       }
     }
     return out;
@@ -153,8 +360,16 @@ export const codexAdapter: SourceAdapter = {
     return false;
   },
 
-  createState(): CodexState {
-    return { model: null, cwd: null, fast: null, prevTotals: null };
+  createState(file?: string): CodexState {
+    return {
+      model: null,
+      cwd: null,
+      fast: null,
+      prevTotals: null,
+      file: file ?? null,
+      fork: null,
+      replay: { kind: 'idle' },
+    };
   },
 
   parseLine(raw, file, lineNo, zone: Zone, state?: unknown): ParsedLine {
@@ -180,6 +395,14 @@ export const codexAdapter: SourceAdapter = {
     const p = j.payload;
 
     // Context lines: remembered, never billed.
+    if (j.type === 'session_meta') {
+      // Line 1 of every rollout. The only thing read here is where a forked
+      // session branched from — everything else the adapter needs arrives on
+      // later lines.
+      st.fork = forkInfoFrom(p, j.timestamp);
+      if (p?.cwd) st.cwd = p.cwd;
+      return null;
+    }
     if (j.type === 'turn_context') {
       if (p?.model) st.model = p.model;
       if (p?.cwd || j.cwd) st.cwd = p?.cwd || j.cwd || null;
@@ -230,19 +453,45 @@ export const codexAdapter: SourceAdapter = {
     const output = zero(delta, 'output_tokens');
     if (!input && !cached && !output) return null; // a no-op tick, not a turn
 
-    let model = info.model || info.model_name || st.model || FALLBACK_MODEL;
+    // ---- replayed history -----------------------------------------------
+    // A forked or spawned-subagent rollout repeats its parent's turns before
+    // its own, rewritten to the fork instant. The rewrite changes the
+    // timestamp but not the token counts, so the dedupe key below does NOT
+    // collide and the parent's history would bill twice. Resolve the anchor
+    // lazily, on the first usage event: a session that declared no fork never
+    // touches the filesystem for this.
+    if (st.replay.kind === 'idle') st.replay = resolveReplayAnchor(st);
+    if (st.replay.kind !== 'done') {
+      const stepped = stepReplay(
+        st.replay,
+        { in: input, cached, out: output },
+        Date.parse(j.timestamp ?? ''),
+      );
+      st.replay = stepped.state;
+      if (stepped.skip) return null;
+    }
+
+    let model = resolveAutoReview(
+      info.model || info.model_name || st.model || FALLBACK_MODEL,
+      j.timestamp,
+    );
     const fast = st.fast === true;
     if (fast) model += '-fast';
 
     /**
      * Content-addressed dedupe key, NOT file#line.
      *
-     * Codex duplicates usage events in two situations: an `archived_sessions`
-     * copy of a rollout that also exists under `sessions/`, and a MultiAgent
-     * subagent rollout that REPLAYS its parent's history before its own turn.
-     * Both re-emit the original events verbatim, so keying on content makes the
-     * watcher's existing best-wins dedupe collapse them for free — no pre-scan
-     * of the file, which a streaming tailer could not do anyway.
+     * This handles ONE of the two ways Codex duplicates a usage event: an
+     * `archived_sessions` copy of a rollout that also exists under
+     * `sessions/`. That copy is byte-identical, so keying on content makes the
+     * watcher's existing best-wins dedupe collapse it for free.
+     *
+     * It does NOT handle the other way. A forked or spawned rollout replays
+     * its parent's turns and Codex REWRITES them to the fork instant — same
+     * token counts, different timestamp, so this key deliberately does not
+     * collide and the replay would bill twice. `codex-replay.ts` catches that
+     * one by matching token values rather than timestamps, before the event
+     * ever reaches here.
      *
      * Cumulative totals are strictly increasing within a session, so
      * timestamp + running total is unique per real turn; two distinct turns

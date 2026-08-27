@@ -415,6 +415,15 @@
   font-size: 14px;
   font-weight: 700;
 }
+/* When the window clears. "99% used" reads as a crisis until you know it
+   resets in three weeks, so this sits with the bar rather than in a tooltip. */
+.acc-meter-reset {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
 .acc-meter-track {
   margin-top: 5px;
   height: 6px;
@@ -564,6 +573,20 @@
   background: var(--ok);
   flex: none;
   animation: acc-pulse 2.4s var(--ease-out) infinite;
+}
+/* A reading taken from the session log rather than polled: hollow and still,
+   because the pulsing green dot means "this number is current" and this one
+   is only as current as the user's last turn. */
+.acc-recorded {
+  color: var(--text-dim);
+}
+.acc-recorded-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--text-faint);
+  background: transparent;
+  flex: none;
 }
 @keyframes acc-pulse {
   0% {
@@ -1357,4 +1380,99 @@
   .acc-meter-track i {
     transition: none;
   }
+}
+
+/* Sessions of this account running RIGHT NOW, read from the tool's own
+   registry. Green and pulsing because unlike the limits reading, this one IS
+   current — it is re-checked every 10s against live process state. */
+.acc-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--ok);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 30%, var(--line-soft));
+  white-space: nowrap;
+  cursor: default;
+}
+.acc-running-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+  animation: acc-pulse 2.4s var(--ease-out) infinite;
+}
+
+/* The running badge is a control, so it has to read as one. */
+.acc-running {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.acc-running:hover,
+.acc-running.is-open {
+  background: color-mix(in srgb, var(--ok) 20%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+}
+
+/* Expanded list of this account's running sessions. A count answers "is
+   anything going?"; this answers "which one, and where" — the question you
+   actually have when the number is 3 and you expected 1. */
+.acc-sessions {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+.acc-session {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.acc-session-state {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+/* busy is working, idle is waiting on you — a real distinction while you are
+   deciding which window to go back to */
+.acc-session-state.is-busy {
+  background: var(--ok);
+  animation: acc-pulse 2.4s var(--ease-out) infinite;
+}
+.acc-session-state.is-idle {
+  background: var(--text-dim);
+}
+.acc-session-name {
+  color: var(--text);
+  white-space: nowrap;
+}
+.acc-session-cwd {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.acc-session-age {
+  color: var(--text-faint);
+  font-size: 10px;
+  white-space: nowrap;
 }

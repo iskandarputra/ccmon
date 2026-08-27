@@ -48,6 +48,11 @@ describe('accountRootFor — source dir → account root', () => {
     expect(accountRootFor('/home/u/.codex/archived_sessions')).toBe('/home/u/.codex');
   });
 
+  it('tolerates a trailing separator, which a hand-edited config can carry', () => {
+    expect(accountRootFor('/home/u/.claude/projects/')).toBe('/home/u/.claude');
+    expect(accountRootFor('/home/u/.codex/sessions/')).toBe('/home/u/.codex');
+  });
+
   it('leaves a path that is not a known data dir alone', () => {
     // A custom root from `claudeDirs` may point straight at a projects dir or
     // at something else entirely; only a recognised data dir gets stripped.
@@ -89,6 +94,21 @@ describe('toolForRoot — account root → profile', () => {
 
   it('falls back to claude for a custom root from claudeDirs', () => {
     expect(toolForRoot('/mnt/archive/old-transcripts').id).toBe('claude');
+  });
+});
+
+describe('toolFor — a flat home is still its tool', () => {
+  it('does not hand a Codex home with no sessions/ subdir to Claude', () => {
+    // detectRoots can return the home ITSELF when it holds neither subdir, so
+    // the source dir's basename is the home's name. Falling through to claude
+    // there priced a ChatGPT Pro subscription at Claude Pro's $20 and labelled
+    // the card "Claude Code".
+    expect(toolFor('/home/u/.codex').id).toBe('codex');
+    expect(toolFor('/home/u/.codex-work').id).toBe('codex');
+  });
+
+  it('still answers claude for a plain custom root', () => {
+    expect(toolFor('/mnt/archive/old').id).toBe('claude');
   });
 });
 

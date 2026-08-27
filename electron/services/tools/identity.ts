@@ -29,6 +29,23 @@ function readJson<T>(file: string): T | null {
   }
 }
 
+/**
+ * Plans where the "organization" is the user themselves.
+ *
+ * Both vendors model a solo subscriber as a one-person org — OpenAI titles it
+ * "Personal", Anthropic uses the account holder's own name — so the field is
+ * present, truthful and useless. It is worth showing only when it names
+ * someone OTHER than the person reading the screen.
+ *
+ * An UNKNOWN plan is not personal. Answering true for null suppressed a real
+ * organization name whenever the plan failed to resolve — dropping information
+ * ccmon actually had, to answer a question it could not.
+ */
+const PERSONAL_PLANS = new Set(['free', 'plus', 'pro', 'max']);
+
+export const isPersonalPlan = (plan: string | null | undefined): boolean =>
+  !!plan && PERSONAL_PLANS.has(plan.toLowerCase());
+
 // ---- codex ------------------------------------------------------------------
 
 /** The OpenAI-namespaced claim block inside a Codex `id_token`. */
@@ -85,15 +102,20 @@ export function codexIdentity(root: string): AccountInfo | null {
 
   const payload = auth.tokens?.id_token ? decodeJwtPayload(auth.tokens.id_token) : null;
   const claims = payload?.[OAI_CLAIM];
+  const plan = claims?.chatgpt_plan_type ?? null;
   const orgs = claims?.organizations ?? [];
   const org = orgs.find((o) => o.is_default) ?? orgs[0];
 
   return {
     tool: 'codex',
-    plan: claims?.chatgpt_plan_type ?? null,
+    plan,
     tier: null, // Codex has no plan-multiplier concept
     email: payload?.email ?? null,
-    organization: org?.title ?? null,
+    // A personal ChatGPT account still carries an "organization" — OpenAI
+    // auto-creates one titled "Personal" and makes you its owner. That is a
+    // billing artifact, not an org, and showing it puts a meaningless row on
+    // the card. Only a plan that genuinely has an org keeps one.
+    organization: isPersonalPlan(plan) ? null : (org?.title ?? null),
     hasCredentials: true,
     authMode,
     cleanupPeriodDays: null, // Codex has no retention setting

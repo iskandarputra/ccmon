@@ -1,6 +1,6 @@
 <h1 align="center">ccmon</h1>
 
-<p align="center"><b>A live dashboard for everything Claude Code does on your machine.</b></p>
+<p align="center"><b>A live dashboard for everything Claude Code and Codex CLI do on your machine.</b></p>
 
 <p align="center">
   <a href="https://github.com/iskandarputra/ccmon/actions/workflows/ci.yml"><img src="https://github.com/iskandarputra/ccmon/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -20,10 +20,13 @@
 
 <p align="center"><i>A scripted tour across a synthetic multi-account dataset, recorded with <code>npm run promo</code>.</i></p>
 
-Claude Code already writes every response it gives you, with exact token
-counts, to local transcript files. ccmon watches those files and turns them
-into numbers you can actually read. What today cost. How hot your 5-hour
+Claude Code and Codex CLI already write every response they give you, with
+exact token counts, to local log files. ccmon watches those files and turns
+them into numbers you can actually read. What today cost. How hot your 5-hour
 window is running. Which model is eating the budget. When your limits reset.
+
+Both tools, in one dashboard, side by side — with each one's own accounts,
+plans and rate limits.
 
 No API key. No setup. No telemetry.
 
@@ -34,24 +37,33 @@ npm install
 npm run dev
 ```
 
-That's it. ccmon finds `~/.claude` on its own — plus any sibling
-`~/.claude-<name>` roots from a multi-account setup — indexes your history,
-then follows along. New responses appear within a second. First index is a few
-seconds for a normal history; allow a minute if you have thousands of sessions.
+That's it. ccmon finds your data on its own:
+
+| Tool | Where it looks |
+|---|---|
+| Claude Code | `~/.claude/projects/`, plus any sibling `~/.claude-<name>` root from a multi-account setup, and `$CLAUDE_CONFIG_DIR` |
+| Codex CLI | `${CODEX_HOME:-~/.codex}/sessions/` and `archived_sessions/` |
+
+It indexes your history, then follows along. New responses appear within a
+second. First index is a few seconds for a normal history; allow a minute if
+you have thousands of sessions.
 
 ## What it knows
 
-**Your real limits, live.** ccmon reads the same numbers the `/usage` screen
-in Claude Code reads. Then it learns your pace and tells you when you'll hit
-the cap. "Caps around Friday 1am at this pace" is more useful than a
-percentage.
+**Your real limits.** For Claude Code, ccmon reads the same numbers the
+`/usage` screen reads, live. Then it learns your pace and tells you when
+you'll hit the cap — "caps around Friday 1am at this pace" is more useful than
+a percentage. For Codex, the limits are written into the session log itself,
+so ccmon reads them with no network call at all; they carry an "as of" stamp
+because they are only ever as fresh as your last real turn.
 
-**Every account, side by side.** Got more than one Claude Code login? ccmon
-shows each account's identity, plan, and live limits at once. When one is
+**Every account, side by side — across both tools.** ccmon shows each
+account's identity, plan and limits at once, whichever CLI it belongs to, and
+how many sessions each one has running right now. When a Claude account is
 about to cap while another sits idle, it tells you, and hands you the exact
 `claude-cross-resume` command to pick up where you left off on the account
-that still has room. There's a setup wizard that writes the per-shell
-`claude-*` wrappers for you.
+that still has room. Codex gets the same treatment via `codex-cross-resume`.
+A setup wizard writes the per-shell `claude-*` and `codex-*` wrappers for you.
 
 **The current 5-hour block.** Burn rate, countdown, and a projection of
 where the block lands. Plus 30 days of block history, idle gaps included.
@@ -73,6 +85,13 @@ Spike days. Streaks. Historical pricing, so old months keep their old rates.
 Terrain, ridges, surfaces, a cumulative spend trail that snakes through the
 calendar. It's mostly there for fun, and that's fine.
 
+**Both tools priced properly.** Codex's tokens are cumulative and its
+`input_tokens` includes the cache, so a naive reading double-charges every
+cached prompt. Its long-context tier starts at 272K, not Anthropic's 200K.
+Its auto-review turns record a model id that no price list carries. ccmon
+handles each of those, and `npm run parity` proves the Claude side still
+matches ccusage exactly.
+
 Also: twelve views — keys `1` to `9` jump to the first nine, and a `⌘`/`Ctrl`+`K`
 command palette jumps anywhere, including a links page of official Claude
 and Anthropic channels and status pages. Seventeen themes (dracula pro by
@@ -83,10 +102,11 @@ crypto. Rates refresh hourly.
 
 Yes, and you can check. An automated parity test (`npm run parity`)
 cross-checks the token math against [ccusage](https://github.com/ccusage/ccusage)
-(MIT), the established CLI for Claude Code usage reports; current drift is
+(MIT), the established CLI for coding-agent usage reports; current drift is
 **0.000 percent** — an exact integer match on all four token fields across
-22,981 entries. 455 unit tests cover the parsing, pricing, block, forecast and
-shell-integration logic, and CI runs them on every push.
+29,230 entries. 814 unit tests cover the parsing, pricing, block, forecast,
+account and shell-integration logic, and CI runs them on Linux, macOS and
+Windows on every push.
 
 Costs are API list prices. On a Pro or Max subscription, read them as
 API-equivalent value rather than an invoice. Where a number is a heuristic,
@@ -98,10 +118,14 @@ exactly how it is computed.
 Everything stays on your machine, with three deliberate exceptions you can
 see and control in settings:
 
-- model prices refresh daily (LiteLLM catalog, cached, optional)
-- plan limits come from Anthropic's usage endpoint, read-only, using the
-  login Claude Code already stored
+- model prices refresh daily (LiteLLM and models.dev catalogs, cached,
+  optional)
+- Claude plan limits come from Anthropic's usage endpoint, read-only, using
+  the login Claude Code already stored
 - currency rates refresh hourly (open.er-api.com and CoinGecko)
+
+Codex adds none of these. Its rate limits, plan and identity are all read from
+files it already wrote on your disk — no OpenAI request is ever made.
 
 Turn pricing offline and ccmon runs from bundled snapshots. Nothing is
 written anywhere except your own disk.
@@ -157,7 +181,7 @@ with Linux, Windows and macOS artifacts attached
 (`.github/workflows/build.yml`):
 
 ```bash
-git tag v1.12.0 && git push origin v1.12.0
+git tag v1.13.0 && git push origin v1.13.0
 ```
 
 ### The `ccmon` command line
@@ -240,17 +264,24 @@ Optional, at `~/.config/ccmon/config.json`:
 ```json
 {
   "claudeDirs": ["/extra/claude/root"],
+  "codexDirs": ["/extra/codex/home"],
   "pricing": {
     "my-custom-model": { "in": 5, "out": 25, "w5m": 6.25, "w1h": 10, "read": 0.5 }
   }
 }
 ```
 
-`claudeDirs` adds data roots beyond `~/.claude` and `~/.config/claude`
-(multi-account setups get per-account scoping in settings). `pricing` takes
-per-MTok overrides; keys are case-insensitive regexes and always win, and they
-reach every field the engine uses — tier rates above 200k, the context window
-and the `-fast` multiplier, not just the five base rates.
+`claudeDirs` adds data roots beyond `~/.claude` and `~/.config/claude`;
+`codexDirs` does the same for Codex homes beyond `$CODEX_HOME` (which ccmon
+also accepts as a comma-separated list). Each is routed to its own reader, so
+a Claude root is never parsed as a Codex home. Multi-account setups get
+per-account scoping in settings.
+
+`pricing` takes per-MTok overrides; keys are case-insensitive regexes and
+always win, and they reach every field the engine uses — tier rates, the
+threshold those tiers start at (`tierAt`; 200k for Anthropic, 272k for
+OpenAI), the context window and the `-fast` multiplier, not just the five base
+rates.
 
 `modelAliases` and `projectAliases` rename model ids and project paths for
 display only:
@@ -270,6 +301,14 @@ lives in the Electron main process and pushes immutable snapshots over a
 typed IPC bridge to a sandboxed React renderer with one zustand store. The
 services never import Electron, which is why the whole pipeline also runs
 headless (`npm run smoke`).
+
+Supporting a second CLI takes two small registries, joined by id. A **source
+adapter** owns what is format-specific — where the logs are, which files carry
+usage, how a line becomes an entry. A **tool profile** owns what is
+install-specific — which env var selects the home, what a shell wrapper is
+called, where the credentials live. They stay separate because the adapters
+are stateless singletons that the headless CLI imports under plain Node, while
+account setup writes shell startup files and reads credential stores.
 
 Details in [docs/architecture.md](docs/architecture.md). The data contracts
 live in [docs/v2-spec.md](docs/v2-spec.md), and what's planned next in

@@ -281,6 +281,39 @@ describe('codex detectRoots — CODEX_HOME is a list', () => {
     expect(dirs).toContain(path.join(b, 'sessions'));
   });
 
+  it('uses the home itself when it holds neither sessions/ nor archived_sessions/', () => {
+    // Pointing CODEX_HOME straight at a directory of rollouts (an export, a
+    // backup, a mounted share) found nothing at all before: discovery only
+    // ever looked one level down. ccusage falls back to the dir itself.
+    const a = path.join(tmp, 'flat');
+    fs.mkdirSync(a, { recursive: true });
+    fs.writeFileSync(path.join(a, 'rollout-2026-08-15T20-44-21-x.jsonl'), '');
+
+    process.env.CODEX_HOME = a;
+    expect(codexAdapter.detectRoots()).toEqual([a]);
+  });
+
+  it('does not index a home twice when it is listed more than once', () => {
+    // CODEX_HOME and codexDirs can name the same home. The subdir was skipped
+    // as already-seen but the "no subdirs, use the home itself" branch then
+    // fired, so every rollout was discovered under TWO source roots — double
+    // the scan work, and tokens survived only by the dedupe key.
+    const a = path.join(tmp, 'dup');
+    fs.mkdirSync(path.join(a, 'sessions'), { recursive: true });
+
+    process.env.CODEX_HOME = a;
+    expect(codexAdapter.detectRoots([a])).toEqual([path.join(a, 'sessions')]);
+  });
+
+  it('prefers the subdirs over the home when both could match', () => {
+    const a = path.join(tmp, 'both');
+    fs.mkdirSync(path.join(a, 'sessions'), { recursive: true });
+    fs.writeFileSync(path.join(a, 'rollout-stray.jsonl'), '');
+
+    process.env.CODEX_HOME = a;
+    expect(codexAdapter.detectRoots()).toEqual([path.join(a, 'sessions')]);
+  });
+
   it('still honours a single CODEX_HOME', () => {
     const a = path.join(tmp, 'solo');
     fs.mkdirSync(path.join(a, 'sessions'), { recursive: true });

@@ -91,3 +91,25 @@ export function displayWindow(
     ? { start: liveEnd - SESSION_MS, end: liveEnd, live: true }
     : { start: block.start, end: block.end, live: false };
 }
+
+/**
+ * Human label for a self-reported rate-limit window, from its duration.
+ *
+ * The duration IS the identity here: Codex records `window_minutes` and
+ * nothing else, and which windows exist depends on the plan — a free account
+ * gets one monthly window, a paid one gets 5-hourly plus weekly. Codex's own
+ * `/status` calls the 43200-minute window "Monthly limit", so these match the
+ * words the user already sees there.
+ */
+export function windowLabel(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes <= 0) return 'limit';
+  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60 * 24) {
+    const h = minutes / 60;
+    return `session · ${Number.isInteger(h) ? h : h.toFixed(1)}h`;
+  }
+  const days = minutes / (60 * 24);
+  if (days === 7) return 'week';
+  if (days >= 28 && days <= 31) return 'month';
+  return `${Number.isInteger(days) ? days : days.toFixed(1)}d`;
+}

@@ -1,4 +1,14 @@
 /**
+ * The profile owning an account ROOT (as opposed to a source dir), matched on
+ * the home's own basename: `~/.codex-work` → codex. Claude is the fallback,
+ * which is also correct for a custom root configured via `claudeDirs`.
+ */
+export const toolForRoot = (root: string): ToolProfile => {
+  const base = basename(root);
+  return TOOLS.find((t) => base === `.${t.id}` || base.startsWith(`.${t.id}-`)) ?? claudeTool;
+};
+
+/**
  * @file tools.ts
  * @brief Coding-CLI tool registry — what an "account" means per tool, pure half.
  * @author Iskandar Putra <www.iskandarputra.com>
@@ -63,10 +73,18 @@ export interface ToolProfile {
 /** Last path segment, tolerant of either separator (Windows paths reach here). */
 const basename = (p: string): string => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
 
-/** Drop everything from the last separator on, keeping the rest verbatim. */
+/**
+ * Drop everything from the last separator on, keeping the rest verbatim.
+ *
+ * A TRAILING separator is stripped first. Discovery never produces one
+ * (`path.join` does not), but a hand-edited `claudeDirs`/`codexDirs` entry
+ * easily can, and without this the parent of `~/.claude/projects/` came back
+ * as `~/.claude/projects` — which then labelled the account "projects".
+ */
 const dirname = (p: string): string => {
-  const cut = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
-  return cut > 0 ? p.slice(0, cut) : p;
+  const trimmed = p.replace(/[\\/]+$/, '');
+  const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  return cut > 0 ? trimmed.slice(0, cut) : trimmed;
 };
 
 /** Shared naming rule: `.<tool>` → `<tool>-personal`, `.<tool>-x` → `<tool>-x`. */
@@ -110,24 +128,20 @@ export const TOOLS: ToolProfile[] = [claudeTool, codexTool];
 export const toolById = (id: string): ToolProfile => TOOLS.find((t) => t.id === id) ?? claudeTool;
 
 /**
- * The profile owning a source dir, matched on the dir's own basename.
+ * The profile owning a source dir.
  *
- * Falls back to `claude` rather than throwing: a stale path in a hand-edited
- * `settings.json` should degrade to a plain-looking account row, not take the
- * whole accounts view down.
+ * Two rules, in order: the dir IS one of a tool's data dirs, or failing that
+ * the dir is itself a home (`toolForRoot`) — the shape a Codex home with no
+ * `sessions/` subdir takes, which `detectRoots` can legitimately return.
+ * Attributing one of those to Claude priced a ChatGPT Pro subscription at
+ * Claude Pro's $20 and labelled the card "Claude Code".
+ *
+ * Neither rule matching degrades to `claude` rather than throwing: a stale
+ * path in a hand-edited `settings.json` should yield a plain-looking account
+ * row, not take the whole accounts view down.
  */
 export const toolFor = (sourceDir: string): ToolProfile =>
-  TOOLS.find((t) => t.dataDirs.includes(basename(sourceDir))) ?? claudeTool;
-
-/**
- * The profile owning an account ROOT (as opposed to a source dir), matched on
- * the home's own basename: `~/.codex-work` → codex. Claude is the fallback,
- * which is also correct for a custom root configured via `claudeDirs`.
- */
-export const toolForRoot = (root: string): ToolProfile => {
-  const base = basename(root);
-  return TOOLS.find((t) => base === `.${t.id}` || base.startsWith(`.${t.id}-`)) ?? claudeTool;
-};
+  TOOLS.find((t) => t.dataDirs.includes(basename(sourceDir))) ?? toolForRoot(sourceDir);
 
 /**
  * A source dir's account root (the tool's home).

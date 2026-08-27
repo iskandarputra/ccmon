@@ -19,7 +19,8 @@ import {
 import fs from 'fs';
 import path from 'path';
 import { detectSourceRoots } from './services/adapters';
-import { toolFor, toolForRoot } from '../shared/tools';
+import type { SourceRoot } from './services/adapters/types';
+import { accountGroups, toolFor, toolForRoot } from '../shared/tools';
 import { loadConfig, CONFIG_PATH } from './services/config';
 import { Settings } from './services/settings';
 import { createPricingEngine, costForMode, type PricingEngine } from './services/pricing';
@@ -53,6 +54,7 @@ import {
   visibleAccountDirs,
   writeWrapperAccounts,
 } from './services/account-setup';
+import { liveSessions as readLiveSessions } from './services/tools/sessions';
 import { LimitsHistory } from './services/limits-history';
 import { CurrencyService } from './services/currency';
 import { fetchBalance } from './services/deepseek';
@@ -90,6 +92,7 @@ import type {
   SetupOptions,
   Snapshot,
   TimeRange,
+  LiveSession,
   ToolId,
   UsageEntry,
 } from '../shared/types';
@@ -107,6 +110,9 @@ const RECOMPUTE_DEBOUNCE_MS = 250;
 const RECOMPUTE_MIN_INTERVAL_MS = 2000;
 const PERIODIC_REFRESH_MS = 60000; // day rollover / block expiry without events
 const LIMITS_REFRESH_MS = 60_000; // live plan-limits poll
+// Local only — a few small files in dirs the app already watches. 10s keeps
+// "is a session running" honest without the 60s lag of the limits poll.
+const SESSIONS_REFRESH_MS = 10_000;
 const LIMITS_RETRY_MS = 60_000; // FIXED retry after a limits failure — no exponential growth
 const CURRENCY_REFRESH_MS = 3_600_000; // hourly display-currency rates
 // A prepaid balance moves far slower than a rate-limit window and the endpoint
@@ -142,7 +148,17 @@ interface MainState {
   snapshot: Snapshot | null;
   status: AppStatus;
   progress: ScanProgress;
-  /** every discovered source dir, hidden ones included */
+  /**
+   * Every discovered source root, hidden ones included, WITH its adapter.
+   *
+   * The tags are the point. `detectSourceRoots` works out which format owns
+   * each dir, and main used to keep only `allSourceDirs` — so the watcher
+   * received bare strings, fell back to the Claude adapter for all of them,
+   * and read every Codex rollout with the wrong parser. The app held zero
+   * Codex entries while the CLI, which passes tagged roots, held them all.
+   */
+  allSourceRoots: SourceRoot[];
+  /** every discovered source dir, hidden ones included — derived from the above */
   allSourceDirs: string[];
   /** the dirs ccmon actually shows and polls — `allSourceDirs` minus hidden */
   sourceDirs: string[];
@@ -191,6 +207,7 @@ const state: MainState = {
   snapshot: null,
   status: 'scanning',
   progress: { scanned: 0, total: 0, entries: 0 },
+  allSourceRoots: [],
   allSourceDirs: [],
   sourceDirs: [],
   recomputeTimer: null,
@@ -242,10 +259,11 @@ function applyVisibility(): boolean {
 /** Re-detect roots from disk and re-apply the hide prefs on top. */
 function refreshSourceDirs(): void {
   const cfg = loadConfig();
-  state.allSourceDirs = detectSourceRoots({
+  state.allSourceRoots = detectSourceRoots({
     claude: cfg.claudeDirs || [],
     codex: cfg.codexDirs || [],
-  }).map((r) => r.dir);
+  });
+  state.allSourceDirs = state.allSourceRoots.map((r) => r.dir);
   applyVisibility();
   state.accounts = accountsFor(state.sourceDirs);
 }
@@ -366,7 +384,41 @@ function recompute(force = false): void {
     range: resolveRange(state.range, now, state.settings?.get().timezone || null),
   });
   send('usage:snapshot', state.snapshot);
+  // Self-reported limits change exactly when entries do (they ride on a usage
+  // line), so they publish on the same path. Sending them ONLY in
+  // `app:getState` left them empty forever: the renderer calls that once, at
+  // startup, while the first scan is still running.
+  pushToolLimits();
   refreshTray();
+}
+
+/**
+ * Running sessions per account, from each tool's own registry.
+ *
+ * Polled rather than pushed: a session starting or ending is not an event
+ * ccmon can subscribe to, and the read is a handful of small files in
+ * directories the app already knows. Signature-compared so an unchanged set
+ * costs one IPC message per interval and no renderer work.
+ */
+let lastSessionsSig = '';
+function pushLiveSessions(force = false): void {
+  const out: Record<string, LiveSession[]> = {};
+  // Keyed by the group's FIRST dir, not every dir. A Codex home feeds two
+  // source dirs that resolve to one root, so emitting both would hand the
+  // renderer the same session list twice and double every count.
+  for (const group of accountGroups(state.sourceDirs)) {
+    const found = readLiveSessions(group.root);
+    if (found.length) out[group.dirs[0]] = found;
+  }
+  const sig = JSON.stringify(out);
+  if (!force && sig === lastSessionsSig) return;
+  lastSessionsSig = sig;
+  send('sessions:live', out);
+}
+
+/** Publish the transcript-recorded rate limits (Codex) to the renderer. */
+function pushToolLimits(): void {
+  send('limits:tool', Object.fromEntries(state.watcher?.limitsFor(null) ?? []));
 }
 
 function pushPricingMeta(): void {
@@ -668,7 +720,9 @@ function startWatcher(): void {
   // so unhiding has to bring the account back live rather than needing a
   // relaunch to start watching it again
   const watcher = new UsageWatcher({
-    dirs: state.allSourceDirs,
+    // TAGGED roots, never bare dirs: a bare string makes the watcher guess the
+    // adapter, and guessing wrong reads a whole format with the wrong parser.
+    dirs: state.allSourceRoots,
     timezone: state.settings?.get().timezone || null,
   });
   state.watcher = watcher;
@@ -918,6 +972,13 @@ ipcMain.handle('app:getState', (): AppState => ({
   pricingMeta: state.pricingMeta,
   accounts: state.accounts,
   limits: state.limits,
+  // limits the TOOL recorded in its own transcript (Codex) — no poll involved
+  toolLimits: Object.fromEntries(state.watcher?.limitsFor(null) ?? []),
+  liveSessions: Object.fromEntries(
+    accountGroups(state.sourceDirs)
+      .map((g) => [g.dirs[0], readLiveSessions(g.root)] as const)
+      .filter(([, v]) => v.length),
+  ),
   currency: state.currency ? state.currency.get() : null,
   deepseek: state.deepseek,
   deepseekAuth: state.deepseekKey
@@ -1346,6 +1407,8 @@ void app.whenReady().then(async () => {
     if (state.status === 'ready') recompute();
   }, PERIODIC_REFRESH_MS);
   setInterval(() => void refreshLimits(), LIMITS_REFRESH_MS);
+  pushLiveSessions(true);
+  setInterval(() => pushLiveSessions(), SESSIONS_REFRESH_MS);
   setInterval(() => void refreshCurrency(), CURRENCY_REFRESH_MS);
   setInterval(() => void refreshDeepseek(), DEEPSEEK_REFRESH_MS);
 

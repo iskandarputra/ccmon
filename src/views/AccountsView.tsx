@@ -16,9 +16,18 @@ import { useUsageStore } from '../store/useUsageStore';
 import { useNow } from '../hooks/useNow';
 import { useScopedDirs } from '../hooks/useScopedDirs';
 import { refreshAccounts, updateSettings } from '../bootstrap';
-import { fmtPct, fmtTok, fmtUSD, relTime, sourceLabel, tildify } from '../lib/format';
-import { limitColor } from '../lib/limits';
-import { planBadgeColor, planPriceUSD } from '../lib/plans';
+import {
+  countdown,
+  fmtPct,
+  fmtTok,
+  fmtUSD,
+  relTime,
+  resetTime,
+  sourceLabel,
+  tildify,
+} from '../lib/format';
+import { limitColor, windowLabel } from '../lib/limits';
+import { noPriceReason, planBadgeColor, planLabel, planPriceUSD } from '../lib/plans';
 import {
   accountRoot,
   crossAccountAdvice,
@@ -34,7 +43,9 @@ import type {
   AccountInfo,
   AccountSpend,
   AccountWrapperPrefs,
+  LimitsMarker,
   LimitsResult,
+  LiveSession,
   LimitWindow,
   RecentSession,
 } from '../../shared/types';
@@ -161,10 +172,23 @@ function Ring({ pct }: { pct: number }) {
 }
 
 /** One live-limit window as a labelled meter. */
-function WindowMeter({ label, win }: { label: string; win?: LimitWindow | null }) {
+function WindowMeter({
+  label,
+  win,
+  now,
+}: {
+  label: string;
+  win?: LimitWindow | null;
+  now?: number;
+}) {
   if (!win || (win.pct == null && !win.resetsAt)) return null;
   const pct = win.pct;
   const color = limitColor(pct);
+  // The reset instant is half the answer: "99% used" is alarming until you
+  // know it clears in three weeks. Codex's own /status leads with it, so the
+  // wording matches ("20:46 on 14 Sep") rather than inventing a second phrasing.
+  const left = win.resetsAt && now ? win.resetsAt - now : 0;
+  const resets = left > 0 ? `in ${countdown(left)} · ${resetTime(win.resetsAt!, now)}` : null;
   return (
     <div className="acc-meter">
       <div className="acc-meter-head">
@@ -176,6 +200,7 @@ function WindowMeter({ label, win }: { label: string; win?: LimitWindow | null }
       <div className="acc-meter-track">
         <i style={cssVars({ width: `${Math.min(100, Math.max(pct ?? 0, 2))}%`, '--mc': color })} />
       </div>
+      {resets && <span className="acc-meter-reset">resets {resets}</span>}
     </div>
   );
 }
@@ -190,6 +215,10 @@ interface AccountCardProps {
   tool: ToolProfile;
   acct: AccountInfo | undefined;
   limit: LimitsResult | undefined;
+  /** limits the tool recorded itself (Codex) — never fetched, possibly stale */
+  recorded: LimitsMarker | undefined;
+  /** sessions of this account running right now */
+  running: LiveSession[];
   spend: AccountSpend | undefined;
   inScope: boolean;
   canScope: boolean;
@@ -215,6 +244,8 @@ function AccountCard({
   tool,
   acct,
   limit,
+  recorded,
+  running,
   spend,
   inScope,
   canScope,
@@ -222,7 +253,7 @@ function AccountCard({
   now,
 }: AccountCardProps) {
   const label = sourceLabel(dir);
-  const price = planPriceUSD(acct?.plan ?? null, acct?.tier ?? null);
+  const price = planPriceUSD(acct?.plan ?? null, acct?.tier ?? null, tool.id);
   const loggedIn = acct?.hasCredentials ?? false;
 
   const [recent, setRecent] = useState<RecentSession[]>([]);
@@ -256,6 +287,8 @@ function AccountCard({
   const wrapperName = prefs[root]?.name || suggestWrapperName(root);
   const wrapperDisabled = prefs[root]?.disabled ?? false;
 
+  /** the running-sessions list, expanded from the count badge */
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [hideOpen, setHideOpen] = useState(false);
   const [wrapperBusy, setWrapperBusy] = useState(false);
@@ -399,9 +432,20 @@ function AccountCard({
               className="acc-plan"
               style={cssVars({ '--pc': planBadgeColor(acct.plan, acct.tier) ?? 'var(--text-dim)' })}
             >
-              {acct.plan}
-              {acct.tier ? ` · ${acct.tier}` : ''}
+              {planLabel(acct.plan, acct.tier, tool.id)}
             </span>
+          )}
+          {running.length > 0 && (
+            <button
+              type="button"
+              className={`acc-running${sessionsOpen ? ' is-open' : ''}`}
+              onClick={() => setSessionsOpen((v) => !v)}
+              title="which sessions are running right now"
+              aria-expanded={sessionsOpen}
+            >
+              <i className="acc-running-dot" />
+              {running.length} running
+            </button>
           )}
           {inScope && <span className="acc-scoped-badge">viewing</span>}
         </span>
@@ -428,6 +472,22 @@ function AccountCard({
         {acct?.authMode === 'apikey' && !acct.email && <span className="acc-org">API key</span>}
         <span className="acc-root">{tildify(root)}</span>
       </div>
+
+      {sessionsOpen && running.length > 0 && (
+        <ul className="acc-sessions">
+          {running.map((r) => (
+            <li className="acc-session" key={r.id}>
+              <span
+                className={`acc-session-state is-${r.status ?? 'unknown'}`}
+                title={r.status ?? 'status not reported by this tool'}
+              />
+              <span className="acc-session-name">{r.label ?? r.id.slice(0, 8)}</span>
+              {r.cwd && <code className="acc-session-cwd">{tildify(r.cwd)}</code>}
+              {r.startedAt && <span className="acc-session-age">{relTime(r.startedAt, now)}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="acc-wrapper">
         <span className="acc-wrapper-label">shell:</span>
@@ -600,12 +660,34 @@ function AccountCard({
         />
       )}
 
-      {loggedIn && limit?.ok ? (
+      {recorded ? (
+        /* Limits the tool wrote into its own transcript. Rendered with an
+           as-of stamp rather than the live dot: this is only ever as fresh as
+           the last real TURN — /status and /usage write nothing — so a figure
+           here can be days behind the account's true position. */
         <div className="acc-meters">
-          <WindowMeter label="session · 5h" win={limit.session} />
-          <WindowMeter label="week · all" win={limit.week} />
-          <WindowMeter label="week · opus" win={limit.weekOpus} />
-          <WindowMeter label="week · sonnet" win={limit.weekSonnet} />
+          {(
+            [
+              ['primary', recorded.primary],
+              ['secondary', recorded.secondary],
+            ] as const
+          )
+            .filter(([, w]) => w)
+            .map(([slot, w]) => (
+              <WindowMeter
+                key={slot}
+                label={windowLabel(w!.windowMinutes)}
+                win={{ pct: w!.usedPercent, resetsAt: w!.resetsAt }}
+                now={now}
+              />
+            ))}
+        </div>
+      ) : loggedIn && limit?.ok ? (
+        <div className="acc-meters">
+          <WindowMeter label="session · 5h" win={limit.session} now={now} />
+          <WindowMeter label="week · all" win={limit.week} now={now} />
+          <WindowMeter label="week · opus" win={limit.weekOpus} now={now} />
+          <WindowMeter label="week · sonnet" win={limit.weekSonnet} now={now} />
         </div>
       ) : (
         <div className="acc-nolimit">
@@ -620,7 +702,7 @@ function AccountCard({
                 logged in, there is simply nothing to poll. An empty meter
                 would read as "at zero", the opposite of "unknown". */}
             {tool.id !== 'claude'
-              ? `${tool.label} publishes no usage-limit API — spend below is measured from your local logs`
+              ? `${tool.label} records its limits per turn — none seen yet in this account's logs`
               : !loggedIn
                 ? 'no stored login on this account'
                 : limit && !limit.ok
@@ -708,13 +790,25 @@ function AccountCard({
             <span className="acc-dim"> /mo plan</span>
           </span>
         ) : (
-          <span className="acc-price acc-dim">seat-priced plan</span>
-        )}
-        {limit?.ok && (
-          <span className="acc-live">
-            <i className="acc-live-dot" />
-            live · {relTime(limit.fetchedAt, now)}
+          <span className="acc-price acc-dim">
+            {noPriceReason(acct?.plan ?? null, acct?.organization ?? null)}
           </span>
+        )}
+        {recorded ? (
+          /* Deliberately NOT the live dot. These were read out of a rollout,
+             so they are only as fresh as the last real turn — /status and
+             /usage write nothing. Say when, not "live". */
+          <span className="acc-live acc-recorded" title="read from the session log, not polled">
+            <i className="acc-recorded-dot" />
+            as of {relTime(recorded.observedAt, now)}
+          </span>
+        ) : (
+          limit?.ok && (
+            <span className="acc-live">
+              <i className="acc-live-dot" />
+              live · {relTime(limit.fetchedAt, now)}
+            </span>
+          )
         )}
       </div>
     </Panel>
@@ -829,6 +923,8 @@ function HeadroomBanner() {
 export function AccountsView() {
   const accounts = useUsageStore((s) => s.accounts);
   const limits = useUsageStore((s) => s.limits);
+  const toolLimits = useUsageStore((s) => s.toolLimits);
+  const liveSessions = useUsageStore((s) => s.liveSessions);
   const spend = useUsageStore((s) => s.snapshot?.accountSpend);
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
   const allSourceDirs = useUsageStore((s) => s.allSourceDirs);
@@ -917,6 +1013,8 @@ export function AccountsView() {
             tool={group.tool}
             acct={accounts[group.dirs[0]]}
             limit={limits[group.dirs[0]]}
+            recorded={group.dirs.map((d) => toolLimits[d]).find(Boolean)}
+            running={group.dirs.flatMap((d) => liveSessions[d] ?? [])}
             spend={spend?.[group.dirs[0]]}
             inScope={group.dirs.some((d) => scopedSet.has(d))}
             canScope={canScope}

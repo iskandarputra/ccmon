@@ -246,3 +246,30 @@
   stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
+
+/* A reading taken from the tool's own session log rather than polled. Muted
+   and dotless: every other account in this panel IS live, and this one must
+   not borrow that authority. */
+.plim-recorded {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Which CLI this row's account belongs to. The panel used to be
+   Anthropic-only, so the name alone identified it; with Codex alongside it
+   does not. Quiet — the account name and plan stay louder. */
+.plim-tool {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--text-dim);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-dim) 10%, transparent);
+  border: 1px solid var(--line-soft);
+  white-space: nowrap;
+}

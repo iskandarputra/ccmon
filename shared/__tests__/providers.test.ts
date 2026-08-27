@@ -35,9 +35,12 @@ describe('detectProvider — first-party', () => {
   });
 
   it('returns null for genuinely unknown ids', () => {
-    expect(detectProvider('gpt-5.5')).toBeNull();
+    // `gpt-5.5` used to stand here as the example of an unknown id. It is a
+    // first-class model now — ccmon reads, prices and displays it — so the
+    // example moved to something no rule claims.
     expect(detectProvider('')).toBeNull();
     expect(detectProvider('some-internal-thing')).toBeNull();
+    expect(detectProvider('opus-something')).toBeNull();
   });
 });
 
@@ -98,7 +101,7 @@ describe('detectProviders', () => {
   });
 
   it('skips unknown ids without inventing a provider', () => {
-    expect(detectProviders(['gpt-5.5', 'mystery'])).toEqual([]);
+    expect(detectProviders(['some-internal-thing', 'mystery'])).toEqual([]);
   });
 });
 
@@ -130,7 +133,7 @@ describe('isApiKeyOnly — decides whether a subscription comparison is honest',
 
   it('is false when nothing is recognised — never guess a billing model', () => {
     expect(isApiKeyOnly([])).toBe(false);
-    expect(isApiKeyOnly(['gpt-5.5'])).toBe(false);
+    expect(isApiKeyOnly(['some-internal-thing'])).toBe(false);
   });
 });
 
@@ -140,5 +143,48 @@ describe('DeepSeek helpers', () => {
     expect(isDeepseekModel('claude-opus-5')).toBe(false);
     expect(usesDeepseek(['claude-opus-5', 'deepseek-v4-flash'])).toBe(true);
     expect(usesDeepseek(['claude-opus-5'])).toBe(false);
+  });
+
+  it('is not confused by OpenAI ids', () => {
+    expect(usesDeepseek(['gpt-5.5', 'claude-opus-5'])).toBe(false);
+  });
+});
+
+describe('detectProvider — OpenAI / Codex', () => {
+  it('recognises the gpt family rather than bucketing it as Other', () => {
+    // Codex usage previously fell through every rule, so it landed in the
+    // provider breakdown's "Other" bucket — the same hole Bedrock and Vertex
+    // ids used to fall through before the rules became channel-aware.
+    for (const m of ['gpt-5', 'gpt-5.5', 'gpt-5.6-terra', 'gpt-5.2-codex']) {
+      expect(detectProvider(m), m).toMatchObject({
+        id: 'openai',
+        label: 'OpenAI',
+        deployment: 'first-party',
+      });
+    }
+  });
+
+  it('recognises the reasoning-model and prefixed spellings', () => {
+    expect(detectProvider('o3-mini')).toMatchObject({ id: 'openai' });
+    expect(detectProvider('openai/gpt-5')).toMatchObject({ id: 'openai' });
+  });
+
+  it('treats a -fast variant as the same model on the same channel', () => {
+    expect(detectProvider('gpt-5.5-fast')).toEqual(detectProvider('gpt-5.5'));
+  });
+
+  it('keeps a Claude subscription comparison honest alongside Codex usage', () => {
+    // Codex is consumption-billed, but its presence must not flip the whole
+    // view into api-key-only mode while a first-party Claude login is there.
+    expect(isApiKeyOnly(['claude-opus-5', 'gpt-5.6-terra'])).toBe(false);
+    expect(isApiKeyOnly(['gpt-5.6-terra'])).toBe(true);
+  });
+
+  it('lists each provider once, in first-seen order', () => {
+    expect(
+      detectProviders(['claude-opus-5', 'gpt-5.5', 'claude-sonnet-5', 'deepseek-v4-pro']).map(
+        (p) => p.id,
+      ),
+    ).toEqual(['anthropic', 'openai', 'deepseek']);
   });
 });
