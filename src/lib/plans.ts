@@ -65,7 +65,11 @@ export function planLabel(
   const seat = tier ? `Pro Max x${tier.replace(/x$/i, '')}` : p.includes('max') ? 'Pro Max' : 'Pro';
   if (p.includes('team')) return `Team - ${seat}`;
   if (p.includes('enterprise')) return `Enterprise - ${seat}`;
-  return seat;
+  // Only claim "Pro" for a plan that actually says so. Defaulting to it meant
+  // a free — or merely unrecognised — Claude account advertised a paid
+  // subscription it does not have.
+  if (p.includes('pro') || p.includes('max')) return seat;
+  return title(p);
 }
 
 /**

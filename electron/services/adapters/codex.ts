@@ -85,6 +85,19 @@ const AUTO_REVIEW_FALLBACKS: ReadonlyArray<{ releasedOn: string; model: string }
 ];
 
 /**
+ * Every id the fallback table can resolve to.
+ *
+ * Exported so a pricing test can assert each one is actually PRICEABLE. The
+ * table exists to stop an auto-review turn billing at $0, and it only achieves
+ * that if the id it maps TO resolves to a rate — models.dev has since retired
+ * the older codex models, so three of these are carried by the committed
+ * snapshot alone.
+ */
+export const AUTO_REVIEW_MODELS: readonly string[] = [
+  ...new Set([...AUTO_REVIEW_FALLBACKS.map((f) => f.model), FALLBACK_MODEL]),
+];
+
+/**
  * Resolve `codex-auto-review` to the model that ran on `iso`'s date. Any other
  * model id passes through untouched.
  *
@@ -313,7 +326,14 @@ export const codexAdapter: SourceAdapter = {
       let found = false;
       for (const name of ['sessions', 'archived_sessions']) {
         const dir = path.join(home, name);
-        if (seen.has(dir)) continue;
+        if (seen.has(dir)) {
+          // Already claimed by an earlier pass over the SAME home (a repeated
+          // CODEX_HOME entry, or one also listed in codexDirs). Still counts
+          // as FOUND — without this the home fell through to the flat-home
+          // branch below and every rollout was indexed under two source roots.
+          found = true;
+          continue;
+        }
         if (!isDir(dir)) continue;
         seen.add(dir);
         out.push(dir);

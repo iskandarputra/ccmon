@@ -292,14 +292,21 @@ export function PlanLimits() {
                 </span>
               </div>
               <div className="plim-wins">
-                {[m.primary, m.secondary].filter(Boolean).map((w) => (
-                  <WindowTile
-                    key={w!.windowMinutes}
-                    label={windowLabel(w!.windowMinutes)}
-                    win={{ pct: w!.usedPercent, resetsAt: w!.resetsAt }}
-                    now={now}
-                  />
-                ))}
+                {(
+                  [
+                    ['primary', m.primary],
+                    ['secondary', m.secondary],
+                  ] as const
+                )
+                  .filter(([, w]) => w)
+                  .map(([slot, w]) => (
+                    <WindowTile
+                      key={slot}
+                      label={windowLabel(w!.windowMinutes)}
+                      win={{ pct: w!.usedPercent, resetsAt: w!.resetsAt }}
+                      now={now}
+                    />
+                  ))}
               </div>
             </div>
           );

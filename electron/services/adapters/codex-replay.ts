@@ -178,6 +178,11 @@ const num = (o: Record<string, number> | null | undefined, k: string): number =>
  * forked child and only when one exists.
  */
 export function readParentPrefix(file: string, forkedAt: number | null): ReplayUsage[] {
+  // No fork instant means no boundary, and an UNBOUNDED prefix is worse than
+  // none: it carries usage the parent recorded after the branch, which was
+  // never replayed, and `stepReplay` would then match the child's own first
+  // genuine turn against it and drop it. Refuse the anchor instead.
+  if (forkedAt == null) return [];
   let text: string;
   try {
     text = fs.readFileSync(file, 'utf8');
@@ -241,15 +246,19 @@ export function readParentPrefix(file: string, forkedAt: number | null): ReplayU
 export function detectRewrittenBurst(file: string): number | null {
   let text: string;
   try {
-    // 64KB is far more than the handful of lines a burst head occupies
-    const fd = fs.openSync(file, 'r');
-    try {
-      const buf = Buffer.alloc(64 * 1024);
-      const n = fs.readSync(fd, buf, 0, buf.length, 0);
-      text = buf.toString('utf8', 0, n);
-    } finally {
-      fs.closeSync(fd);
-    }
+    // The WHOLE file, not a head window.
+    //
+    // A fork replays the parent's entire conversation — every response_item,
+    // tool output included — before its own first turn, so the two usage
+    // events this needs sit after all of it. A 64KB window reached them only
+    // for a trivial parent; for any real one `first` stayed null, the
+    // function returned null, and the whole replayed prefix billed twice.
+    // That is precisely the path taken when the parent rollout is pruned or
+    // came from another machine, where the double-billing is unrecoverable.
+    //
+    // Affordable because it runs at most once per FORKED rollout, and only
+    // when the parent's own stream could not anchor the replay.
+    text = fs.readFileSync(file, 'utf8');
   } catch {
     return null;
   }

@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { codexAdapter, type CodexState, tierToFast } from '../adapters/codex';
 import { ADAPTERS, adapterById } from '../adapters';
 import { UsageWatcher } from '../watcher';
+import { readParentPrefix } from '../adapters/codex-replay';
 import type { UsageEntry } from '../../../shared/types';
 
 let tmp: string;
@@ -898,6 +899,49 @@ describe('forked sessions — the replayed prefix is not billed twice', () => {
 
     const entries = await run();
     expect(entries.reduce((n, e) => n + e.in, 0)).toBe(100 + 200 + 999);
+  });
+
+  it('finds the burst even when the replayed history is huge', async () => {
+    // The head-window bug. A fork replays the parent's WHOLE conversation —
+    // every response_item, tool output included — before its own first turn,
+    // so the two usage events the burst check needs sit after all of it. A
+    // 64KB window reached them only for a toy parent; for a real one the check
+    // silently found nothing and the entire replayed prefix billed twice.
+    const filler = JSON.stringify({
+      timestamp: '2026-05-13T10:00:00.005Z',
+      type: 'response_item',
+      payload: { type: 'message', text: 'x'.repeat(2000) },
+    });
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      ...Array.from({ length: 60 }, () => filler), // ~120KB before any usage
+      usage(100, 10, '2026-05-13T10:00:00.010Z'), // replayed
+      usage(200, 20, '2026-05-13T10:00:00.025Z'), // replayed
+      usage(300, 30, '2026-05-13T10:00:06.000Z'), // the child's own turn
+    ]);
+
+    const entries = await run();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].in).toBe(300);
+  });
+
+  it('refuses a parent prefix when the fork instant is unreadable', () => {
+    // Tested directly: end-to-end, the burst fallback would mask it. Without a
+    // fork instant there is no boundary, so the prefix would be the parent's
+    // ENTIRE history — including turns recorded after the branch that were
+    // never replayed. stepReplay would then match the child's own first real
+    // turn against one of them and silently drop it.
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(700, 70, '2026-05-13T11:00:00.000Z'), // after a 10:00 fork
+    ]);
+    const parentFile = path.join(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`);
+
+    expect(readParentPrefix(parentFile, Date.parse('2026-05-13T10:00:00.000Z'))).toEqual([
+      { in: 100, cached: 0, out: 10 },
+    ]);
+    expect(readParentPrefix(parentFile, null)).toEqual([]);
   });
 
   it('does not replay parent usage recorded AFTER the fork', async () => {

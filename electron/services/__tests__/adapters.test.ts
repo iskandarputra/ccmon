@@ -293,6 +293,18 @@ describe('codex detectRoots — CODEX_HOME is a list', () => {
     expect(codexAdapter.detectRoots()).toEqual([a]);
   });
 
+  it('does not index a home twice when it is listed more than once', () => {
+    // CODEX_HOME and codexDirs can name the same home. The subdir was skipped
+    // as already-seen but the "no subdirs, use the home itself" branch then
+    // fired, so every rollout was discovered under TWO source roots — double
+    // the scan work, and tokens survived only by the dedupe key.
+    const a = path.join(tmp, 'dup');
+    fs.mkdirSync(path.join(a, 'sessions'), { recursive: true });
+
+    process.env.CODEX_HOME = a;
+    expect(codexAdapter.detectRoots([a])).toEqual([path.join(a, 'sessions')]);
+  });
+
   it('prefers the subdirs over the home when both could match', () => {
     const a = path.join(tmp, 'both');
     fs.mkdirSync(path.join(a, 'sessions'), { recursive: true });

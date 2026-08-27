@@ -666,14 +666,21 @@ function AccountCard({
            the last real TURN — /status and /usage write nothing — so a figure
            here can be days behind the account's true position. */
         <div className="acc-meters">
-          {[recorded.primary, recorded.secondary].filter(Boolean).map((w) => (
-            <WindowMeter
-              key={w!.windowMinutes}
-              label={windowLabel(w!.windowMinutes)}
-              win={{ pct: w!.usedPercent, resetsAt: w!.resetsAt }}
-              now={now}
-            />
-          ))}
+          {(
+            [
+              ['primary', recorded.primary],
+              ['secondary', recorded.secondary],
+            ] as const
+          )
+            .filter(([, w]) => w)
+            .map(([slot, w]) => (
+              <WindowMeter
+                key={slot}
+                label={windowLabel(w!.windowMinutes)}
+                win={{ pct: w!.usedPercent, resetsAt: w!.resetsAt }}
+                now={now}
+              />
+            ))}
         </div>
       ) : loggedIn && limit?.ok ? (
         <div className="acc-meters">

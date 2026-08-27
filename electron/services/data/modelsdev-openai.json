@@ -128,6 +128,17 @@
       "output": 128000
     }
   },
+  "gpt-5-codex": {
+    "cost": {
+      "cache_read": 0.13,
+      "input": 1.25,
+      "output": 10
+    },
+    "limit": {
+      "context": 400000,
+      "output": 128000
+    }
+  },
   "gpt-5-mini": {
     "cost": {
       "cache_read": 0.025,
@@ -171,6 +182,17 @@
       "output": 128000
     }
   },
+  "gpt-5.1-codex": {
+    "cost": {
+      "cache_read": 0.125,
+      "input": 1.25,
+      "output": 10
+    },
+    "limit": {
+      "context": 400000,
+      "output": 128000
+    }
+  },
   "gpt-5.2": {
     "cost": {
       "cache_read": 0.175,
@@ -191,6 +213,17 @@
     "limit": {
       "context": 128000,
       "output": 16384
+    }
+  },
+  "gpt-5.2-codex": {
+    "cost": {
+      "cache_read": 0.175,
+      "input": 1.75,
+      "output": 14
+    },
+    "limit": {
+      "context": 400000,
+      "output": 128000
     }
   },
   "gpt-5.2-pro": {

@@ -9,6 +9,7 @@ import os from 'os';
 import path from 'path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { costForMode, createPricingEngine } from '../pricing';
+import { AUTO_REVIEW_MODELS } from '../adapters/codex';
 import { PricingArchive } from '../pricing-archive';
 import { makeEntry } from './helpers';
 import bundled from '../data/litellm-claude.json';
@@ -251,6 +252,19 @@ describe('pricing — OpenAI / Codex models', () => {
     const e = await createPricingEngine({ offline: true });
     const at250k = e.cost('gpt-5.6-terra', { in: 250_000 })!;
     expect(at250k).toBeCloseTo(250_000 * 2e-6, 9); // base rate, not 4e-6
+  });
+
+  it('prices EVERY model the auto-review table can resolve to', async () => {
+    // The table exists to stop an auto-review turn billing at $0, and it only
+    // does that if the id it maps TO is itself priceable. models.dev has since
+    // retired the older codex models, so three of the seven mapped to nothing
+    // and the table swapped one unpriced string for another.
+    const e = await createPricingEngine({ offline: true });
+    for (const model of AUTO_REVIEW_MODELS) {
+      const usd = e.cost(model, { in: 1_000_000 });
+      expect(usd, `${model} must be priced — the fallback table maps to it`).not.toBeNull();
+      expect(usd!, model).toBeGreaterThan(0);
+    }
   });
 
   it('bills gpt-5.5 fast turns at 2.5×, not the default 2×', async () => {

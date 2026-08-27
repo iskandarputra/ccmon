@@ -36,11 +36,15 @@ function readJson<T>(file: string): T | null {
  * "Personal", Anthropic uses the account holder's own name — so the field is
  * present, truthful and useless. It is worth showing only when it names
  * someone OTHER than the person reading the screen.
+ *
+ * An UNKNOWN plan is not personal. Answering true for null suppressed a real
+ * organization name whenever the plan failed to resolve — dropping information
+ * ccmon actually had, to answer a question it could not.
  */
 const PERSONAL_PLANS = new Set(['free', 'plus', 'pro', 'max']);
 
 export const isPersonalPlan = (plan: string | null | undefined): boolean =>
-  !plan || PERSONAL_PLANS.has(plan.toLowerCase());
+  !!plan && PERSONAL_PLANS.has(plan.toLowerCase());
 
 // ---- codex ------------------------------------------------------------------
 

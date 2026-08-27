@@ -97,6 +97,21 @@ describe('toolForRoot — account root → profile', () => {
   });
 });
 
+describe('toolFor — a flat home is still its tool', () => {
+  it('does not hand a Codex home with no sessions/ subdir to Claude', () => {
+    // detectRoots can return the home ITSELF when it holds neither subdir, so
+    // the source dir's basename is the home's name. Falling through to claude
+    // there priced a ChatGPT Pro subscription at Claude Pro's $20 and labelled
+    // the card "Claude Code".
+    expect(toolFor('/home/u/.codex').id).toBe('codex');
+    expect(toolFor('/home/u/.codex-work').id).toBe('codex');
+  });
+
+  it('still answers claude for a plain custom root', () => {
+    expect(toolFor('/mnt/archive/old').id).toBe('claude');
+  });
+});
+
 describe('accountGroups', () => {
   it("collapses a Codex home's two dirs into one group, ordered as given", () => {
     const groups = accountGroups([
