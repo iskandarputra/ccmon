@@ -14,6 +14,7 @@ import { CRYPTO_SYMBOLS } from '../lib/format';
 import { THEMES } from '../theme/themes';
 import { ADVISOR_MODELS } from '../../shared/types';
 import { dayKeyFor, systemZone } from '../../shared/daykey';
+import { accountGroups } from '../../shared/tools';
 import type { CostMode, ExportKind, PricingMeta, PricingSource } from '../../shared/types';
 import './settings.css';
 
@@ -201,6 +202,8 @@ export function SettingsView() {
   const settings = useUsageStore((s) => s.settings);
   const pricingMeta = useUsageStore((s) => s.pricingMeta);
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
+  // one row per ACCOUNT — a Codex home contributes two source dirs
+  const sourceGroups = accountGroups(sourceDirs ?? []);
   const accounts = useUsageStore((s) => s.accounts);
   const currency = useUsageStore((s) => s.currency);
   const version = useUsageStore((s) => s.version);
@@ -243,10 +246,17 @@ export function SettingsView() {
     liveSources.length ? liveSources : ([primarySource(dirs)].filter(Boolean) as string[]),
   );
 
-  function toggleSource(dir: string, on: boolean) {
+  /**
+   * Scope by ACCOUNT: a Codex home feeds two source dirs (sessions and
+   * archived_sessions) and they must move together — scoping one alone would
+   * silently drop the archived half of that account's history.
+   */
+  function toggleSource(dirs: string[], on: boolean) {
     const next = new Set(activeSources);
-    if (on) next.add(dir);
-    else next.delete(dir);
+    for (const dir of dirs) {
+      if (on) next.add(dir);
+      else next.delete(dir);
+    }
     if (!next.size) return; // never filter down to nothing
     updateSettings({ sources: [...next] });
   }
@@ -684,12 +694,13 @@ export function SettingsView() {
         <ExportPanel />
 
         <Panel title="data">
-          {sourceDirs?.length > 1 ? (
+          {sourceGroups.length > 1 ? (
             <div className="set-radios">
-              {sourceDirs.map((d) => {
-                const acct = accounts?.[d];
+              {sourceGroups.map(({ root, tool, dirs }) => {
+                const acct = accounts?.[dirs[0]];
                 const detail = [
-                  tildify(d),
+                  tildify(root),
+                  tool.label,
                   acct?.plan ? `${acct.plan}${acct.tier ? ` ${acct.tier}` : ''}` : null,
                   acct?.email,
                 ]
@@ -697,10 +708,10 @@ export function SettingsView() {
                   .join(' · ');
                 return (
                   <Toggle
-                    key={d}
-                    checked={activeSources.has(d)}
-                    onChange={(v) => toggleSource(d, v)}
-                    label={sourceLabel(d)}
+                    key={root}
+                    checked={dirs.some((d) => activeSources.has(d))}
+                    onChange={(v) => toggleSource(dirs, v)}
+                    label={sourceLabel(dirs[0])}
                     note={detail}
                   />
                 );

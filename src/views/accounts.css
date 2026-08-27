@@ -303,6 +303,19 @@
   background: color-mix(in srgb, var(--pc) 14%, var(--bg0));
   border: 1px solid color-mix(in srgb, var(--pc) 35%, var(--line-soft));
 }
+/* Which CLI a row belongs to. Deliberately the quietest badge on the card:
+   it disambiguates, it is not news — the account name and plan stay louder. */
+.acc-tool-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-dim) 10%, transparent);
+  border: 1px solid var(--line-soft);
+}
 .acc-scoped-badge {
   font-family: var(--mono);
   font-size: 10px;
@@ -777,6 +790,16 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   transition: all 0.15s ease;
+}
+/* which CLI this wrapper launches — leads the row so the reader knows what
+   the command on its right actually runs */
+.wiz-acct-tool {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  white-space: nowrap;
+  min-width: 68px;
 }
 .wiz-acct:focus-within {
   border-color: var(--amber);

@@ -10,9 +10,8 @@ import { Hint } from '../ui/Hint';
 import { useUsageStore } from '../../store/useUsageStore';
 import { refreshAccounts, updateSettings } from '../../bootstrap';
 import { tildify } from '../../lib/format';
-import { accountRoot, suggestWrapperName } from '../../lib/crossAccount';
 import { PROVIDER_PRESETS } from '../../../shared/providerPresets';
-import { TOOLS, toolForRoot } from '../../../shared/tools';
+import { TOOLS, accountGroups, claudeTool } from '../../../shared/tools';
 import type {
   AccountSpec,
   SetupOptions,
@@ -105,11 +104,14 @@ export function SetupWizard() {
   }, []);
 
   // untracked (deleted) accounts stay out of the wizard entirely — re-add
-  // them from the Accounts view, which doesn't need a confirmation
-  const roots = useMemo(
-    () => sourceDirs.map(accountRoot).filter((root) => !prefs[root]?.disabled),
+  // them from the Accounts view, which doesn't need a confirmation.
+  // Grouped, not per source dir: a Codex home feeds two and is one account.
+  const groups = useMemo(
+    () => accountGroups(sourceDirs).filter(({ root }) => !prefs[root]?.disabled),
     [sourceDirs, prefs],
   );
+  const roots = useMemo(() => groups.map((g) => g.root), [groups]);
+  const toolOf = useMemo(() => new Map(groups.map((g) => [g.root, g.tool])), [groups]);
 
   // seed wrapper-name suggestions for every account root, preferring a saved
   // rename over the auto-suggested default
@@ -117,7 +119,9 @@ export function SetupWizard() {
     setNames((prev) => {
       const next = { ...prev };
       for (const root of roots) {
-        if (next[root] === undefined) next[root] = prefs[root]?.name ?? suggestWrapperName(root);
+        if (next[root] === undefined)
+          next[root] =
+            prefs[root]?.name ?? (toolOf.get(root) ?? claudeTool).suggestWrapperName(root);
       }
       return next;
     });
@@ -149,11 +153,11 @@ export function SetupWizard() {
 
   const opts: SetupOptions = useMemo(
     () => ({
-      accounts: roots.map<AccountSpec>((root) => {
+      accounts: groups.map<AccountSpec>(({ root, tool }) => {
         const env = envByRoot[root];
         return {
-          tool: toolForRoot(root).id,
-          name: names[root] || suggestWrapperName(root),
+          tool: tool.id,
+          name: names[root] || tool.suggestWrapperName(root),
           root,
           ...(env && Object.keys(env).length ? { env } : {}),
         };
@@ -162,7 +166,7 @@ export function SetupWizard() {
       installHelper,
       tidyExisting: tidy,
     }),
-    [roots, names, envByRoot, picked, installHelper, tidy],
+    [groups, names, envByRoot, picked, installHelper, tidy],
   );
 
   // any edit invalidates a stale preview so apply can't run against old input
@@ -242,7 +246,11 @@ export function SetupWizard() {
     <Panel
       className="acc-wiz"
       title="multi-account setup"
-      right={<span className="panel-note">generate the claude-* wrappers for your shell</span>}
+      right={
+        <span className="panel-note">
+          generate the {TOOLS.map((t) => `${t.id}-*`).join(' / ')} wrappers for your shell
+        </span>
+      }
     >
       <div className="wiz-columns">
         {/* Step 1 Column */}
@@ -252,15 +260,17 @@ export function SetupWizard() {
               and nothing else on this screen says they exist — the DeepSeek card
               that would is hidden until you already use DeepSeek */}
           <div className="wiz-step-note">
-            each wrapper sets <code>CLAUDE_CONFIG_DIR</code>; <code>+ env</code> adds provider
-            settings — that is how an account runs on DeepSeek instead of Anthropic
+            each wrapper sets its tool&apos;s home variable (
+            {TOOLS.map((t) => t.homeEnvVar).join(', ')}); <code>+ env</code> adds provider settings
+            — that is how a Claude account runs on DeepSeek instead of Anthropic
           </div>
           <div className="wiz-accts-list">
-            {roots.map((root) => {
+            {groups.map(({ root, tool }) => {
               const envCount = Object.keys(envByRoot[root] ?? {}).length;
               return (
                 <div className="wiz-acct-row" key={root}>
                   <div className="wiz-acct">
+                    <span className="wiz-acct-tool">{tool.label}</span>
                     <input
                       className="wiz-name"
                       value={names[root] ?? ''}
@@ -288,7 +298,10 @@ export function SetupWizard() {
                       {envCount ? `env · ${envCount}` : '+ env'}
                     </button>
                   </div>
-                  {envOpen.has(root) && (
+                  {/* PROVIDER_PRESETS is a set of ANTHROPIC_* variables for
+                      pointing Claude Code at another endpoint — meaningless
+                      for Codex. The free-form env box stays on both. */}
+                  {envOpen.has(root) && tool.id === 'claude' && (
                     <div className="wiz-env-presets">
                       <span className="wiz-env-presets-label">preset</span>
                       {PROVIDER_PRESETS.map((p) => (
