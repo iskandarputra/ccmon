@@ -37,11 +37,21 @@ const FETCH_TIMEOUT_MS = 30_000;
 const LITELLM_SPLITS: Array<{ prefixes: string[]; file: string }> = [
   { prefixes: ['claude-', 'anthropic.', 'anthropic/'], file: 'litellm-claude.json' },
   { prefixes: ['deepseek/', 'deepseek.'], file: 'litellm-deepseek.json' },
+  // NO OpenAI split here, deliberately. LiteLLM does not publish the
+  // long-context tiers for the gpt-5.x models, and every LiteLLM layer is
+  // consulted BEFORE models.dev — a LiteLLM OpenAI layer would therefore
+  // resolve gpt-5.6-terra to its base rates and silently drop the 272K tier.
+  // models.dev is the authoritative source for these; see MODELSDEV_SPLITS.
 ];
 
 const MODELSDEV_SPLITS: Array<{ provider: string; file: string }> = [
   { provider: 'anthropic', file: 'modelsdev-anthropic.json' },
   { provider: 'deepseek', file: 'modelsdev-deepseek.json' },
+  // Codex CLI. Without this the codex adapter counted tokens perfectly and
+  // billed every one of them at $0 — the models were in no catalog ccmon
+  // carried. models.dev is also the only upstream publishing their
+  // long-context tiers (`cost.tiers[]`, `tier: {type: 'context', size: …}`).
+  { provider: 'openai', file: 'modelsdev-openai.json' },
 ];
 
 async function fetchJson(url: string): Promise<unknown> {
@@ -56,9 +66,24 @@ async function fetchJson(url: string): Promise<unknown> {
   }
 }
 
+/** One above-threshold rate band as models.dev publishes it. */
+interface ModelsDevTier {
+  input?: number;
+  output?: number;
+  cache_read?: number;
+  cache_write?: number;
+  tier?: { type?: string; size?: number };
+}
+
 interface ModelsDevApi {
   [provider: string]: {
-    models?: Record<string, { cost?: Record<string, number>; limit?: Record<string, number> }>;
+    models?: Record<
+      string,
+      {
+        cost?: Record<string, number> & { tiers?: ModelsDevTier[] };
+        limit?: Record<string, number>;
+      }
+    >;
   };
 }
 
@@ -75,13 +100,28 @@ export function compactModelsDev(
     for (const f of ['input', 'output', 'cache_read', 'cache_write'] as const) {
       if (m.cost[f] !== undefined) cost[f] = m.cost[f];
     }
+    // Carry the CONTEXT rate band through. Without it the OpenAI
+    // long-context models would compact down to their base rates and a
+    // 300K-token gpt-5.6 turn would bill at half price, silently.
+    const band = m.cost.tiers?.find((t) => t?.tier?.type === 'context' && (t.tier.size ?? 0) > 0);
+    const tiers = band
+      ? [
+          {
+            ...(band.input !== undefined ? { input: band.input } : {}),
+            ...(band.output !== undefined ? { output: band.output } : {}),
+            ...(band.cache_read !== undefined ? { cache_read: band.cache_read } : {}),
+            ...(band.cache_write !== undefined ? { cache_write: band.cache_write } : {}),
+            tier: { type: 'context', size: band.tier!.size! },
+          },
+        ]
+      : undefined;
     const limit: Record<string, number> = {};
     if (m.limit) {
       for (const f of ['context', 'output'] as const) {
         if (m.limit[f] !== undefined) limit[f] = m.limit[f];
       }
     }
-    out[key] = { cost, limit };
+    out[key] = { cost: tiers ? { ...cost, tiers } : cost, limit };
   }
   return out;
 }

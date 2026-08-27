@@ -217,3 +217,48 @@ describe('historical pricing — archive + costAt', () => {
     expect(dated.costAt(known, { in: 1e6 }, '2026-02-01')).toEqual(dated.cost(known, { in: 1e6 }));
   });
 });
+
+describe('pricing — OpenAI / Codex models', () => {
+  it('prices the Codex models that Codex CLI actually runs', async () => {
+    // These were counted correctly and billed at $0, because the pricing
+    // snapshot only ever carried anthropic and deepseek. A Codex user's whole
+    // spend read as zero — the tokens were right and the dollars were absent.
+    const e = await createPricingEngine({ offline: true });
+    for (const model of ['gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.6-sol', 'gpt-5.5', 'gpt-5']) {
+      const usd = e.cost(model, { in: 1_000_000 });
+      expect(usd, `${model} must be priced`).not.toBeNull();
+      expect(usd!, `${model} must cost something`).toBeGreaterThan(0);
+    }
+  });
+
+  it('bills a long-context Codex request entirely at tier rates', async () => {
+    // models.dev gives gpt-5.6-terra a 272K context tier: input 2 -> 4,
+    // output 12 -> 18, cache_read 0.2 -> 0.4 per MTok. ccusage bills the WHOLE
+    // request at the tier rate once the threshold is crossed, not just the
+    // excess, and ccmon's engine already works that way.
+    const e = await createPricingEngine({ offline: true });
+
+    const under = e.cost('gpt-5.6-terra', { in: 100_000, out: 1_000 })!;
+    expect(under).toBeCloseTo(100_000 * 2e-6 + 1_000 * 12e-6, 9);
+
+    const over = e.cost('gpt-5.6-terra', { in: 300_000, out: 1_000 })!;
+    expect(over).toBeCloseTo(300_000 * 4e-6 + 1_000 * 18e-6, 9);
+  });
+
+  it("uses the model's OWN tier threshold, not Anthropic's 200K", async () => {
+    // 250K is above Anthropic's 200K but below OpenAI's 272K — the give-away
+    // that the threshold is per-model rather than one global constant.
+    const e = await createPricingEngine({ offline: true });
+    const at250k = e.cost('gpt-5.6-terra', { in: 250_000 })!;
+    expect(at250k).toBeCloseTo(250_000 * 2e-6, 9); // base rate, not 4e-6
+  });
+
+  it('still applies the 200K threshold to Anthropic models', async () => {
+    const e = await createPricingEngine({ offline: true });
+    const base = e.cost('claude-sonnet-4-5', { in: 100_000 });
+    const above = e.cost('claude-sonnet-4-5', { in: 250_000 });
+    if (base == null || above == null) return; // model retired from the snapshot
+    // 2.5× the tokens must cost MORE than 2.5× the base rate once tiered
+    expect(above).toBeGreaterThan(base * 2.5);
+  });
+});

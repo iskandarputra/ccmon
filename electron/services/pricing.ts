@@ -40,6 +40,7 @@ import bundledLitellmJson from './data/litellm-claude.json';
 import bundledDeepseekJson from './data/litellm-deepseek.json';
 import bundledModelsDevJson from './data/modelsdev-anthropic.json';
 import bundledModelsDevDeepseekJson from './data/modelsdev-deepseek.json';
+import bundledModelsDevOpenaiJson from './data/modelsdev-openai.json';
 import { localDateKey } from './parser';
 import type { PricingArchive } from './pricing-archive';
 
@@ -170,6 +171,9 @@ function normalizeLitellm(e: LitellmEntry, source: string): RateRow | null {
           cacheRead: e.cache_read_input_token_cost_above_200k_tokens ?? ti * 0.1,
         }
       : null,
+    // LiteLLM names its bands `*_above_200k_tokens`, so the threshold is in
+    // the field name rather than the data — null takes the engine default.
+    tierAt: null,
     contextLimit: e.max_input_tokens ?? null,
     fast: e.provider_specific_entry?.fast || null,
     fastApplied: 1,
@@ -181,6 +185,12 @@ function normalizeModelsDev(e: ModelsDevEntry): RateRow | null {
   const c = e?.cost;
   if (!c) return null;
   const input = (c.input || 0) / 1e6;
+  // The first CONTEXT band only: the engine bills a request entirely at one
+  // rate rather than splitting it across bands, so a second band would have
+  // nowhere to apply. Bands keyed on anything other than context (models.dev
+  // also uses the shape for time-of-day tiers) are ignored outright.
+  const band = c.tiers?.find((t) => t.tier?.type === 'context' && (t.tier.size ?? 0) > 0);
+  const tierIn = band ? (band.input || 0) / 1e6 : 0;
   return {
     source: 'modelsdev',
     input,
@@ -188,7 +198,16 @@ function normalizeModelsDev(e: ModelsDevEntry): RateRow | null {
     cacheCreate: c.cache_write != null ? c.cache_write / 1e6 : input * 1.25,
     cacheRead: c.cache_read != null ? c.cache_read / 1e6 : input * 0.1,
     cacheCreate1h: null,
-    tiered: null,
+    tiered: band
+      ? {
+          input: tierIn,
+          // same derivations the LiteLLM layer uses for unstated tier fields
+          output: band.output != null ? band.output / 1e6 : (c.output || 0) / 1e6,
+          cacheCreate: band.cache_write != null ? band.cache_write / 1e6 : tierIn * 1.25,
+          cacheRead: band.cache_read != null ? band.cache_read / 1e6 : tierIn * 0.1,
+        }
+      : null,
+    tierAt: band?.tier?.size ?? null,
     contextLimit: e.limit?.context || null,
     fast: null,
     fastApplied: 1,
@@ -224,6 +243,8 @@ function overrideRow(rate: PricingOverride): RateRow {
           cacheRead: tier.read != null ? tier.read / 1e6 : ti * 0.1,
         }
       : null,
+    // a user override can state its own threshold; unset keeps the default
+    tierAt: rate.tierAt ?? null,
     contextLimit: rate.contextLimit ?? null,
     fast: rate.fast || null,
     fastApplied: 1,
@@ -242,7 +263,11 @@ export function costWith(row: RateRow, t: TokenCounts): number {
   const read = t.read || 0;
   const w5m = t.w5m || 0;
   const w1h = t.w1h || 0;
-  const r = row.tiered && inTok + read + w5m + w1h > TIER_THRESHOLD ? row.tiered : row;
+  // The threshold is the MODEL's when the catalog states one (OpenAI's
+  // long-context tier starts at 272K, not Anthropic's 200K) — a global
+  // constant would double-bill a 250K gpt-5.6 turn.
+  const threshold = row.tierAt ?? TIER_THRESHOLD;
+  const r = row.tiered && inTok + read + w5m + w1h > threshold ? row.tiered : row;
   const w1hRate = row.cacheCreate1h ?? r.input * CACHE_1H_MULTIPLIER;
   return (
     inTok * r.input + outTok * r.output + read * r.cacheRead + w5m * r.cacheCreate + w1h * w1hRate
@@ -276,6 +301,7 @@ export class PricingEngine {
   private readonly bundledDeepseek: LitellmCatalog;
   private readonly modelsdev: ModelsDevCatalog;
   private readonly modelsdevDeepseek: ModelsDevCatalog;
+  private readonly modelsdevOpenai: ModelsDevCatalog;
   private runtime: LitellmCatalog | null = null;
   private readonly archive: PricingArchive | null;
   private source: PricingSource = 'bundled';
@@ -311,6 +337,7 @@ export class PricingEngine {
     this.bundledDeepseek = bundledDeepseekJson;
     this.modelsdev = bundledModelsDevJson;
     this.modelsdevDeepseek = bundledModelsDevDeepseekJson;
+    this.modelsdevOpenai = bundledModelsDevOpenaiJson;
 
     // Runtime LiteLLM layer from the disk cache, when present and sane.
     // A stale cache is still kept as a layer — better than nothing until
@@ -395,6 +422,7 @@ export class PricingEngine {
       ...(this.runtime ? Object.keys(this.runtime) : []),
       ...Object.keys(this.modelsdev),
       ...Object.keys(this.modelsdevDeepseek),
+      ...Object.keys(this.modelsdevOpenai),
     ]);
     return {
       source: this.source,
@@ -534,6 +562,9 @@ export class PricingEngine {
       { models: this.runtime, litellm: true, source: this.source },
       { models: this.modelsdev, litellm: false, source: 'modelsdev' },
       { models: this.modelsdevDeepseek, litellm: false, source: 'modelsdev-deepseek' },
+      // Codex CLI models. models.dev is the only upstream that publishes their
+      // long-context tiers, so this layer carries the tier band too.
+      { models: this.modelsdevOpenai, litellm: false, source: 'modelsdev-openai' },
     ];
     let row: RateRow | null = null;
     for (const layer of layers) {

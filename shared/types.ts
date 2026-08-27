@@ -143,6 +143,13 @@ export interface RateRow {
   /** explicit 1h write override only — otherwise 1h bills at input × 2 */
   cacheCreate1h: number | null;
   tiered: TieredRates | null;
+  /**
+   * Token count above which `tiered` applies, when the catalog states one.
+   * Null means the engine's default (Anthropic's 200K). OpenAI's long-context
+   * tier starts at 272K, so a global constant would bill a 250K gpt-5.6 turn
+   * at double rate — the threshold belongs to the model, not the engine.
+   */
+  tierAt: number | null;
   contextLimit: number | null;
   /** fast multiplier available for -fast variants */
   fast: number | null;
@@ -165,7 +172,25 @@ export interface LitellmEntry {
 
 /** Compacted models.dev entry (per-MTok costs, divided by 1e6 on load). */
 export interface ModelsDevEntry {
-  cost?: { input?: number; output?: number; cache_read?: number; cache_write?: number };
+  cost?: {
+    input?: number;
+    output?: number;
+    cache_read?: number;
+    cache_write?: number;
+    /**
+     * Above-threshold rate bands. models.dev publishes these for the OpenAI
+     * long-context models (`tier: {type: 'context', size: 272000}`); only the
+     * FIRST context band is read, because the engine bills a request entirely
+     * at one rate rather than splitting it across bands.
+     */
+    tiers?: Array<{
+      input?: number;
+      output?: number;
+      cache_read?: number;
+      cache_write?: number;
+      tier?: { type?: string; size?: number };
+    }>;
+  };
   limit?: { context?: number; output?: number };
 }
 
@@ -188,6 +213,11 @@ export interface PricingOverride {
     w5m?: number;
     read?: number;
   };
+  /**
+   * Token count above which `tier` applies. Unset keeps the engine default
+   * (200K, Anthropic's threshold); OpenAI's long-context tier starts at 272K.
+   */
+  tierAt?: number;
   /** context window in tokens — drives the per-session context gauge */
   contextLimit?: number;
   /**
