@@ -105,10 +105,7 @@ describe('accountGroups', () => {
       '/home/u/.codex',
       '/home/u/.claude-work',
     ]);
-    expect(groups[1].dirs).toEqual([
-      '/home/u/.codex/sessions',
-      '/home/u/.codex/archived_sessions',
-    ]);
+    expect(groups[1].dirs).toEqual(['/home/u/.codex/sessions', '/home/u/.codex/archived_sessions']);
     expect(groups[1].tool.id).toBe('codex');
   });
 

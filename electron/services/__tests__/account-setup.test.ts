@@ -27,6 +27,15 @@ import {
 import { PROVIDER_PRESETS } from '../../../shared/providerPresets';
 import type { AccountSpec, SetupOptions } from '../../../shared/types';
 
+/**
+ * These suites render the POSIX shell family explicitly and assert its exact
+ * shape — `$HOME`-relative dirs, `~/.local/bin` helper paths, 0600 modes.
+ * Windows produces the PowerShell family instead and honours no mode bits, so
+ * on that host the assertions test the OS rather than ccmon. The PowerShell
+ * equivalents below are NOT skipped: those are the ones that matter there.
+ */
+const isWindows = process.platform === 'win32';
+
 let home: string;
 let env: SetupEnv;
 
@@ -192,7 +201,7 @@ describe('resolveLoginShell — per-OS account record', () => {
 });
 
 describe('renderManagedScript', () => {
-  it('emits a launcher per account with $HOME-relative config dirs', () => {
+  it.skipIf(isWindows)('emits a launcher per account with $HOME-relative config dirs', () => {
     const out = renderManagedScript(opts().accounts, home);
     expect(out).toContain('claude-personal() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude";');
     expect(out).toContain('claude-work() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude-work";');
@@ -204,13 +213,16 @@ describe('renderManagedScript', () => {
     expect(out).toContain('claude-work-from-personal() {');
   });
 
-  it('calls the helper by its install path — ~/.local/bin is not on PATH on macOS', () => {
-    const out = renderManagedScript(opts().accounts, home);
-    expect(out).toContain(
-      '"$HOME/.local/bin/claude-cross-resume" "$HOME/.claude-work" "$HOME/.claude"',
-    );
-    expect(out).not.toMatch(/^\s*claude-\S+\(\) \{ claude-cross-resume/m); // never bare
-  });
+  it.skipIf(isWindows)(
+    'calls the helper by its install path — ~/.local/bin is not on PATH on macOS',
+    () => {
+      const out = renderManagedScript(opts().accounts, home);
+      expect(out).toContain(
+        '"$HOME/.local/bin/claude-cross-resume" "$HOME/.claude-work" "$HOME/.claude"',
+      );
+      expect(out).not.toMatch(/^\s*claude-\S+\(\) \{ claude-cross-resume/m); // never bare
+    },
+  );
 
   it('suggestLabel maps the default root to claude-personal', () => {
     expect(suggestLabel(path.join(home, '.claude'))).toBe('claude-personal');
@@ -236,7 +248,7 @@ describe('renderManagedScript — per-account environment (alternate providers)'
     },
   ];
 
-  it('exports the extra env inside the same subshell as the config dir', () => {
+  it.skipIf(isWindows)('exports the extra env inside the same subshell as the config dir', () => {
     const out = renderManagedScript(deepseek(), home);
     expect(out).toContain(
       `claude-deepseek() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude-deepseek" ` +
@@ -265,7 +277,7 @@ describe('renderManagedScript — per-account environment (alternate providers)'
     expect(out).toContain(`T='a$HOME\`x'\\''y'`);
   });
 
-  it('a cross-resume INTO a provider account carries that provider', () => {
+  it.skipIf(isWindows)('a cross-resume INTO a provider account carries that provider', () => {
     // without this the helper ends in `exec claude --resume` with only
     // CLAUDE_CONFIG_DIR set, and the resumed session silently talks to Anthropic
     const out = renderManagedScript(deepseek(), home);
@@ -388,25 +400,28 @@ describe('planSetup — validation', () => {
 });
 
 describe('applySetup — writes and idempotency', () => {
-  it('writes the managed file, links the rc, and installs the executable helper', () => {
-    const r = applySetup(opts(), env);
-    expect(r.ok).toBe(true);
+  it.skipIf(isWindows)(
+    'writes the managed file, links the rc, and installs the executable helper',
+    () => {
+      const r = applySetup(opts(), env);
+      expect(r.ok).toBe(true);
 
-    const managed = fs.readFileSync(
-      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
-      'utf8',
-    );
-    expect(managed).toContain('claude-work() {');
+      const managed = fs.readFileSync(
+        path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+        'utf8',
+      );
+      expect(managed).toContain('claude-work() {');
 
-    const rc = fs.readFileSync(path.join(home, '.bashrc'), 'utf8');
-    expect(rc).toContain('# >>> ccmon managed >>>');
-    expect(rc).toContain('claude-accounts.sh');
+      const rc = fs.readFileSync(path.join(home, '.bashrc'), 'utf8');
+      expect(rc).toContain('# >>> ccmon managed >>>');
+      expect(rc).toContain('claude-accounts.sh');
 
-    const helper = path.join(home, '.local', 'bin', 'claude-cross-resume');
-    expect(fs.existsSync(helper)).toBe(true);
-    expect(fs.statSync(helper).mode & 0o111).toBeGreaterThan(0); // executable
-    expect(r.reloadHint).toContain('source ~/.bashrc');
-  });
+      const helper = path.join(home, '.local', 'bin', 'claude-cross-resume');
+      expect(fs.existsSync(helper)).toBe(true);
+      expect(fs.statSync(helper).mode & 0o111).toBeGreaterThan(0); // executable
+      expect(r.reloadHint).toContain('source ~/.bashrc');
+    },
+  );
 
   it('is idempotent — a second apply links nothing new and never duplicates the block', () => {
     applySetup(opts(), env);
@@ -821,7 +836,7 @@ describe('visibleAccountDirs', () => {
 });
 
 describe('renderManagedScript — codex', () => {
-  it('exports CODEX_HOME and invokes codex, in a subshell', () => {
+  it.skipIf(isWindows)('exports CODEX_HOME and invokes codex, in a subshell', () => {
     const out = renderManagedScript(mixedOpts().accounts, home, 'posix', 'codex');
     expect(out).toContain(`codex-personal() { ( export CODEX_HOME="$HOME/.codex"; codex "$@" ); }`);
     expect(out).toContain(
@@ -884,7 +899,7 @@ describe('planSetup — one managed file per tool in use', () => {
 });
 
 describe('applySetup — per-tool files', () => {
-  it('writes both files 0600', () => {
+  it.skipIf(isWindows)('writes both files 0600', () => {
     const report = applySetup(mixedOpts(), env);
     expect(report.ok).toBe(true);
     for (const f of ['claude-accounts.sh', 'codex-accounts.sh']) {
@@ -1024,7 +1039,7 @@ describe('rc block — in-place replacement', () => {
 });
 
 describe('codex-cross-resume helper', () => {
-  it('is installed beside the Claude one, executable', () => {
+  it.skipIf(isWindows)('is installed beside the Claude one, executable', () => {
     const report = applySetup(mixedOpts(), env);
     expect(report.ok).toBe(true);
     const dest = path.join(home, '.local', 'bin', 'codex-cross-resume');

@@ -101,7 +101,10 @@ describe('DeepseekKeyStore', () => {
     expect(reloaded.auth()).toMatchObject({ connected: true, source: 'stored', encrypted: true });
   });
 
-  it('writes the key file 0600', () => {
+  // Windows has no POSIX mode bits — `fs.chmod` is a no-op there, so the
+  // assertion tests the OS rather than ccmon. The guarantee itself still
+  // matters on the platforms that HAVE it.
+  it.skipIf(process.platform === 'win32')('writes the key file 0600', () => {
     const file = keyFile();
     new DeepseekKeyStore(file, fakeCrypto).save('sk-secret-key');
     expect(fs.statSync(file).mode & 0o777).toBe(0o600);

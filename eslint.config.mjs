@@ -23,6 +23,9 @@ export default tseslint.config(
     ignores: [
       'dist/**',
       'dist-cli/**',
+      // a git worktree holds a second copy of every source file; without this
+      // every finding is reported twice and the counts stop meaning anything
+      '.worktrees/**',
       'dist-electron/**',
       'release/**',
       'build/**',

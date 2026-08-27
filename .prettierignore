@@ -14,3 +14,6 @@ scripts/fixtures
 # Prose is authored, not generated. Reflowing Markdown rewrites hand-tuned
 # tables and wraps code spans across list continuations for no benefit.
 *.md
+
+# a git worktree is a second copy of the repo — never format through it
+/.worktrees/
