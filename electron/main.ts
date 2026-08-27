@@ -20,7 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import { detectSourceRoots } from './services/adapters';
 import type { SourceRoot } from './services/adapters/types';
-import { accountRootFor, toolFor, toolForRoot } from '../shared/tools';
+import { accountGroups, toolFor, toolForRoot } from '../shared/tools';
 import { loadConfig, CONFIG_PATH } from './services/config';
 import { Settings } from './services/settings';
 import { createPricingEngine, costForMode, type PricingEngine } from './services/pricing';
@@ -403,9 +403,12 @@ function recompute(force = false): void {
 let lastSessionsSig = '';
 function pushLiveSessions(force = false): void {
   const out: Record<string, LiveSession[]> = {};
-  for (const dir of state.sourceDirs) {
-    const found = readLiveSessions(accountRootFor(dir));
-    if (found.length) out[dir] = found;
+  // Keyed by the group's FIRST dir, not every dir. A Codex home feeds two
+  // source dirs that resolve to one root, so emitting both would hand the
+  // renderer the same session list twice and double every count.
+  for (const group of accountGroups(state.sourceDirs)) {
+    const found = readLiveSessions(group.root);
+    if (found.length) out[group.dirs[0]] = found;
   }
   const sig = JSON.stringify(out);
   if (!force && sig === lastSessionsSig) return;
@@ -972,8 +975,8 @@ ipcMain.handle('app:getState', (): AppState => ({
   // limits the TOOL recorded in its own transcript (Codex) — no poll involved
   toolLimits: Object.fromEntries(state.watcher?.limitsFor(null) ?? []),
   liveSessions: Object.fromEntries(
-    state.sourceDirs
-      .map((d) => [d, readLiveSessions(accountRootFor(d))] as const)
+    accountGroups(state.sourceDirs)
+      .map((g) => [g.dirs[0], readLiveSessions(g.root)] as const)
       .filter(([, v]) => v.length),
   ),
   currency: state.currency ? state.currency.get() : null,
