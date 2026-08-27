@@ -379,7 +379,17 @@ function recompute(force = false): void {
     range: resolveRange(state.range, now, state.settings?.get().timezone || null),
   });
   send('usage:snapshot', state.snapshot);
+  // Self-reported limits change exactly when entries do (they ride on a usage
+  // line), so they publish on the same path. Sending them ONLY in
+  // `app:getState` left them empty forever: the renderer calls that once, at
+  // startup, while the first scan is still running.
+  pushToolLimits();
   refreshTray();
+}
+
+/** Publish the transcript-recorded rate limits (Codex) to the renderer. */
+function pushToolLimits(): void {
+  send('limits:tool', Object.fromEntries(state.watcher?.limitsFor(null) ?? []));
 }
 
 function pushPricingMeta(): void {

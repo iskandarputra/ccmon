@@ -201,6 +201,13 @@ export interface CcmonApi {
   onSettings(cb: (settings: AppSettings) => void): Unsubscribe;
   onPricingMeta(cb: (meta: PricingMeta) => void): Unsubscribe;
   onLimits(cb: (limits: LimitsMap) => void): Unsubscribe;
+  /**
+   * Rate limits a tool recorded in its own transcript. Pushed on the snapshot
+   * path, because they ride on a usage line and so change exactly when entries
+   * do — `app:getState` alone is not enough, the renderer calls it once while
+   * the first scan is still running.
+   */
+  onToolLimits(cb: (limits: Record<string, LimitsMarker>) => void): Unsubscribe;
   onCurrency(cb: (rates: CurrencyRates) => void): Unsubscribe;
   onDeepseek(cb: (result: DeepseekResult | null) => void): Unsubscribe;
   onDeepseekAuth(cb: (auth: DeepseekAuth) => void): Unsubscribe;

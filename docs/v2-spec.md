@@ -464,11 +464,28 @@ Identity is read per tool, dispatched by `tools/identity.ts#identityFor`:
   file in the user's own home, the same trust level as `.claude.json`.
   `tier` is always null (no multiplier concept) and so is `cleanupPeriodDays`.
 
-**There are no Codex limits.** OpenAI publishes no usage endpoint reachable
-with these credentials, so `refreshLimits` skips Codex homes entirely rather
-than reporting a Claude-shaped "no stored login", and the card says the tool
-publishes no limits API — an empty gauge would read as "at zero", the opposite
-of "unknown". A Codex account is also excluded from the advisor's login picker
+**Codex limits come from the transcript, not a poll.** Every `token_count`
+event carries a `rate_limits` block, so `SourceAdapter.parseLimits` reads them
+with no network call and no credentials; the watcher keeps the newest per root
+(`limitsFor`) and main publishes them as `AppState.toolLimits`. `refreshLimits`
+still skips Codex homes — there is nothing to poll — but the card now renders
+real meters rather than an apology.
+
+They are kept OUT of `LimitsResult` deliberately. That type means "a poll of an
+authenticated endpoint succeeded" and carries Claude's session/week/weekOpus
+windows; Codex's are duration-labelled (`window_minutes`: 300 = 5 h,
+10080 = weekly, 43200 = monthly, plan-dependent) and were never fetched.
+Reusing it would either mislabel a monthly window as "session" or claim a fetch
+that never happened.
+
+`parseLimits` is a separate seam hook rather than a `ParsedLine` kind because
+one `token_count` line yields BOTH a usage entry and a limits reading.
+
+**Freshness is the real constraint.** The block rides on a real TURN — `/status`
+and `/usage` write nothing — so the newest reading on disk can be days behind.
+`LimitsMarker.observedAt` records when it was true, and every surface showing
+these MUST show it: the account card uses a hollow, still dot and "as of",
+never the pulsing "live" one that means a current poll. A Codex account is also excluded from the advisor's login picker
 (`tool === 'claude'` before `hasCredentials`): it HAS credentials, but they are
 an OpenAI token the Anthropic Messages API will reject.
 

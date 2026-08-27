@@ -84,6 +84,7 @@ export function useBootstrap(): void {
       }),
       api.onPricingMeta?.((meta) => useUsageStore.setState({ pricingMeta: meta })),
       api.onLimits?.((limits) => useUsageStore.getState().setLimits(limits)),
+      api.onToolLimits?.((toolLimits) => useUsageStore.setState({ toolLimits: toolLimits || {} })),
       api.onCurrency?.((rates) => {
         useUsageStore.setState({ currency: rates || null });
         applyFormatting();

@@ -4,14 +4,15 @@ Electron + React + **TypeScript (strict)** realtime monitor for coding-CLI
 usage. Reads `~/.claude/projects/**/*.jsonl` and
 `${CODEX_HOME:-~/.codex}/{sessions,archived_sessions}/**/*.jsonl` locally;
 local-first with six network paths (see Gotchas) — four background, two
-user-initiated. Codex adds none: it has no limits endpoint ccmon can read.
+user-initiated. Codex adds none — not for lack of limits data, but because
+it writes its own rate limits into the transcript rather than an API.
 
 ## Commands
 
 | Command | What | When to run |
 |---|---|---|
 | `npm run dev` | esbuild + Vite + Electron, hot reload | developing |
-| `npm test` | vitest, 750 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
+| `npm test` | vitest, 778 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
 | `npm run lint` | eslint (correctness rules only; Prettier owns formatting) | before every commit |
 | `npm run format` | prettier over everything but Markdown and fixtures | before every commit |
 | `npm run smoke` | full pipeline against real `~/.claude` data, no Electron | after touching `electron/services/` |
@@ -359,9 +360,26 @@ exercised only against mocks on Linux. `build.yml` cuts releases on tags.
   email, plan (`chatgpt_plan_type`) and org. The signature is NOT verified and
   must not be — ccmon has no key, makes no request, and never presents this
   token to anything; it is display metadata from a 0600 file in the user's own
-  home, at the same trust level as reading `.claude.json`. There is NO Codex
-  limits endpoint, so the poller skips Codex homes entirely and the card says
-  "publishes no usage-limit API" — never an empty gauge, which reads as zero.
+  home, at the same trust level as reading `.claude.json`. The `plan_type` in
+  `rate_limits` (below) is fresher still — the tool writes it every turn.
+- **Codex records its own rate limits — read them, never poll.** Every
+  `token_count` event carries a `rate_limits` block, so ccmon gets Codex limits
+  with NO network call and no credentials, which ccusage does not do at all.
+  Verified against Codex's own `/status`: `window_minutes 43200` is what it
+  labels "Monthly limit", `used_percent 99` is what it prints as "0% left"
+  (Codex shows REMAINING, the field is USED), and `resets_at` is in SECONDS.
+  Free plans carry one monthly window; paid plans add a 300-minute primary
+  (5 h) and a 10080-minute secondary (weekly), plus purchasable credits.
+  THE catch is freshness, not availability: the block rides on a real TURN, and
+  `/status` and `/usage` write nothing — so the newest reading can be days
+  behind the account's true position. Every surface showing these MUST show
+  `observedAt` alongside; the card uses a hollow, still dot and "as of", never
+  the pulsing live one. They stay OUT of `LimitsResult`, which means "a poll of
+  an authenticated endpoint succeeded" and carries Claude's
+  session/week/weekOpus windows — Codex's are duration-labelled and were never
+  fetched, so they travel beside it as `toolLimits`. `parseLimits` is its own
+  seam hook rather than a `ParsedLine` kind, because one `token_count` line
+  yields BOTH a usage entry and a limits reading.
 - **Codex accounts must stay out of Anthropic-only paths.** They have
   credentials, but OpenAI ones. `AdvisorView` filters on `tool === 'claude'`
   BEFORE `hasCredentials`; without that the advisor spends a request on a token
