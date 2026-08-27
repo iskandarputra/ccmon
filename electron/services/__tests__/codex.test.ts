@@ -544,3 +544,173 @@ describe('auto-review fallback model — resolved by session date', () => {
     expect(out && out.kind === 'entry' ? out.model : null).toBe('gpt-5.6-terra');
   });
 });
+
+describe('forked sessions — the replayed prefix is not billed twice', () => {
+  /**
+   * A forked or subagent rollout REPLAYS its parent's history before its own
+   * first turn, and Codex REWRITES those events to the fork instant. That
+   * rewrite is what defeats the content-addressed dedupe key: same token
+   * counts, different timestamp, so the key does not collide and the parent's
+   * whole history bills a second time.
+   *
+   * The fix mirrors ccusage: match the child's leading usage against the
+   * parent's, by TOKEN VALUES rather than timestamps, and skip what matches.
+   */
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-codex-fork-'));
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  const meta = (id: string, over: Record<string, unknown> = {}, ts = '2026-05-13T09:00:00.000Z') =>
+    JSON.stringify({
+      timestamp: ts,
+      type: 'session_meta',
+      payload: { id, session_id: id, cwd: '/w/api', ...over },
+    });
+
+  const usage = (input: number, out: number, ts: string) =>
+    JSON.stringify({
+      timestamp: ts,
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          model: 'gpt-5.2-codex',
+          last_token_usage: { input_tokens: input, cached_input_tokens: 0, output_tokens: out },
+        },
+      },
+    });
+
+  const write = (dir: string, name: string, lines: string[]) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, name), `${lines.join('\n')}\n`);
+  };
+
+  const PARENT = 'aaaaaaaa-0000-0000-0000-000000000001';
+  const CHILD = 'bbbbbbbb-0000-0000-0000-000000000002';
+  const sessions = () => path.join(tmp, 'sessions', '2026', '05', '13');
+
+  const run = async () =>
+    new UsageWatcher({
+      dirs: [{ dir: path.join(tmp, 'sessions'), adapter: codexAdapter }],
+      watch: false,
+    }).start();
+
+  it("skips the replayed prefix and keeps the child's own turns", async () => {
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(200, 20, '2026-05-13T09:02:00.000Z'),
+    ]);
+    // the child replays both parent turns, rewritten to the fork instant
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'),
+      usage(200, 20, '2026-05-13T10:00:00.025Z'),
+      usage(300, 30, '2026-05-13T10:00:06.000Z'), // the child's own turn
+    ]);
+
+    const entries = await run();
+    // parent's 2 + the child's 1 — NOT 5
+    expect(entries).toHaveLength(3);
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(100 + 200 + 300);
+  });
+
+  it('recognises a spawned subagent as well as an explicit fork', async () => {
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+    ]);
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(
+        CHILD,
+        { source: { subagent: { thread_spawn: { parent_thread_id: PARENT } } } },
+        '2026-05-13T10:00:00.000Z',
+      ),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'),
+      usage(500, 50, '2026-05-13T10:00:09.000Z'),
+    ]);
+
+    const entries = await run();
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(100 + 500);
+  });
+
+  it('falls back to the rewritten burst when the parent rollout is gone', async () => {
+    // No parent file at all. The burst signature stands in for it: Codex
+    // writes the replayed history in one go (10-40ms) and the child's own
+    // first turn follows a real pause (measured 5.8-15.3s upstream).
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'),
+      usage(200, 20, '2026-05-13T10:00:00.025Z'),
+      usage(300, 30, '2026-05-13T10:00:06.000Z'), // after the pause — the child's
+    ]);
+
+    const entries = await run();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].in).toBe(300);
+  });
+
+  it('bills every turn of a session that declares no parent', async () => {
+    // The burst heuristic must NEVER touch a normal session: two quick turns
+    // in a row are perfectly ordinary when nothing was forked.
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:00:00.010Z'),
+      usage(200, 20, '2026-05-13T09:00:00.020Z'),
+    ]);
+
+    const entries = await run();
+    expect(entries).toHaveLength(2);
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(300);
+  });
+
+  it('ignores a session that names itself as its own parent', async () => {
+    // Would otherwise match its whole stream against itself and drop every
+    // event it recorded.
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT, { forked_from_id: PARENT }),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(200, 20, '2026-05-13T09:02:00.000Z'),
+    ]);
+
+    const entries = await run();
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(300);
+  });
+
+  it('stops skipping as soon as the child diverges from the parent', async () => {
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(200, 20, '2026-05-13T09:02:00.000Z'),
+    ]);
+    // only the FIRST parent turn was replayed; the second differs
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'),
+      usage(999, 99, '2026-05-13T10:00:00.020Z'),
+    ]);
+
+    const entries = await run();
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(100 + 200 + 999);
+  });
+
+  it('does not replay parent usage recorded AFTER the fork', async () => {
+    // The parent kept working after the branch; those turns were never
+    // replayed into the child and must not mask the child's own events.
+    write(sessions(), `rollout-2026-05-13T09-00-00-${PARENT}.jsonl`, [
+      meta(PARENT),
+      usage(100, 10, '2026-05-13T09:01:00.000Z'),
+      usage(700, 70, '2026-05-13T11:00:00.000Z'), // after the 10:00 fork
+    ]);
+    write(sessions(), `rollout-2026-05-13T10-00-00-${CHILD}.jsonl`, [
+      meta(CHILD, { forked_from_id: PARENT }, '2026-05-13T10:00:00.000Z'),
+      usage(100, 10, '2026-05-13T10:00:00.010Z'), // replayed
+      usage(700, 70, '2026-05-13T10:00:20.000Z'), // the child's own, same shape
+    ]);
+
+    const entries = await run();
+    expect(entries.reduce((n, e) => n + e.in, 0)).toBe(100 + 700 + 700);
+  });
+});

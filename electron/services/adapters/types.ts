@@ -61,8 +61,15 @@ export interface SourceAdapter {
    * carried across incremental tails, dropped on rescan. An adapter must never
    * keep this in module scope — `ADAPTERS` holds singletons shared by the app
    * and the CLI, so two watchers would corrupt each other's parse.
+   *
+   * `file` is the path the state belongs to, for a format whose parse depends
+   * on something outside the line stream. Codex uses it to locate the rollout
+   * a forked session branched from, whose usage it replays and which must
+   * therefore not be counted twice. Reading another file here is allowed and
+   * deliberately bounded: resolve it lazily and only when the format says
+   * there is something to resolve, never as a corpus-wide pre-scan.
    */
-  createState?(): unknown;
+  createState?(file?: string): unknown;
 
   /**
    * Byte-level reject for a line that cannot possibly carry data, applied by

@@ -339,7 +339,7 @@ export class UsageWatcher extends EventEmitter {
     // model/tier it learned from lines that arrived in an EARLIER chunk.
     let state = this.fileStates.get(file);
     if (state === undefined && adapter.createState) {
-      state = adapter.createState();
+      state = adapter.createState(file);
       this.fileStates.set(file, state);
     }
     const fh = await fsp.open(file, 'r');

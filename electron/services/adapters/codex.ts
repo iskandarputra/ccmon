@@ -31,10 +31,13 @@
  * would double-charge every cached prompt token, and on a long session the
  * cache is most of the input.
  *
- * KNOWN LIMITATION — long-context tiers. Codex prices requests above a context
- * threshold at a higher rate, and ccmon's pricing engine is flat per model, so
- * a very long Codex turn is priced slightly low. Tokens are unaffected; only
- * dollars are, and only for the models that have a long-context tier.
+ * Long-context tiers ARE modelled: models.dev publishes a 272K context band
+ * for the gpt-5.x models and `RateRow.tierAt` carries the per-model threshold,
+ * so a long turn bills entirely at the tier rate rather than the base one.
+ *
+ * Replayed history is handled in `codex-replay.ts` — a forked or spawned
+ * rollout repeats its parent's turns before its own, and Codex rewrites them
+ * to the fork instant.
  */
 
 import fs from 'fs';
@@ -44,6 +47,15 @@ import { dayKeyFor, type Zone } from '../../../shared/daykey';
 import { splitPathList } from '../paths';
 import type { ParsedLine } from '../../../shared/types';
 import type { SourceAdapter } from './types';
+import {
+  detectRewrittenBurst,
+  findRolloutById,
+  forkInfoFrom,
+  readParentPrefix,
+  stepReplay,
+  type ForkInfo,
+  type ReplayState,
+} from './codex-replay';
 
 /** Model billed when a rollout never records one (ccusage uses the same). */
 const FALLBACK_MODEL = 'gpt-5';
@@ -88,7 +100,15 @@ function resolveAutoReview(model: string, iso: string | undefined): string {
 }
 
 /** Cheap reject before `JSON.parse`, mirroring `parser.mayCarryData`. */
-const LINE_MARKERS = ['token_count', 'turn_context', 'thread_settings_applied'] as const;
+// `session_meta` earns its place here for ONE field: the parent a forked
+// rollout branched from. It appears on line 1 only, so admitting it costs a
+// single extra JSON.parse per file and nothing per usage line.
+const LINE_MARKERS = [
+  'token_count',
+  'turn_context',
+  'thread_settings_applied',
+  'session_meta',
+] as const;
 const LINE_MARKER_BYTES = LINE_MARKERS.map((m) => Buffer.from(m, 'ascii'));
 
 interface RawUsage {
@@ -108,6 +128,16 @@ export interface CodexState {
   fast: boolean | null;
   /** last cumulative totals, for delta recovery when no `last_token_usage` */
   prevTotals: RawUsage | null;
+  /** the rollout this state belongs to — needed to locate a fork's parent */
+  file: string | null;
+  /** what `session_meta` said about a fork, or null when it declared none */
+  fork: ForkInfo | null;
+  /**
+   * Where this rollout is in its replayed prefix. Starts `idle` and resolves
+   * on the FIRST usage event, so a session that declares no fork never pays
+   * for an anchor it does not need.
+   */
+  replay: ReplayState;
 }
 
 const zero = (u: RawUsage | null | undefined, k: keyof RawUsage): number =>
@@ -144,7 +174,35 @@ interface RolloutLine {
       last_token_usage?: RawUsage;
       total_token_usage?: RawUsage;
     };
+    // `session_meta` only — where a forked or spawned rollout branched from
+    id?: unknown;
+    session_id?: unknown;
+    forked_from_id?: unknown;
+    source?: { subagent?: { thread_spawn?: { parent_thread_id?: unknown } } };
   };
+}
+
+/**
+ * What to skip at the head of this rollout, resolved once on its first usage
+ * event.
+ *
+ * Ordered by trust: the parent's own stream if it can be found, else the burst
+ * Codex wrote at the fork instant, else nothing. A rollout that declared no
+ * parent goes straight to `done` — the burst heuristic must never be applied
+ * to an ordinary session, where two quick turns in a row are just two turns.
+ */
+function resolveReplayAnchor(st: CodexState): ReplayState {
+  const fork = st.fork;
+  if (!fork || !st.file) return { kind: 'done' };
+
+  const parentFile = findRolloutById(st.file, fork.parentId);
+  if (parentFile && parentFile !== st.file) {
+    const prefix = readParentPrefix(parentFile, fork.forkedAt);
+    if (prefix.length) return { kind: 'matching', prefix, index: 0 };
+  }
+  // Parent pruned, or on a machine ccmon never scanned: fall back to shape.
+  const burstStart = detectRewrittenBurst(st.file);
+  return burstStart == null ? { kind: 'done' } : { kind: 'burst', prevTs: burstStart };
 }
 
 export const codexAdapter: SourceAdapter = {
@@ -204,8 +262,16 @@ export const codexAdapter: SourceAdapter = {
     return false;
   },
 
-  createState(): CodexState {
-    return { model: null, cwd: null, fast: null, prevTotals: null };
+  createState(file?: string): CodexState {
+    return {
+      model: null,
+      cwd: null,
+      fast: null,
+      prevTotals: null,
+      file: file ?? null,
+      fork: null,
+      replay: { kind: 'idle' },
+    };
   },
 
   parseLine(raw, file, lineNo, zone: Zone, state?: unknown): ParsedLine {
@@ -231,6 +297,14 @@ export const codexAdapter: SourceAdapter = {
     const p = j.payload;
 
     // Context lines: remembered, never billed.
+    if (j.type === 'session_meta') {
+      // Line 1 of every rollout. The only thing read here is where a forked
+      // session branched from — everything else the adapter needs arrives on
+      // later lines.
+      st.fork = forkInfoFrom(p, j.timestamp);
+      if (p?.cwd) st.cwd = p.cwd;
+      return null;
+    }
     if (j.type === 'turn_context') {
       if (p?.model) st.model = p.model;
       if (p?.cwd || j.cwd) st.cwd = p?.cwd || j.cwd || null;
@@ -281,6 +355,24 @@ export const codexAdapter: SourceAdapter = {
     const output = zero(delta, 'output_tokens');
     if (!input && !cached && !output) return null; // a no-op tick, not a turn
 
+    // ---- replayed history -----------------------------------------------
+    // A forked or spawned-subagent rollout repeats its parent's turns before
+    // its own, rewritten to the fork instant. The rewrite changes the
+    // timestamp but not the token counts, so the dedupe key below does NOT
+    // collide and the parent's history would bill twice. Resolve the anchor
+    // lazily, on the first usage event: a session that declared no fork never
+    // touches the filesystem for this.
+    if (st.replay.kind === 'idle') st.replay = resolveReplayAnchor(st);
+    if (st.replay.kind !== 'done') {
+      const stepped = stepReplay(
+        st.replay,
+        { in: input, cached, out: output },
+        Date.parse(j.timestamp ?? ''),
+      );
+      st.replay = stepped.state;
+      if (stepped.skip) return null;
+    }
+
     let model = resolveAutoReview(
       info.model || info.model_name || st.model || FALLBACK_MODEL,
       j.timestamp,
@@ -291,12 +383,17 @@ export const codexAdapter: SourceAdapter = {
     /**
      * Content-addressed dedupe key, NOT file#line.
      *
-     * Codex duplicates usage events in two situations: an `archived_sessions`
-     * copy of a rollout that also exists under `sessions/`, and a MultiAgent
-     * subagent rollout that REPLAYS its parent's history before its own turn.
-     * Both re-emit the original events verbatim, so keying on content makes the
-     * watcher's existing best-wins dedupe collapse them for free — no pre-scan
-     * of the file, which a streaming tailer could not do anyway.
+     * This handles ONE of the two ways Codex duplicates a usage event: an
+     * `archived_sessions` copy of a rollout that also exists under
+     * `sessions/`. That copy is byte-identical, so keying on content makes the
+     * watcher's existing best-wins dedupe collapse it for free.
+     *
+     * It does NOT handle the other way. A forked or spawned rollout replays
+     * its parent's turns and Codex REWRITES them to the fork instant — same
+     * token counts, different timestamp, so this key deliberately does not
+     * collide and the replay would bill twice. `codex-replay.ts` catches that
+     * one by matching token values rather than timestamps, before the event
+     * ever reaches here.
      *
      * Cumulative totals are strictly increasing within a session, so
      * timestamp + running total is unique per real turn; two distinct turns
