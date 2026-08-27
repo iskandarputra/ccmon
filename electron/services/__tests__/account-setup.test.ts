@@ -25,7 +25,7 @@ import {
   type SetupEnv,
 } from '../account-setup';
 import { PROVIDER_PRESETS } from '../../../shared/providerPresets';
-import type { SetupOptions } from '../../../shared/types';
+import type { AccountSpec, SetupOptions } from '../../../shared/types';
 
 let home: string;
 let env: SetupEnv;
@@ -38,8 +38,21 @@ afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
 
 const opts = (over: Partial<SetupOptions> = {}): SetupOptions => ({
   accounts: [
-    { name: 'claude-personal', root: path.join(home, '.claude') },
-    { name: 'claude-work', root: path.join(home, '.claude-work') },
+    { tool: 'claude', name: 'claude-personal', root: path.join(home, '.claude') },
+    { tool: 'claude', name: 'claude-work', root: path.join(home, '.claude-work') },
+  ],
+  rcPaths: [path.join(home, '.bashrc')],
+  installHelper: true,
+  ...over,
+});
+
+/** Two accounts per tool — the set that exercises per-tool files and pairing. */
+const mixedOpts = (over: Partial<SetupOptions> = {}): SetupOptions => ({
+  accounts: [
+    { tool: 'claude', name: 'claude-personal', root: path.join(home, '.claude') },
+    { tool: 'claude', name: 'claude-work', root: path.join(home, '.claude-work') },
+    { tool: 'codex', name: 'codex-personal', root: path.join(home, '.codex') },
+    { tool: 'codex', name: 'codex-work', root: path.join(home, '.codex-work') },
   ],
   rcPaths: [path.join(home, '.bashrc')],
   installHelper: true,
@@ -209,9 +222,10 @@ describe('renderManagedScript', () => {
 describe('renderManagedScript — per-account environment (alternate providers)', () => {
   // the real case: Claude Code pointed at DeepSeek is a base URL + a token +
   // a model mapping, none of which is a config dir
-  const deepseek = () => [
-    { name: 'claude-personal', root: path.join(home, '.claude') },
+  const deepseek = (): AccountSpec[] => [
+    { tool: 'claude', name: 'claude-personal', root: path.join(home, '.claude') },
     {
+      tool: 'claude',
       name: 'claude-deepseek',
       root: path.join(home, '.claude-deepseek'),
       env: {
@@ -238,9 +252,14 @@ describe('renderManagedScript — per-account environment (alternate providers)'
   it('single-quotes values so nothing in a token or URL is expanded', () => {
     const out = renderManagedScript(
       [
-        { name: 'claude-a', root: path.join(home, '.claude') },
-        { name: 'claude-b', root: path.join(home, '.claude-b'), env: { T: "a$HOME`x'y" } },
-      ],
+        { tool: 'claude', name: 'claude-a', root: path.join(home, '.claude') },
+        {
+          tool: 'claude',
+          name: 'claude-b',
+          root: path.join(home, '.claude-b'),
+          env: { T: "a$HOME`x'y" },
+        },
+      ] satisfies AccountSpec[],
       home,
     );
     expect(out).toContain(`T='a$HOME\`x'\\''y'`);
@@ -271,8 +290,11 @@ describe('renderManagedScript — per-account environment (alternate providers)'
 
   it('rejects an unusable variable name, a reserved one, and an embedded newline', () => {
     const bad = (env: Record<string, string>) =>
-      planSetup(opts({ accounts: [{ name: 'claude-x', root: path.join(home, '.claude'), env }] }))
-        .problems;
+      planSetup(
+        opts({
+          accounts: [{ tool: 'claude', name: 'claude-x', root: path.join(home, '.claude'), env }],
+        }),
+      ).problems;
     expect(
       bad({ 'BAD NAME': 'v' }).some((p) => p.includes('invalid environment variable name')),
     ).toBe(true);
@@ -285,8 +307,13 @@ describe('renderManagedScript — per-account environment (alternate providers)'
 
 describe('provider presets + secret references', () => {
   const preset = () => PROVIDER_PRESETS.find((p) => p.id === 'deepseek')!;
-  const withPreset = () => [
-    { name: 'claude-deepseek', root: path.join(home, '.claude-deepseek'), env: preset().env },
+  const withPreset = (): AccountSpec[] => [
+    {
+      tool: 'claude',
+      name: 'claude-deepseek',
+      root: path.join(home, '.claude-deepseek'),
+      env: preset().env,
+    },
   ];
 
   it('the DeepSeek preset is valid input to the generator', () => {
@@ -302,7 +329,7 @@ describe('provider presets + secret references', () => {
     expect(resolved[0].env!.ANTHROPIC_AUTH_TOKEN).toBe('sk-real');
     // untouched values pass through, and the input is not mutated
     expect(resolved[0].env!.ANTHROPIC_BASE_URL).toBe('https://api.deepseek.com/anthropic');
-    expect(withPreset()[0].env.ANTHROPIC_AUTH_TOKEN).toContain('${ccmon:');
+    expect(withPreset()[0].env!.ANTHROPIC_AUTH_TOKEN).toContain('${ccmon:');
   });
 
   it('REFUSES to write an unresolved reference rather than sending it as a token', () => {
@@ -314,15 +341,15 @@ describe('provider presets + secret references', () => {
     const masked = resolveEnvSecrets(withPreset(), () => '••••••••real');
     const p = planSetup(opts({ accounts: masked }), env);
     expect(p.problems).toEqual([]);
-    expect(p.managedScript).toContain('••••••••real');
-    expect(p.managedScript).not.toContain('sk-real');
+    expect(p.managed[0].script).toContain('••••••••real');
+    expect(p.managed[0].script).not.toContain('sk-real');
   });
 });
 
 describe('planSetup — validation', () => {
   it('flags an invalid wrapper name', () => {
     const p = planSetup(
-      opts({ accounts: [{ name: 'bad name', root: path.join(home, '.claude') }] }),
+      opts({ accounts: [{ tool: 'claude', name: 'bad name', root: path.join(home, '.claude') }] }),
       env,
     );
     expect(p.problems.some((x) => x.includes('invalid wrapper name'))).toBe(true);
@@ -437,16 +464,18 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
     expect(managed).toContain('claude-personal() {');
   });
 
-  it('untracking every account leaves an empty (but valid) managed file', () => {
+  it('untracking every account removes the managed file rather than emptying it', () => {
+    // Was: left an empty-but-valid file. Now removed, per tool. Safe because
+    // every rc source line is existence-guarded (`[ -f ]` / `Test-Path`), so a
+    // missing file is a no-op — and an empty one was only ever litter. What
+    // matters either way is that no stale wrapper stays defined.
     writeWrapperAccounts(opts().accounts, env);
+    const managed = path.join(home, '.config', 'ccmon', 'claude-accounts.sh');
+    expect(fs.existsSync(managed)).toBe(true);
+
     const r = writeWrapperAccounts([], env);
     expect(r.ok).toBe(true);
-    const managed = fs.readFileSync(
-      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
-      'utf8',
-    );
-    expect(managed).not.toContain('claude-personal');
-    expect(managed).not.toContain('claude-work');
+    expect(fs.existsSync(managed)).toBe(false);
   });
 
   it('rejects an invalid or duplicate name without writing', () => {
@@ -454,13 +483,16 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
     const before = 'sentinel';
     fs.writeFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), before);
 
-    const bad = writeWrapperAccounts([{ name: '1bad', root: path.join(home, '.claude') }], env);
+    const bad = writeWrapperAccounts(
+      [{ tool: 'claude', name: '1bad', root: path.join(home, '.claude') }],
+      env,
+    );
     expect(bad.ok).toBe(false);
 
     const dup = writeWrapperAccounts(
       [
-        { name: 'claude-x', root: path.join(home, '.claude') },
-        { name: 'claude-x', root: path.join(home, '.claude-work') },
+        { tool: 'claude', name: 'claude-x', root: path.join(home, '.claude') },
+        { tool: 'claude', name: 'claude-x', root: path.join(home, '.claude-work') },
       ],
       env,
     );
@@ -728,5 +760,126 @@ describe('visibleAccountDirs', () => {
     expect(visibleAccountDirs([DEFAULT], { '/home/u/.claude-gone': { hidden: true } })).toEqual([
       DEFAULT,
     ]);
+  });
+});
+
+describe('renderManagedScript — codex', () => {
+  it('exports CODEX_HOME and invokes codex, in a subshell', () => {
+    const out = renderManagedScript(mixedOpts().accounts, home, 'posix', 'codex');
+    expect(out).toContain(`codex-personal() { ( export CODEX_HOME="$HOME/.codex"; codex "$@" ); }`);
+    expect(out).toContain(
+      `codex-work() { ( export CODEX_HOME="$HOME/.codex-work"; codex "$@" ); }`,
+    );
+    // the Claude accounts belong in the other file
+    expect(out).not.toContain('CLAUDE_CONFIG_DIR');
+    expect(out).not.toContain('claude-personal');
+  });
+
+  it('scopes and restores $env:CODEX_HOME on PowerShell', () => {
+    const out = renderManagedScript(mixedOpts().accounts, home, 'powershell', 'codex');
+    expect(out).toContain('function codex-personal {');
+    expect(out).toContain(`'CODEX_HOME' = "$HOME/.codex"`);
+    expect(out).toContain('codex @args');
+    // psScopedBody's finally block is what stops the var leaking into the session
+    expect(out).toContain('} finally {');
+    expect(out).not.toContain('CLAUDE_CONFIG_DIR');
+  });
+
+  it('renders the Claude file exactly as before when asked for claude', () => {
+    // a Codex account in the list must not perturb the Claude output at all
+    expect(renderManagedScript(mixedOpts().accounts, home, 'posix', 'claude')).toBe(
+      renderManagedScript(opts().accounts, home, 'posix', 'claude'),
+    );
+  });
+});
+
+describe('crossPairs partitions by tool', () => {
+  it('never pairs a Claude account with a Codex one', () => {
+    const names = managedNames(mixedOpts().accounts);
+    expect(names).toContain('claude-work-from-personal');
+    expect(names).toContain('codex-work-from-personal');
+    // the nonsense pair: copying a Claude transcript into a Codex home
+    expect(names).not.toContain('codex-work-from-claude-personal');
+    expect(names.filter((n) => n.includes('-from-'))).toHaveLength(4); // 2 per tool
+  });
+
+  it('emits no pairs for a lone account of a tool', () => {
+    const names = managedNames([
+      { tool: 'claude', name: 'claude-personal', root: path.join(home, '.claude') },
+      { tool: 'codex', name: 'codex-personal', root: path.join(home, '.codex') },
+    ]);
+    expect(names.filter((n) => n.includes('-from-'))).toEqual([]);
+  });
+});
+
+describe('planSetup — one managed file per tool in use', () => {
+  it('plans both files for a mixed account set', () => {
+    const plan = planSetup(mixedOpts(), env);
+    expect(plan.managed.map((m) => m.tool)).toEqual(['claude', 'codex']);
+    expect(plan.managed[1].path).toBe(path.join(home, '.config', 'ccmon', 'codex-accounts.sh'));
+    expect(plan.managed[1].script).toContain('codex-personal()');
+  });
+
+  it('plans only the Claude file when there is no Codex account', () => {
+    const plan = planSetup(opts(), env);
+    expect(plan.managed.map((m) => m.tool)).toEqual(['claude']);
+  });
+});
+
+describe('applySetup — per-tool files', () => {
+  it('writes both files 0600', () => {
+    const report = applySetup(mixedOpts(), env);
+    expect(report.ok).toBe(true);
+    for (const f of ['claude-accounts.sh', 'codex-accounts.sh']) {
+      const p = path.join(home, '.config', 'ccmon', f);
+      expect(fs.existsSync(p)).toBe(true);
+      expect(fs.statSync(p).mode & 0o777).toBe(0o600);
+    }
+  });
+
+  it("removes a tool's file when its last account goes away", () => {
+    applySetup(mixedOpts(), env);
+    const codexFile = path.join(home, '.config', 'ccmon', 'codex-accounts.sh');
+    expect(fs.existsSync(codexFile)).toBe(true);
+
+    applySetup(opts(), env); // claude only
+    expect(fs.existsSync(codexFile)).toBe(false);
+    expect(fs.existsSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'))).toBe(true);
+  });
+});
+
+describe('validateAccounts — a tool home env var is reserved', () => {
+  it('rejects CODEX_HOME in the extra-env box', () => {
+    const plan = planSetup(
+      mixedOpts({
+        accounts: [
+          {
+            tool: 'codex',
+            name: 'codex-personal',
+            root: path.join(home, '.codex'),
+            env: { CODEX_HOME: '/somewhere/else' },
+          },
+        ],
+      }),
+      env,
+    );
+    expect(plan.problems.join(' ')).toContain('CODEX_HOME comes from the config dir');
+  });
+
+  it('still rejects CLAUDE_CONFIG_DIR', () => {
+    const plan = planSetup(
+      opts({
+        accounts: [
+          {
+            tool: 'claude',
+            name: 'claude-personal',
+            root: path.join(home, '.claude'),
+            env: { CLAUDE_CONFIG_DIR: '/elsewhere' },
+          },
+        ],
+      }),
+      env,
+    );
+    expect(plan.problems.join(' ')).toContain('CLAUDE_CONFIG_DIR comes from the config dir');
   });
 });

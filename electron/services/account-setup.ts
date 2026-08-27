@@ -1,6 +1,6 @@
 /**
  * @file account-setup.ts
- * @brief Shell-aware multi-account setup — detect the shell, generate the `claude-*` wrappers, link them idempotently.
+ * @brief Shell-aware multi-account setup — detect the shell, generate the per-tool wrappers, link them idempotently.
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
@@ -9,6 +9,7 @@ import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { SECRET_REF_RE } from '../../shared/providerPresets';
+import { TOOLS, toolById, toolForRoot, type ToolProfile } from '../../shared/tools';
 import type {
   AccountSpec,
   AccountWrapperPrefs,
@@ -18,21 +19,29 @@ import type {
   SetupReport,
   ShellDetection,
   ShellTarget,
+  ToolId,
 } from '../../shared/types';
 
 /**
- * The wizard writes ONE file it fully owns — `~/.config/ccmon/claude-accounts`
- * (`.sh` on Linux/macOS, `.ps1` on Windows) — and appends a single guarded
- * `source`/dot-source line to the chosen shell startup file. That keeps risky
- * edits to a tiny, idempotent, easy-to-remove block while the wrappers
- * themselves live in a file ccmon can rewrite freely.
+ * The wizard writes files it fully owns — one per tool, under
+ * `~/.config/ccmon/` (`<tool>-accounts.sh` on Linux/macOS, `.ps1` on Windows)
+ * — and maintains a single guarded block in the chosen shell startup file that
+ * sources all of them. That keeps risky edits to a tiny, idempotent,
+ * easy-to-remove block while the wrappers themselves live in files ccmon can
+ * rewrite freely.
+ *
+ * ONE FILE PER TOOL, not one shared file: a Claude-only user's
+ * `claude-accounts.sh` must not churn because a Codex account appeared, and
+ * removing your last account of a tool should delete that tool's file rather
+ * than leave a stale one behind.
  *
  * It is OS-aware. POSIX shells (zy/zsh/bash on Linux & macOS) get
- * `name() { ( export CLAUDE_CONFIG_DIR=…; claude "$@" ); }` in the rc the
- * shell loads (macOS bash → `~/.bash_profile`). Windows gets PowerShell
- * `function name { $env:CLAUDE_CONFIG_DIR = …; claude @args }` dot-sourced
- * from `$PROFILE`. The bash cross-resume helper is Unix-only. Nothing here
- * runs a shell or a session — it only writes scripts the user then sources.
+ * `name() { ( export <HOME_VAR>=…; <bin> "$@" ); }` in the rc the shell loads
+ * (macOS bash → `~/.bash_profile`). Windows gets PowerShell
+ * `function name { $env:<HOME_VAR> = …; <bin> @args }` dot-sourced from
+ * `$PROFILE`. Which variable and which binary come from the tool's profile in
+ * `shared/tools.ts`. Nothing here runs a shell or a session — it only writes
+ * scripts the user then sources.
  */
 
 type Family = 'posix' | 'powershell';
@@ -40,34 +49,33 @@ type Family = 'posix' | 'powershell';
 const MARK_BEGIN = '# >>> ccmon managed >>>';
 const MARK_END = '# <<< ccmon managed <<<';
 
-const MANAGED_FILE: Record<Family, string> = {
-  posix: 'claude-accounts.sh',
-  powershell: 'claude-accounts.ps1',
-};
-/** `$HOME`-relative reference to the managed file (forward slashes work in PS too). */
-const managedRef = (family: Family) => `$HOME/.config/ccmon/${MANAGED_FILE[family]}`;
+/** `$HOME`-relative reference to a tool's managed file (forward slashes work in PS too). */
+const managedRef = (tool: ToolProfile, family: Family) =>
+  `$HOME/.config/ccmon/${tool.managedFile[family]}`;
 
 const familyOf = (platform: string): Family => (platform === 'win32' ? 'powershell' : 'posix');
 
-/** The guarded block appended to the rc — sources the managed wrapper file. */
+/**
+ * The guarded block in the rc — sources EVERY tool's managed wrapper file.
+ *
+ * Every line is emitted unconditionally and guarded by an existence test, so
+ * the block's content does not depend on which accounts exist. That is
+ * deliberate: a block whose content varied would need rewriting whenever the
+ * account set changed, and a user who never re-ran the wizard would silently
+ * stop loading a tool.
+ */
 function rcSourceBlock(family: Family): string {
-  const ref = managedRef(family);
-  if (family === 'powershell') {
-    return [
-      MARK_BEGIN,
-      '# Claude Code multi-account wrappers, managed by ccmon. Remove this block',
-      `# (and ${ref}) to uninstall.`,
-      `if (Test-Path "${ref}") { . "${ref}" }`,
-      MARK_END,
-    ].join('\n');
-  }
-  return [
+  const refs = TOOLS.map((t) => managedRef(t, family));
+  const head = [
     MARK_BEGIN,
-    '# Claude Code multi-account wrappers, managed by ccmon. Remove this block',
-    `# (and ${ref}) to uninstall.`,
-    `[ -f "${ref}" ] && . "${ref}"`,
-    MARK_END,
-  ].join('\n');
+    '# Coding-CLI account wrappers, managed by ccmon. Remove this block (and',
+    '# the files it sources, under ~/.config/ccmon/) to uninstall.',
+  ];
+  const body =
+    family === 'powershell'
+      ? refs.map((ref) => `if (Test-Path "${ref}") { . "${ref}" }`)
+      : refs.map((ref) => `[ -f "${ref}" ] && . "${ref}"`);
+  return [...head, ...body, MARK_END].join('\n');
 }
 
 /**
@@ -478,8 +486,8 @@ function defaultEnv(): SetupEnv {
   };
 }
 
-const managedScriptPath = (home: string, family: Family) =>
-  path.join(home, '.config', 'ccmon', MANAGED_FILE[family]);
+const managedScriptPath = (tool: ToolProfile, home: string, family: Family) =>
+  path.join(home, '.config', 'ccmon', tool.managedFile[family]);
 
 /**
  * Where the cross-resume helper lands. POSIX keeps the Unix convention
@@ -492,8 +500,8 @@ const helperPath = (home: string, family: Family = 'posix'): string =>
     ? path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1')
     : path.join(home, '.local', 'bin', 'claude-cross-resume');
 
-/** `$HOME`-relative reference to the PowerShell helper, for the generated file. */
-const PS_HELPER_REF = '"$HOME/.config/ccmon/claude-cross-resume.ps1"';
+// The `$HOME`-relative PowerShell helper reference is now derived per tool
+// inside renderManagedScript, from `ToolProfile.helperName`.
 
 const helperScript = (family: Family) =>
   family === 'powershell' ? PS_HELPER_SCRIPT : HELPER_SCRIPT;
@@ -592,31 +600,34 @@ function psScopedBody(sets: string[], body: string): string {
   ].join('\n');
 }
 
-/** A nice default wrapper name for a config root (~/.claude → claude-personal). */
-export function suggestLabel(root: string): string {
-  const base = path.basename(root);
-  if (base === '.claude') return 'claude-personal';
-  const suffix = base.replace(/^\.+/, '').replace(/^claude[-_]?/, '');
-  return suffix ? `claude-${suffix}` : 'claude-account';
-}
+/** A nice default wrapper name for a home (~/.claude → claude-personal). */
+export const suggestLabel = (root: string): string => toolForRoot(root).suggestWrapperName(root);
 
-/** Drop a leading `claude-` so cross-resume names read `claude-X-from-Y`. */
-const shortName = (name: string) => name.replace(/^claude-/, '');
+/** Drop the tool prefix so cross-resume names read `<tool>-X-from-Y`. */
+const shortName = (spec: AccountSpec) => spec.name.replace(new RegExp(`^${spec.tool}-`), '');
 
 /**
- * The ordered cross-resume pairs, shared by the generator and the scanner.
- * Both families: the helper ships as a bash script for POSIX and a PowerShell
- * script for Windows, so `claude-<to>-from-<from>` exists everywhere.
+ * The ordered cross-resume pairs, grouped BY TOOL and shared by the generator
+ * and the scanner. Both families: each tool's helper ships as a bash script
+ * for POSIX and a PowerShell script for Windows, so `<to>-from-<from>` exists
+ * everywhere.
+ *
+ * The partition is not cosmetic. A `claude-work-from-codex-personal` wrapper
+ * would copy a Claude transcript into a Codex home, which is nonsense — two
+ * accounts per tool yield 2 + 2 pairs, not 12.
  */
 function crossPairs(
   accounts: AccountSpec[],
-): Array<{ name: string; from: AccountSpec; to: AccountSpec }> {
-  const pairs: Array<{ name: string; from: AccountSpec; to: AccountSpec }> = [];
-  if (accounts.length < 2) return pairs;
-  for (const to of accounts) {
-    for (const from of accounts) {
-      if (to.name === from.name) continue;
-      pairs.push({ name: `${to.name}-from-${shortName(from.name)}`, from, to });
+): Array<{ name: string; tool: ToolId; from: AccountSpec; to: AccountSpec }> {
+  const pairs: Array<{ name: string; tool: ToolId; from: AccountSpec; to: AccountSpec }> = [];
+  for (const tool of TOOLS) {
+    const group = accounts.filter((a) => a.tool === tool.id);
+    if (group.length < 2) continue;
+    for (const to of group) {
+      for (const from of group) {
+        if (to.name === from.name) continue;
+        pairs.push({ name: `${to.name}-from-${shortName(from)}`, tool: tool.id, from, to });
+      }
     }
   }
   return pairs;
@@ -632,32 +643,39 @@ export function managedNames(accounts: AccountSpec[]): string[] {
 }
 
 /**
- * The full contents of the managed wrapper file for `family`: one launcher per
- * account, plus (POSIX only) a `claude-<to>-from-<from>` resume helper per
- * ordered pair. Regenerated wholesale on every apply, so it always matches the
- * chosen accounts.
+ * The full contents of ONE tool's managed wrapper file for `family`: a
+ * launcher per account of that tool, plus a `<to>-from-<from>` resume helper
+ * per ordered pair within it. Regenerated wholesale on every apply, so it
+ * always matches the chosen accounts.
+ *
+ * `accounts` is the WHOLE list and is filtered here, so a caller can render
+ * every file from one array without partitioning it first.
  */
 export function renderManagedScript(
   accounts: AccountSpec[],
   home: string,
   family: Family = 'posix',
+  toolId: ToolId = 'claude',
 ): string {
+  const tool = toolById(toolId);
+  const mine = accounts.filter((a) => a.tool === toolId);
   const lines: string[] = [
-    '# ccmon-managed — Claude Code account wrappers',
+    `# ccmon-managed — ${tool.label} account wrappers`,
     '# Generated by ccmon (Accounts → multi-account setup). This whole file is',
     '# owned by ccmon and rewritten on each apply; delete it (and the',
     '# `ccmon managed` block in your shell startup file) to uninstall.',
     '',
   ];
-  const pairs = crossPairs(accounts);
+  const pairs = crossPairs(accounts).filter((p) => p.tool === toolId);
+  const psHelperRef = `"$HOME/.config/ccmon/${tool.helperName}.ps1"`;
 
   if (family === 'powershell') {
-    for (const a of accounts) {
+    for (const a of mine) {
       const sets = [
-        `${psLiteral('CLAUDE_CONFIG_DIR')} = ${psConfigDir(a.root, home)}`,
+        `${psLiteral(tool.homeEnvVar)} = ${psConfigDir(a.root, home)}`,
         ...psEnvSets(a.env),
       ];
-      lines.push(`function ${a.name} {`, psScopedBody(sets, 'claude @args'), '}', '');
+      lines.push(`function ${a.name} {`, psScopedBody(sets, `${tool.bin} @args`), '}', '');
     }
     if (pairs.length) {
       lines.push('# Continue a session on another account when one hits its limit:');
@@ -665,7 +683,7 @@ export function renderManagedScript(
         // The destination's env is applied around the helper call, so the
         // relaunched session lands on the right account AND the right provider.
         const sets = [
-          `${psLiteral('CLAUDE_CONFIG_DIR')} = ${psConfigDir(p.to.root, home)}`,
+          `${psLiteral(tool.homeEnvVar)} = ${psConfigDir(p.to.root, home)}`,
           ...psEnvSets(p.to.env),
         ];
         // `$args[0]` is $null when called with no session id, and the helper's
@@ -673,17 +691,17 @@ export function renderManagedScript(
         // confusing hang. Say what is wrong and stop.
         const call =
           `if ($args.Count -lt 1) { Write-Error "usage: ${p.name} <session-id>"; return }; ` +
-          `& ${PS_HELPER_REF} ${psConfigDir(p.from.root, home)} ${psConfigDir(p.to.root, home)} $args[0]`;
+          `& ${psHelperRef} ${psConfigDir(p.from.root, home)} ${psConfigDir(p.to.root, home)} $args[0]`;
         lines.push(`function ${p.name} {`, psScopedBody(sets, call), '}', '');
       }
     }
     return lines.join('\n') + '\n';
   }
 
-  for (const a of accounts) {
-    const sets = [`CLAUDE_CONFIG_DIR=${shConfigDir(a.root, home)}`, ...shEnvSets(a.env)];
+  for (const a of mine) {
+    const sets = [`${tool.homeEnvVar}=${shConfigDir(a.root, home)}`, ...shEnvSets(a.env)];
     // the subshell ( … ) is what keeps every export local to the one command
-    lines.push(`${a.name}() { ( export ${sets.join(' ')}; claude "$@" ); }`);
+    lines.push(`${a.name}() { ( export ${sets.join(' ')}; ${tool.bin} "$@" ); }`);
   }
   if (pairs.length) {
     lines.push('', '# Continue a session on another account when one hits its limit:');
@@ -694,13 +712,13 @@ export function renderManagedScript(
       // keeps the generated file host-independent either way.
       //
       // The DESTINATION's extra env is exported around the call: the helper
-      // ends in `exec claude --resume`, which inherits it, so resuming into an
-      // alternate-provider account (DeepSeek) keeps that provider instead of
-      // silently falling back to Anthropic's endpoint.
+      // ends in an `exec` of the tool's resume command, which inherits it, so
+      // resuming into an alternate-provider account (DeepSeek) keeps that
+      // provider instead of silently falling back to Anthropic's endpoint.
       const sets = shEnvSets(p.to.env);
       const exports = sets.length ? `export ${sets.join(' ')}; ` : '';
       lines.push(
-        `${p.name}() { ( ${exports}"$HOME/.local/bin/claude-cross-resume" ${shConfigDir(p.from.root, home)} ${shConfigDir(p.to.root, home)} "$1" ); }`,
+        `${p.name}() { ( ${exports}"$HOME/.local/bin/${tool.helperName}" ${shConfigDir(p.from.root, home)} ${shConfigDir(p.to.root, home)} "$1" ); }`,
       );
     }
   }
@@ -933,11 +951,12 @@ const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 /** A portable environment-variable name — the only shape both shells accept. */
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /**
- * `CLAUDE_CONFIG_DIR` is derived from the account's root, never taken from the
- * env map: two sources for one variable is a silent-mismatch bug waiting to
- * happen, and the root is what every other part of ccmon keys on.
+ * A tool's home env var (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) is derived from the
+ * account's root, never taken from the env map: two sources for one variable
+ * is a silent-mismatch bug waiting to happen, and the root is what every other
+ * part of ccmon keys on.
  */
-const RESERVED_ENV = new Set(['CLAUDE_CONFIG_DIR']);
+const RESERVED_ENV = new Set(TOOLS.map((t) => t.homeEnvVar));
 
 /**
  * Validation problems with the account list itself (name format, dupes,
@@ -948,6 +967,7 @@ function validateAccounts(accounts: AccountSpec[]): string[] {
   const problems: string[] = [];
   const seen = new Set<string>();
   for (const a of accounts) {
+    if (!TOOLS.some((t) => t.id === a.tool)) problems.push(`"${a.name}" has an unknown tool`);
     if (!NAME_RE.test(a.name)) problems.push(`invalid wrapper name "${a.name}"`);
     if (seen.has(a.name)) problems.push(`duplicate wrapper name "${a.name}"`);
     seen.add(a.name);
@@ -1020,9 +1040,15 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
     );
   }
 
+  // one file per tool that actually has accounts; the rest are removed on apply
+  const managed = TOOLS.filter((t) => opts.accounts.some((a) => a.tool === t.id)).map((t) => ({
+    tool: t.id,
+    path: managedScriptPath(t, home, family),
+    script: renderManagedScript(opts.accounts, home, family, t.id),
+  }));
+
   return {
-    managedPath: managedScriptPath(home, family),
-    managedScript: renderManagedScript(opts.accounts, home, family),
+    managed,
     rcEdits,
     helperDest,
     helperInstalled: fileEquals(helperDest, helperScript(family)),
@@ -1056,18 +1082,27 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
   const errors: string[] = [];
 
   let wroteManaged = false;
-  const managedPath = managedScriptPath(home, family);
-  try {
-    fs.mkdirSync(path.dirname(managedPath), { recursive: true });
-    // 0600: an account's env may carry a provider API token, and this file is
-    // only ever read by the user's own shell.
-    fs.writeFileSync(managedPath, renderManagedScript(opts.accounts, home, family), {
-      mode: 0o600,
-    });
-    if (process.platform !== 'win32') fs.chmodSync(managedPath, 0o600); // umask cannot loosen it
-    wroteManaged = true;
-  } catch (e) {
-    errors.push(`managed file: ${msg(e)}`);
+  for (const tool of TOOLS) {
+    const dest = managedScriptPath(tool, home, family);
+    const inUse = opts.accounts.some((a) => a.tool === tool.id);
+    try {
+      if (!inUse) {
+        // deleting your last account of a tool cleans up after itself, rather
+        // than leaving a stale file the rc block keeps sourcing
+        fs.rmSync(dest, { force: true });
+        continue;
+      }
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      // 0600: an account's env may carry a provider API token, and this file is
+      // only ever read by the user's own shell.
+      fs.writeFileSync(dest, renderManagedScript(opts.accounts, home, family, tool.id), {
+        mode: 0o600,
+      });
+      if (process.platform !== 'win32') fs.chmodSync(dest, 0o600); // umask cannot loosen it
+      wroteManaged = true;
+    } catch (e) {
+      errors.push(`managed file (${tool.id}): ${msg(e)}`);
+    }
   }
 
   const names = managedNames(opts.accounts);
@@ -1159,15 +1194,22 @@ export function writeWrapperAccounts(
   if (problems.length) return { ok: false, errors: problems };
   const { home } = env;
   const family = familyOf(env.platform);
-  const managedPath = managedScriptPath(home, family);
-  try {
-    fs.mkdirSync(path.dirname(managedPath), { recursive: true });
-    fs.writeFileSync(managedPath, renderManagedScript(accounts, home, family), { mode: 0o600 });
-    if (process.platform !== 'win32') fs.chmodSync(managedPath, 0o600);
-    return { ok: true, errors: [] };
-  } catch (e) {
-    return { ok: false, errors: [`managed file: ${msg(e)}`] };
+  const errors: string[] = [];
+  for (const tool of TOOLS) {
+    const dest = managedScriptPath(tool, home, family);
+    try {
+      if (!accounts.some((a) => a.tool === tool.id)) {
+        fs.rmSync(dest, { force: true });
+        continue;
+      }
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, renderManagedScript(accounts, home, family, tool.id), { mode: 0o600 });
+      if (process.platform !== 'win32') fs.chmodSync(dest, 0o600);
+    } catch (e) {
+      errors.push(`managed file (${tool.id}): ${msg(e)}`);
+    }
   }
+  return { ok: errors.length === 0, errors };
 }
 
 /**

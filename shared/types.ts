@@ -1070,11 +1070,13 @@ export interface ShellDetection {
   shells: ShellTarget[];
 }
 
-/** One account wrapper to generate: a command name bound to a config root. */
+/** One account wrapper to generate: a command name bound to a tool's home. */
 export interface AccountSpec {
-  /** wrapper command, e.g. 'claude-work' */
+  /** which CLI this wrapper launches, and so which env var it exports */
+  tool: ToolId;
+  /** wrapper command, e.g. 'claude-work' or 'codex-work' */
   name: string;
-  /** config dir Claude Code reads (CLAUDE_CONFIG_DIR), e.g. ~/.claude-work */
+  /** the tool's home dir, exported as its `homeEnvVar` (e.g. ~/.claude-work) */
   root: string;
   /**
    * Extra environment exported by this wrapper, on top of `CLAUDE_CONFIG_DIR`.
@@ -1113,10 +1115,13 @@ export interface RcExisting {
 
 /** Dry-run of a setup apply — exactly what would be written, nothing done. */
 export interface SetupPlan {
-  /** the ccmon-owned file that holds the wrappers */
-  managedPath: string;
-  /** full contents that would be (re)written there */
-  managedScript: string;
+  /**
+   * The ccmon-owned wrapper files, one per tool that has accounts. A tool with
+   * none contributes no entry, and its file is REMOVED on apply — deleting
+   * your last account of a tool cleans up after itself rather than leaving a
+   * stale file the rc keeps sourcing.
+   */
+  managed: Array<{ tool: ToolId; path: string; script: string }>;
   /** per chosen rc: link state, the block we'd append, and any clashing defs */
   rcEdits: Array<{
     rcPath: string;

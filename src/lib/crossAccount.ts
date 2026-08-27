@@ -4,7 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import { accountRootFor, toolForRoot } from '../../shared/tools';
+import { accountGroups, accountRootFor, toolForRoot } from '../../shared/tools';
 import type { AccountSpec, AccountWrapperPrefs, AccountsMap, LimitsMap } from '../../shared/types';
 
 /**
@@ -210,13 +210,16 @@ export function effectiveWrapperAccounts(
   sourceDirs: string[],
   prefs: Record<string, AccountWrapperPrefs>,
 ): AccountSpec[] {
-  return sourceDirs
-    .map(accountRoot)
-    .filter((root) => !prefs[root]?.disabled)
-    .map((root) => {
+  // groups, not source dirs: a Codex home contributes two source dirs but is
+  // ONE account, and emitting it twice would be a duplicate function name that
+  // validateAccounts rejects on apply.
+  return accountGroups(sourceDirs)
+    .filter(({ root }) => !prefs[root]?.disabled)
+    .map(({ root, tool }) => {
       const env = prefs[root]?.env;
       return {
-        name: prefs[root]?.name || suggestWrapperName(root),
+        tool: tool.id,
+        name: prefs[root]?.name || tool.suggestWrapperName(root),
         root,
         ...(env && Object.keys(env).length ? { env } : {}),
       };

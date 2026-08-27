@@ -12,6 +12,7 @@ import { refreshAccounts, updateSettings } from '../../bootstrap';
 import { tildify } from '../../lib/format';
 import { accountRoot, suggestWrapperName } from '../../lib/crossAccount';
 import { PROVIDER_PRESETS } from '../../../shared/providerPresets';
+import { toolForRoot } from '../../../shared/tools';
 import type {
   AccountSpec,
   SetupOptions,
@@ -149,6 +150,7 @@ export function SetupWizard() {
       accounts: roots.map<AccountSpec>((root) => {
         const env = envByRoot[root];
         return {
+          tool: toolForRoot(root).id,
           name: names[root] || suggestWrapperName(root),
           root,
           ...(env && Object.keys(env).length ? { env } : {}),
@@ -442,10 +444,14 @@ export function SetupWizard() {
                 ⚠ {w}
               </div>
             ))}
-            <div className="wiz-pre-label">
-              {tildify(plan.managedPath)} <span className="wiz-dim">(rewritten)</span>
-            </div>
-            <pre className="wiz-pre">{plan.managedScript}</pre>
+            {plan.managed.map((m) => (
+              <div key={m.path}>
+                <div className="wiz-pre-label">
+                  {tildify(m.path)} <span className="wiz-dim">(rewritten)</span>
+                </div>
+                <pre className="wiz-pre">{m.script}</pre>
+              </div>
+            ))}
             {plan.rcEdits.map((e) => (
               <div className="wiz-rc" key={e.rcPath}>
                 <div className="wiz-pre-label">
