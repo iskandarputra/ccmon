@@ -494,3 +494,53 @@ describe('end to end through the watcher', () => {
     expect(byIn.get(20)).toBe('gpt-5');
   });
 });
+
+describe('auto-review fallback model — resolved by session date', () => {
+  /**
+   * Codex records `codex-auto-review` as the model for an auto-review turn
+   * rather than the model that actually ran. Billing that literal string
+   * prices the turn at $0 (no catalog has it), so it resolves to whichever
+   * model auto-review used at the time — a dated table, like `shared/plans.ts`.
+   */
+  const autoReview = (ts: string) => {
+    const st = codexAdapter.createState!() as CodexState;
+    const line = JSON.stringify({
+      timestamp: ts,
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          model: 'codex-auto-review',
+          last_token_usage: { input_tokens: 100, cached_input_tokens: 0, output_tokens: 10 },
+        },
+      },
+    });
+    const out = parse(line, st);
+    return out && out.kind === 'entry' ? out.model : null;
+  };
+
+  it('picks the model auto-review used on that date', () => {
+    expect(autoReview('2026-05-13T09:00:00.000Z')).toBe('gpt-5.5'); // >= 2026-04-23
+    expect(autoReview('2026-03-10T09:00:00.000Z')).toBe('gpt-5.4'); // >= 2026-03-05
+    expect(autoReview('2026-02-10T09:00:00.000Z')).toBe('gpt-5.3-codex');
+    expect(autoReview('2025-12-20T09:00:00.000Z')).toBe('gpt-5.2-codex');
+    expect(autoReview('2025-11-20T09:00:00.000Z')).toBe('gpt-5.1-codex');
+    expect(autoReview('2025-09-20T09:00:00.000Z')).toBe('gpt-5-codex');
+  });
+
+  it('falls back to gpt-5 before the first dated entry', () => {
+    expect(autoReview('2025-01-01T09:00:00.000Z')).toBe('gpt-5');
+  });
+
+  it('leaves a real model id alone', () => {
+    const st = codexAdapter.createState!() as CodexState;
+    const out = parse(
+      tokenCount({
+        model: 'gpt-5.6-terra',
+        last_token_usage: { input_tokens: 100, cached_input_tokens: 0, output_tokens: 10 },
+      }),
+      st,
+    );
+    expect(out && out.kind === 'entry' ? out.model : null).toBe('gpt-5.6-terra');
+  });
+});

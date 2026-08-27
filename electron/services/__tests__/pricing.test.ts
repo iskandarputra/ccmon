@@ -253,6 +253,21 @@ describe('pricing — OpenAI / Codex models', () => {
     expect(at250k).toBeCloseTo(250_000 * 2e-6, 9); // base rate, not 4e-6
   });
 
+  it('bills gpt-5.5 fast turns at 2.5×, not the default 2×', async () => {
+    // models.dev publishes no fast multiplier, so every OpenAI model would
+    // take the engine's default 2×. gpt-5.5 is 2.5× — the one Codex model
+    // where the default is wrong.
+    const e = await createPricingEngine({ offline: true });
+    const base = e.cost('gpt-5.5', { in: 1_000_000 })!;
+    expect(e.cost('gpt-5.5-fast', { in: 1_000_000 })).toBeCloseTo(base * 2.5, 9);
+  });
+
+  it('leaves the gpt-5.6 family on the default 2×', async () => {
+    const e = await createPricingEngine({ offline: true });
+    const base = e.cost('gpt-5.6-terra', { in: 1_000_000 })!;
+    expect(e.cost('gpt-5.6-terra-fast', { in: 1_000_000 })).toBeCloseTo(base * 2, 9);
+  });
+
   it('still applies the 200K threshold to Anthropic models', async () => {
     const e = await createPricingEngine({ offline: true });
     const base = e.cost('claude-sonnet-4-5', { in: 100_000 });

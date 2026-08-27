@@ -48,6 +48,45 @@ import type { SourceAdapter } from './types';
 /** Model billed when a rollout never records one (ccusage uses the same). */
 const FALLBACK_MODEL = 'gpt-5';
 
+/**
+ * The literal model id Codex writes for an auto-review turn. It is not a real
+ * model and no pricing catalog carries it, so billing the string as-is prices
+ * every auto-review turn at $0.
+ */
+const AUTO_REVIEW_MODEL = 'codex-auto-review';
+
+/**
+ * Which model auto-review actually ran, by date — newest first.
+ *
+ * A dated table for the same reason `shared/plans.ts` is one: the mapping is
+ * historical fact, not something any API will tell us, and re-dating it would
+ * rewrite the past. Mirrors ccusage's `codex-auto-review-fallbacks.json`.
+ */
+const AUTO_REVIEW_FALLBACKS: ReadonlyArray<{ releasedOn: string; model: string }> = [
+  { releasedOn: '2026-04-23', model: 'gpt-5.5' },
+  { releasedOn: '2026-03-05', model: 'gpt-5.4' },
+  { releasedOn: '2026-02-05', model: 'gpt-5.3-codex' },
+  { releasedOn: '2025-12-11', model: 'gpt-5.2-codex' },
+  { releasedOn: '2025-11-13', model: 'gpt-5.1-codex' },
+  { releasedOn: '2025-09-15', model: 'gpt-5-codex' },
+  { releasedOn: '2025-08-07', model: 'gpt-5' },
+];
+
+/**
+ * Resolve `codex-auto-review` to the model that ran on `iso`'s date. Any other
+ * model id passes through untouched.
+ *
+ * Compared as `YYYY-MM-DD` strings, which sort lexicographically — and taken
+ * from the raw timestamp rather than a zoned day key, because the release
+ * dates are upstream facts in UTC, not entries in the user's calendar.
+ */
+function resolveAutoReview(model: string, iso: string | undefined): string {
+  if (model !== AUTO_REVIEW_MODEL) return model;
+  const date = iso?.slice(0, 10);
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return FALLBACK_MODEL;
+  return AUTO_REVIEW_FALLBACKS.find((f) => date >= f.releasedOn)?.model ?? FALLBACK_MODEL;
+}
+
 /** Cheap reject before `JSON.parse`, mirroring `parser.mayCarryData`. */
 const LINE_MARKERS = ['token_count', 'turn_context', 'thread_settings_applied'] as const;
 const LINE_MARKER_BYTES = LINE_MARKERS.map((m) => Buffer.from(m, 'ascii'));
@@ -127,17 +166,29 @@ export const codexAdapter: SourceAdapter = {
     const homes = [...(env.length ? env : [path.join(os.homedir(), '.codex')]), ...extra];
     const out: string[] = [];
     const seen = new Set<string>();
+    const isDir = (p: string) => {
+      try {
+        return fs.statSync(p).isDirectory();
+      } catch {
+        return false; // Codex not installed, or never run — the normal case
+      }
+    };
     for (const home of homes) {
+      let found = false;
       for (const name of ['sessions', 'archived_sessions']) {
         const dir = path.join(home, name);
         if (seen.has(dir)) continue;
-        try {
-          if (!fs.statSync(dir).isDirectory()) continue;
-        } catch {
-          continue; // Codex not installed, or never run — the normal case
-        }
+        if (!isDir(dir)) continue;
         seen.add(dir);
         out.push(dir);
+        found = true;
+      }
+      // A home with NEITHER subdir is taken to be a directory of rollouts
+      // itself — an export, a backup, a mounted share. Looking only one level
+      // down found nothing at all for those, silently.
+      if (!found && !seen.has(home) && isDir(home)) {
+        seen.add(home);
+        out.push(home);
       }
     }
     return out;
@@ -230,7 +281,10 @@ export const codexAdapter: SourceAdapter = {
     const output = zero(delta, 'output_tokens');
     if (!input && !cached && !output) return null; // a no-op tick, not a turn
 
-    let model = info.model || info.model_name || st.model || FALLBACK_MODEL;
+    let model = resolveAutoReview(
+      info.model || info.model_name || st.model || FALLBACK_MODEL,
+      j.timestamp,
+    );
     const fast = st.fast === true;
     if (fast) model += '-fast';
 

@@ -180,8 +180,21 @@ function normalizeLitellm(e: LitellmEntry, source: string): RateRow | null {
   };
 }
 
+/**
+ * Fast-multiplier DEVIATIONS from `DEFAULT_FAST_MULTIPLIER`, by exact model id.
+ *
+ * models.dev publishes no fast multiplier at all (LiteLLM carries it in
+ * `provider_specific_entry.fast`), so every model resolved from that layer
+ * takes the 2× default. The gpt-5.6 family is genuinely 2×; gpt-5.5 is 2.5×.
+ * Only the deviations are listed — an entry equal to the default would be
+ * noise that still has to be kept in step with upstream.
+ */
+const FAST_MULTIPLIER_OVERRIDES: Readonly<Record<string, number>> = {
+  'gpt-5.5': 2.5,
+};
+
 /** models.dev entries carry per-MTok costs — divide by 1e6 on load. */
-function normalizeModelsDev(e: ModelsDevEntry): RateRow | null {
+function normalizeModelsDev(e: ModelsDevEntry, model?: string): RateRow | null {
   const c = e?.cost;
   if (!c) return null;
   const input = (c.input || 0) / 1e6;
@@ -209,7 +222,7 @@ function normalizeModelsDev(e: ModelsDevEntry): RateRow | null {
       : null,
     tierAt: band?.tier?.size ?? null,
     contextLimit: e.limit?.context || null,
-    fast: null,
+    fast: (model && FAST_MULTIPLIER_OVERRIDES[model]) || null,
     fastApplied: 1,
   };
 }
@@ -582,7 +595,7 @@ export class PricingEngine {
         if (!Object.prototype.hasOwnProperty.call(layer.models, key)) continue;
         row = layer.litellm
           ? normalizeLitellm((layer.models as LitellmCatalog)[key], layer.source)
-          : normalizeModelsDev((layer.models as ModelsDevCatalog)[key]);
+          : normalizeModelsDev((layer.models as ModelsDevCatalog)[key], key);
         if (row) break;
       }
       if (row) break;
