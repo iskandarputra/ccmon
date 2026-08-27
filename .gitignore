@@ -26,3 +26,6 @@ Thumbs.db
 
 # logs
 *.log
+
+# isolated worktrees (git worktree add) — never part of the repo
+/.worktrees/
