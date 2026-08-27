@@ -112,6 +112,64 @@ describe('accountLabel', () => {
   });
 });
 
+describe('plan tier — a Team seat can be upgraded past its org', () => {
+  let home: string;
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-tier-'));
+  });
+  afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const account = (
+    root: string,
+    oauth: Record<string, unknown>,
+    creds: Record<string, unknown>,
+  ) => {
+    fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.claude.json'), JSON.stringify({ oauthAccount: oauth }));
+    fs.writeFileSync(
+      path.join(root, '.credentials.json'),
+      JSON.stringify({ claudeAiOauth: { accessToken: 'at', ...creds } }),
+    );
+    return path.join(root, 'projects');
+  };
+
+  it('reads the SEAT tier, not the org codename', () => {
+    // The real shape of a Team member upgraded to Max 5x: the credentials file
+    // and the org both say 'default_raven', which parses to no multiplier, and
+    // only `userRateLimitTier` carries the upgrade. Reading the org fields
+    // alone reported no tier at all.
+    const dir = account(
+      path.join(home, '.claude-work'),
+      {
+        organizationType: 'claude_team',
+        seatTier: 'team_tier_1',
+        organizationRateLimitTier: 'default_raven',
+        userRateLimitTier: 'default_claude_max_5x',
+      },
+      { subscriptionType: 'team', rateLimitTier: 'default_raven' },
+    );
+    expect(accountInfo(dir)).toMatchObject({ plan: 'team', tier: '5x' });
+  });
+
+  it('still reads the credentials tier for a personal account', () => {
+    const dir = account(
+      path.join(home, '.claude-solo'),
+      { organizationType: 'claude_max' },
+      { subscriptionType: 'max', rateLimitTier: 'default_claude_max_20x' },
+    );
+    expect(accountInfo(dir)).toMatchObject({ plan: 'max', tier: '20x' });
+  });
+
+  it('reports no tier when neither field carries a multiplier', () => {
+    const dir = account(
+      path.join(home, '.claude-pro'),
+      { organizationType: 'claude_pro' },
+      { subscriptionType: 'pro', rateLimitTier: 'default_claude_ai' },
+    );
+    expect(accountInfo(dir)).toMatchObject({ plan: 'pro', tier: null });
+  });
+});
+
 describe('fetchLiveLimits — reads the credentials from the ROOT, not the source dir', () => {
   let home: string;
   beforeEach(() => {

@@ -71,6 +71,7 @@ const api: CcmonApi = {
   onPricingMeta: on('pricing:meta'),
   onLimits: on('limits:data'),
   onToolLimits: on('limits:tool'),
+  onLiveSessions: on('sessions:live'),
   onCurrency: on('currency:data'),
   onDeepseek: on('deepseek:data'),
   onDeepseekAuth: on('deepseek:auth'),

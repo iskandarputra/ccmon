@@ -16,7 +16,16 @@ import { useUsageStore } from '../store/useUsageStore';
 import { useNow } from '../hooks/useNow';
 import { useScopedDirs } from '../hooks/useScopedDirs';
 import { refreshAccounts, updateSettings } from '../bootstrap';
-import { fmtPct, fmtTok, fmtUSD, relTime, sourceLabel, tildify } from '../lib/format';
+import {
+  countdown,
+  fmtPct,
+  fmtTok,
+  fmtUSD,
+  relTime,
+  resetTime,
+  sourceLabel,
+  tildify,
+} from '../lib/format';
 import { limitColor, windowLabel } from '../lib/limits';
 import { noPriceReason, planBadgeColor, planPriceUSD } from '../lib/plans';
 import {
@@ -36,6 +45,7 @@ import type {
   AccountWrapperPrefs,
   LimitsMarker,
   LimitsResult,
+  LiveSession,
   LimitWindow,
   RecentSession,
 } from '../../shared/types';
@@ -162,10 +172,23 @@ function Ring({ pct }: { pct: number }) {
 }
 
 /** One live-limit window as a labelled meter. */
-function WindowMeter({ label, win }: { label: string; win?: LimitWindow | null }) {
+function WindowMeter({
+  label,
+  win,
+  now,
+}: {
+  label: string;
+  win?: LimitWindow | null;
+  now?: number;
+}) {
   if (!win || (win.pct == null && !win.resetsAt)) return null;
   const pct = win.pct;
   const color = limitColor(pct);
+  // The reset instant is half the answer: "99% used" is alarming until you
+  // know it clears in three weeks. Codex's own /status leads with it, so the
+  // wording matches ("20:46 on 14 Sep") rather than inventing a second phrasing.
+  const left = win.resetsAt && now ? win.resetsAt - now : 0;
+  const resets = left > 0 ? `in ${countdown(left)} · ${resetTime(win.resetsAt!, now)}` : null;
   return (
     <div className="acc-meter">
       <div className="acc-meter-head">
@@ -177,6 +200,7 @@ function WindowMeter({ label, win }: { label: string; win?: LimitWindow | null }
       <div className="acc-meter-track">
         <i style={cssVars({ width: `${Math.min(100, Math.max(pct ?? 0, 2))}%`, '--mc': color })} />
       </div>
+      {resets && <span className="acc-meter-reset">resets {resets}</span>}
     </div>
   );
 }
@@ -193,6 +217,8 @@ interface AccountCardProps {
   limit: LimitsResult | undefined;
   /** limits the tool recorded itself (Codex) — never fetched, possibly stale */
   recorded: LimitsMarker | undefined;
+  /** sessions of this account running right now */
+  running: LiveSession[];
   spend: AccountSpend | undefined;
   inScope: boolean;
   canScope: boolean;
@@ -219,6 +245,7 @@ function AccountCard({
   acct,
   limit,
   recorded,
+  running,
   spend,
   inScope,
   canScope,
@@ -405,6 +432,20 @@ function AccountCard({
             >
               {acct.plan}
               {acct.tier ? ` · ${acct.tier}` : ''}
+            </span>
+          )}
+          {running.length > 0 && (
+            <span
+              className="acc-running"
+              title={running
+                .map(
+                  (r) =>
+                    `${r.label ?? r.id}${r.cwd ? ` · ${r.cwd}` : ''}${r.status ? ` · ${r.status}` : ''}`,
+                )
+                .join('\n')}
+            >
+              <i className="acc-running-dot" />
+              {running.length} running
             </span>
           )}
           {inScope && <span className="acc-scoped-badge">viewing</span>}
@@ -615,15 +656,16 @@ function AccountCard({
               key={w!.windowMinutes}
               label={windowLabel(w!.windowMinutes)}
               win={{ pct: w!.usedPercent, resetsAt: w!.resetsAt }}
+              now={now}
             />
           ))}
         </div>
       ) : loggedIn && limit?.ok ? (
         <div className="acc-meters">
-          <WindowMeter label="session · 5h" win={limit.session} />
-          <WindowMeter label="week · all" win={limit.week} />
-          <WindowMeter label="week · opus" win={limit.weekOpus} />
-          <WindowMeter label="week · sonnet" win={limit.weekSonnet} />
+          <WindowMeter label="session · 5h" win={limit.session} now={now} />
+          <WindowMeter label="week · all" win={limit.week} now={now} />
+          <WindowMeter label="week · opus" win={limit.weekOpus} now={now} />
+          <WindowMeter label="week · sonnet" win={limit.weekSonnet} now={now} />
         </div>
       ) : (
         <div className="acc-nolimit">
@@ -858,6 +900,7 @@ export function AccountsView() {
   const accounts = useUsageStore((s) => s.accounts);
   const limits = useUsageStore((s) => s.limits);
   const toolLimits = useUsageStore((s) => s.toolLimits);
+  const liveSessions = useUsageStore((s) => s.liveSessions);
   const spend = useUsageStore((s) => s.snapshot?.accountSpend);
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
   const allSourceDirs = useUsageStore((s) => s.allSourceDirs);
@@ -947,6 +990,7 @@ export function AccountsView() {
             acct={accounts[group.dirs[0]]}
             limit={limits[group.dirs[0]]}
             recorded={group.dirs.map((d) => toolLimits[d]).find(Boolean)}
+            running={group.dirs.flatMap((d) => liveSessions[d] ?? [])}
             spend={spend?.[group.dirs[0]]}
             inScope={group.dirs.some((d) => scopedSet.has(d))}
             canScope={canScope}

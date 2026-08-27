@@ -14,6 +14,7 @@ import type {
   FeedEvent,
   LimitsMap,
   LimitsMarker,
+  LiveSession,
   PricingMeta,
   Snapshot,
   TimeRange,
@@ -65,6 +66,8 @@ export interface UsageState {
    * Separate from `limits`, which is a polled endpoint result — see AppState.
    */
   toolLimits: Record<string, LimitsMarker>;
+  /** sessions running right now, per account root */
+  liveSessions: Record<string, LiveSession[]>;
   /** hourly USD exchange rates for display conversion */
   currency: CurrencyRates | null;
   /** live DeepSeek balance, null without a connected key */
@@ -105,6 +108,7 @@ export const useUsageStore = create<UsageState>((set) => ({
   accounts: {},
   limits: {},
   toolLimits: {},
+  liveSessions: {},
   currency: null,
   deepseek: null,
   deepseekAuth: null,

@@ -13,7 +13,8 @@ import { useUsageStore } from '../../store/useUsageStore';
 import { useNow } from '../../hooks/useNow';
 import { useScopedDirs } from '../../hooks/useScopedDirs';
 import { countdown, fmtPct, relTime, sourceLabel } from '../../lib/format';
-import { limitColor } from '../../lib/limits';
+import { limitColor, windowLabel } from '../../lib/limits';
+import { accountGroups, toolFor } from '../../../shared/tools';
 import { planBadgeColor } from '../../lib/plans';
 import type { LimitSample, LimitWindow, WindowForecast } from '../../../shared/types';
 
@@ -147,6 +148,7 @@ function HistorySpark({ samples }: { samples: LimitSample[] }) {
  */
 export function PlanLimits() {
   const limits = useUsageStore((s) => s.limits);
+  const toolLimits = useUsageStore((s) => s.toolLimits);
   const accounts = useUsageStore((s) => s.accounts);
   const scoped = useScopedDirs();
   const now = useNow(30000);
@@ -155,7 +157,14 @@ export function PlanLimits() {
   // limits are polled for every account; this overview card stays aligned to
   // the data scope. The accounts view is where ALL logins show side by side.
   const dirs = scoped.filter((d) => limits[d]);
-  if (!dirs.length) return null;
+  // Codex records its limits in the transcript rather than serving them from
+  // an endpoint, so it never appears in `limits` and used to be missing from
+  // this panel entirely — the one place a multi-tool user looks to compare
+  // accounts. One dir per account: a Codex home feeds two.
+  const recordedDirs = accountGroups(scoped)
+    .map((g) => g.dirs.find((d) => toolLimits[d]))
+    .filter((d): d is string => !!d);
+  if (!dirs.length && !recordedDirs.length) return null;
 
   // manual refresh bypasses the failure backoff in main — the user asked
   async function refresh() {
@@ -173,7 +182,11 @@ export function PlanLimits() {
       title="plan limits · live"
       right={
         <div className="dc-head">
-          <span className="panel-note">your real anthropic limits · 60s refresh</span>
+          <span className="panel-note">
+            {recordedDirs.length
+              ? 'polled from anthropic · read from codex logs'
+              : 'your real anthropic limits · 60s refresh'}
+          </span>
           <button type="button" className="plim-refresh" onClick={refresh} disabled={refreshing}>
             {refreshing ? 'refreshing…' : 'refresh now'}
           </button>
@@ -192,6 +205,7 @@ export function PlanLimits() {
             <div className="plim-account" key={dir}>
               <div className="plim-head">
                 <span className="plim-name">{sourceLabel(dir)}</span>
+                <span className="plim-tool">{toolFor(dir).label}</span>
                 {acct?.plan && (
                   <span
                     className="plim-plan"
@@ -255,12 +269,58 @@ export function PlanLimits() {
             </div>
           );
         })}
+        {recordedDirs.map((dir) => {
+          const m = toolLimits[dir];
+          const acct = accounts[dir];
+          return (
+            <div className="plim-account" key={dir}>
+              <div className="plim-head">
+                <span className="plim-name">{sourceLabel(dir)}</span>
+                <span className="plim-tool">{toolFor(dir).label}</span>
+                {(m.planType || acct?.plan) && (
+                  <span
+                    className="plim-plan"
+                    style={cssVars({ '--pc': 'var(--text-dim)' })}
+                    title="reported by the tool itself, per turn"
+                  >
+                    {m.planType || acct?.plan}
+                  </span>
+                )}
+                {/* NOT the live dot: read from a rollout, so only as fresh as
+                    the last real turn — /status and /usage write nothing. */}
+                <span className="plim-recorded" title="read from the session log, not polled">
+                  as of {relTime(m.observedAt, now)}
+                </span>
+              </div>
+              <div className="plim-wins">
+                {[m.primary, m.secondary].filter(Boolean).map((w) => (
+                  <WindowTile
+                    key={w!.windowMinutes}
+                    label={windowLabel(w!.windowMinutes)}
+                    win={{ pct: w!.usedPercent, resetsAt: w!.resetsAt }}
+                    now={now}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
       <Hint label="about these numbers">
         utilization comes live from anthropic's usage endpoint via your stored Claude Code login —
         read-only, tokens are never refreshed. "caps ~…" is a linear fit over the recent polls,
         shown only when the pace would hit 100% before the window resets; the sparkline is the
         weekly utilization over the last 7 days of polls.
+        {recordedDirs.length > 0 && (
+          <>
+            {' '}
+            Codex is different: it writes its own limits into each session log, so ccmon reads them
+            with no network call at all — but they are only as fresh as your last real turn.
+            <code>/status</code> and <code>/usage</code> record nothing, so a Codex reading can sit
+            days behind the account&apos;s true position, which is why it says &quot;as of&quot;
+            rather than &quot;live&quot;.
+          </>
+        )}
       </Hint>
     </Panel>
   );

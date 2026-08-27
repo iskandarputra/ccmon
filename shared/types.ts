@@ -142,6 +142,22 @@ export interface LimitsMarker {
 }
 
 /**
+ * One coding-CLI session running right now, read from the tool's own on-disk
+ * registry rather than guessed from file activity.
+ */
+export interface LiveSession {
+  /** the tool's session id (Claude) or lock id (Codex) */
+  id: string;
+  /** working directory, when the tool records one */
+  cwd: string | null;
+  startedAt: number | null;
+  /** 'busy' | 'idle' as Claude Code reports it; null when unknown */
+  status: 'busy' | 'idle' | null;
+  /** the session's display name, when it has one */
+  label: string | null;
+}
+
+/**
  * NOT part of `ParsedLine`: a Codex `token_count` line yields BOTH a usage
  * entry and a limits reading, so it cannot be expressed as one return value.
  * `SourceAdapter.parseLimits` reads it separately off the same line.

@@ -20,7 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import { detectSourceRoots } from './services/adapters';
 import type { SourceRoot } from './services/adapters/types';
-import { toolFor, toolForRoot } from '../shared/tools';
+import { accountRootFor, toolFor, toolForRoot } from '../shared/tools';
 import { loadConfig, CONFIG_PATH } from './services/config';
 import { Settings } from './services/settings';
 import { createPricingEngine, costForMode, type PricingEngine } from './services/pricing';
@@ -54,6 +54,7 @@ import {
   visibleAccountDirs,
   writeWrapperAccounts,
 } from './services/account-setup';
+import { liveSessions as readLiveSessions } from './services/tools/sessions';
 import { LimitsHistory } from './services/limits-history';
 import { CurrencyService } from './services/currency';
 import { fetchBalance } from './services/deepseek';
@@ -91,6 +92,7 @@ import type {
   SetupOptions,
   Snapshot,
   TimeRange,
+  LiveSession,
   ToolId,
   UsageEntry,
 } from '../shared/types';
@@ -108,6 +110,9 @@ const RECOMPUTE_DEBOUNCE_MS = 250;
 const RECOMPUTE_MIN_INTERVAL_MS = 2000;
 const PERIODIC_REFRESH_MS = 60000; // day rollover / block expiry without events
 const LIMITS_REFRESH_MS = 60_000; // live plan-limits poll
+// Local only — a few small files in dirs the app already watches. 10s keeps
+// "is a session running" honest without the 60s lag of the limits poll.
+const SESSIONS_REFRESH_MS = 10_000;
 const LIMITS_RETRY_MS = 60_000; // FIXED retry after a limits failure — no exponential growth
 const CURRENCY_REFRESH_MS = 3_600_000; // hourly display-currency rates
 // A prepaid balance moves far slower than a rate-limit window and the endpoint
@@ -385,6 +390,27 @@ function recompute(force = false): void {
   // startup, while the first scan is still running.
   pushToolLimits();
   refreshTray();
+}
+
+/**
+ * Running sessions per account, from each tool's own registry.
+ *
+ * Polled rather than pushed: a session starting or ending is not an event
+ * ccmon can subscribe to, and the read is a handful of small files in
+ * directories the app already knows. Signature-compared so an unchanged set
+ * costs one IPC message per interval and no renderer work.
+ */
+let lastSessionsSig = '';
+function pushLiveSessions(force = false): void {
+  const out: Record<string, LiveSession[]> = {};
+  for (const dir of state.sourceDirs) {
+    const found = readLiveSessions(accountRootFor(dir));
+    if (found.length) out[dir] = found;
+  }
+  const sig = JSON.stringify(out);
+  if (!force && sig === lastSessionsSig) return;
+  lastSessionsSig = sig;
+  send('sessions:live', out);
 }
 
 /** Publish the transcript-recorded rate limits (Codex) to the renderer. */
@@ -945,6 +971,11 @@ ipcMain.handle('app:getState', (): AppState => ({
   limits: state.limits,
   // limits the TOOL recorded in its own transcript (Codex) — no poll involved
   toolLimits: Object.fromEntries(state.watcher?.limitsFor(null) ?? []),
+  liveSessions: Object.fromEntries(
+    state.sourceDirs
+      .map((d) => [d, readLiveSessions(accountRootFor(d))] as const)
+      .filter(([, v]) => v.length),
+  ),
   currency: state.currency ? state.currency.get() : null,
   deepseek: state.deepseek,
   deepseekAuth: state.deepseekKey
@@ -1373,6 +1404,8 @@ void app.whenReady().then(async () => {
     if (state.status === 'ready') recompute();
   }, PERIODIC_REFRESH_MS);
   setInterval(() => void refreshLimits(), LIMITS_REFRESH_MS);
+  pushLiveSessions(true);
+  setInterval(() => pushLiveSessions(), SESSIONS_REFRESH_MS);
   setInterval(() => void refreshCurrency(), CURRENCY_REFRESH_MS);
   setInterval(() => void refreshDeepseek(), DEEPSEEK_REFRESH_MS);
 

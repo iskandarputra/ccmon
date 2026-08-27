@@ -43,6 +43,18 @@ interface OauthAccount {
   organizationName?: string;
   organizationType?: string;
   seatTier?: string;
+  /**
+   * THIS user's rate-limit entitlement, e.g. 'default_claude_max_5x'.
+   *
+   * On a Team org it is the seat's own tier and differs from the org's: a
+   * member upgraded to Max 5x reads `organizationType: 'claude_team'`,
+   * `rateLimitTier: 'default_raven'` (an org codename that parses to no
+   * multiplier at all) and `userRateLimitTier: 'default_claude_max_5x'`.
+   * Reading only the org fields loses the upgrade entirely.
+   */
+  userRateLimitTier?: string;
+  /** the ORG's tier — a codename like 'default_raven', not a multiplier */
+  organizationRateLimitTier?: string;
 }
 
 interface ClaudeConfig {
@@ -167,7 +179,10 @@ export function claudeIdentity(root: string): AccountInfo | null {
   return {
     tool: 'claude',
     plan,
-    tier: tierOf(creds?.rateLimitTier),
+    // The USER's entitlement first: on a Team org the credentials file carries
+    // the org's tier codename ('default_raven'), which yields no multiplier,
+    // while the seat's real Max 5x sits in `userRateLimitTier`.
+    tier: tierOf(oauth?.userRateLimitTier) ?? tierOf(creds?.rateLimitTier),
     email: oauth?.emailAddress || null,
     organization: oauth?.organizationName || null,
     hasCredentials: !!creds?.accessToken,

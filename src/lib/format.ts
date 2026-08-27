@@ -171,6 +171,13 @@ export const countdown = (ms: number): string => {
   if (ms <= 0) return '0m';
   const m = Math.ceil(ms / 60000);
   const h = Math.floor(m / 60);
+  // Days once there are any. Claude's windows are 5-hourly and weekly so this
+  // rarely fired, but Codex's free tier resets MONTHLY — "437h 12m" is a
+  // number nobody can read at a glance.
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    return `${d}d ${h % 24}h ${String(m % 60).padStart(2, '0')}m`;
+  }
   return h > 0 ? `${h}h ${String(m % 60).padStart(2, '0')}m` : `${m}m`;
 };
 
@@ -202,6 +209,19 @@ export const clockTime = (ts: number): string =>
 
 export const feedTime = (ts: number): string =>
   new Date(ts).toLocaleTimeString([], { hour12: false });
+
+/**
+ * "20:46 on 14 Sep" — a reset instant, worded the way the tool's own CLI
+ * words it so the two read as the same fact rather than two measurements.
+ * Same day is just the clock time; there is no "on today".
+ */
+export const resetTime = (ts: number, now: number = Date.now()): string => {
+  const d = new Date(ts);
+  const time = clockTime(ts);
+  const sameDay = new Date(now).toDateString() === d.toDateString();
+  if (sameDay) return time;
+  return `${time} on ${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}`;
+};
 
 export const dayLabel = (dateKey: string): string =>
   new Date(`${dateKey}T12:00:00`).toLocaleDateString([], {

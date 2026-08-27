@@ -24,6 +24,7 @@ import type {
   FeedEvent,
   LimitsMap,
   LimitsMarker,
+  LiveSession,
   LoginCodeResult,
   LoginResult,
   PricingMeta,
@@ -87,6 +88,13 @@ export interface AppState {
    * account has.
    */
   toolLimits: Record<string, LimitsMarker>;
+  /**
+   * Sessions running RIGHT NOW per account root, from each tool's own on-disk
+   * registry (Claude's pid files, Codex's session locks). Polled locally —
+   * no network — because a session starting or ending is not an event ccmon
+   * can subscribe to.
+   */
+  liveSessions: Record<string, LiveSession[]>;
   currency: CurrencyRates | null;
   /** latest DeepSeek balance, null without a key or before the first poll */
   deepseek: DeepseekResult | null;
@@ -208,6 +216,8 @@ export interface CcmonApi {
    * the first scan is still running.
    */
   onToolLimits(cb: (limits: Record<string, LimitsMarker>) => void): Unsubscribe;
+  /** Running sessions per account root, pushed when the set changes. */
+  onLiveSessions(cb: (sessions: Record<string, LiveSession[]>) => void): Unsubscribe;
   onCurrency(cb: (rates: CurrencyRates) => void): Unsubscribe;
   onDeepseek(cb: (result: DeepseekResult | null) => void): Unsubscribe;
   onDeepseekAuth(cb: (auth: DeepseekAuth) => void): Unsubscribe;

@@ -61,6 +61,7 @@ export function useBootstrap(): void {
         accounts: s.accounts || {},
         limits: s.limits || {},
         toolLimits: s.toolLimits || {},
+        liveSessions: s.liveSessions || {},
         currency: s.currency || null,
         deepseek: s.deepseek || null,
         deepseekAuth: s.deepseekAuth || null,
@@ -85,6 +86,9 @@ export function useBootstrap(): void {
       api.onPricingMeta?.((meta) => useUsageStore.setState({ pricingMeta: meta })),
       api.onLimits?.((limits) => useUsageStore.getState().setLimits(limits)),
       api.onToolLimits?.((toolLimits) => useUsageStore.setState({ toolLimits: toolLimits || {} })),
+      api.onLiveSessions?.((liveSessions) =>
+        useUsageStore.setState({ liveSessions: liveSessions || {} }),
+      ),
       api.onCurrency?.((rates) => {
         useUsageStore.setState({ currency: rates || null });
         applyFormatting();
