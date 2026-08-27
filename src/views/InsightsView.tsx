@@ -39,6 +39,7 @@ import {
 } from '../lib/format';
 import { withAlpha } from '../lib/palette';
 import { scopedDirs } from '../lib/limits';
+import { accountRootFor } from '../../shared/tools';
 import { planPriceUSD } from '../lib/plans';
 import { detectProvider, isApiKeyOnly } from '../../shared/providers';
 import {
@@ -158,10 +159,20 @@ function derivePlanValue(
   curMonth: MonthlyRow | null,
   projectedMonth: number | null,
 ): PlanValue | null {
+  // A Codex home feeds two source dirs and would otherwise have its
+  // subscription counted twice; dedupe on the account root before summing.
+  const seen = new Set<string>();
   const priced = dirs
+    .filter((d) => {
+      const root = accountRootFor(d);
+      if (seen.has(root)) return false;
+      seen.add(root);
+      return true;
+    })
     .map((d) => accounts[d])
     .filter((a): a is AccountInfo => !!a)
-    .map((a) => ({ a, price: planPriceUSD(a.plan, a.tier) }))
+    // the tool selects the price table — Claude Pro is $20, ChatGPT Pro $200
+    .map((a) => ({ a, price: planPriceUSD(a.plan, a.tier, a.tool) }))
     .filter((x): x is { a: AccountInfo; price: number } => x.price != null);
   if (!priced.length) return null;
   const price = priced.reduce((s, x) => s + x.price, 0);

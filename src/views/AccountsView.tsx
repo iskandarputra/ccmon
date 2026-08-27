@@ -222,7 +222,7 @@ function AccountCard({
   now,
 }: AccountCardProps) {
   const label = sourceLabel(dir);
-  const price = planPriceUSD(acct?.plan ?? null, acct?.tier ?? null);
+  const price = planPriceUSD(acct?.plan ?? null, acct?.tier ?? null, tool.id);
   const loggedIn = acct?.hasCredentials ?? false;
 
   const [recent, setRecent] = useState<RecentSession[]>([]);
