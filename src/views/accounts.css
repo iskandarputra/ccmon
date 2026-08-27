@@ -803,6 +803,24 @@
   border-color: var(--amber);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
 }
+/* which CLI a new account belongs to — it decides the home name AND the subdir
+   that makes the home discoverable, so it sits ahead of the suffix input */
+.wiz-tool {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  transition: all 0.15s ease;
+}
+.wiz-tool:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
+}
 .wiz-arrow {
   color: var(--text-faint);
   font-weight: 600;

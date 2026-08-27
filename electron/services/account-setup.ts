@@ -1292,24 +1292,32 @@ export function visibleAccountDirs(
 const SUFFIX_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
 /**
- * Create a sibling config dir `~/.claude-<suffix>` (with its projects/ subdir)
- * so it shows up as a new account. The user still logs in there once via the
+ * Create a sibling home `~/.<tool>-<suffix>`, seeded with the subdir that
+ * makes it discoverable (`projects/` for Claude, `sessions/` for Codex), so it
+ * shows up as a new account. The user still logs in there once via the
  * generated wrapper. Returns the new root or a validation/error reason.
+ *
+ * Seeding the WRONG subdir would create a directory the watcher never looks
+ * at, so the seed comes from the tool profile rather than being hardcoded.
  */
 export function createAccountDir(
   suffix: string,
+  tool: ToolId = 'claude',
   env: SetupEnv = defaultEnv(),
 ): { ok: boolean; root: string; error?: string } {
+  const profile = toolById(tool);
   const clean = suffix.trim().replace(/^[.\s]+/, '');
   if (!SUFFIX_RE.test(clean)) {
     return { ok: false, root: '', error: 'use letters, digits, dash or underscore' };
   }
-  const root = path.join(env.home, `.claude-${clean}`);
-  if (fileExists(path.join(root, 'projects'))) {
+  const root = path.join(env.home, `.${profile.id}-${clean}`);
+  // dirExists, not fileExists: the latter READS the path and so answers false
+  // for a directory, which meant this branch never fired.
+  if (dirExists(path.join(root, profile.seedDir))) {
     return { ok: true, root }; // already there — treat as success
   }
   try {
-    fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+    fs.mkdirSync(path.join(root, profile.seedDir), { recursive: true });
     return { ok: true, root };
   } catch (e) {
     return { ok: false, root, error: msg(e) };
@@ -1317,12 +1325,15 @@ export function createAccountDir(
 }
 
 /**
- * Rename a sibling account's config dir on disk: `~/.claude-<old>` →
- * `~/.claude-<suffix>`. The default `~/.claude` root is refused — Claude
- * Code's CLI (and anything else that doesn't go through a ccmon wrapper)
- * falls back to that literal path when `CLAUDE_CONFIG_DIR` isn't set, so
- * moving it would break tools outside ccmon's control. Live file-watching
- * of the new path needs an app relaunch, same as `createAccountDir`.
+ * Rename a sibling account's home on disk: `~/.<tool>-<old>` →
+ * `~/.<tool>-<suffix>`. The tool is INFERRED from the root — a home cannot
+ * change tools, so making it an argument would only add a way to get it wrong.
+ *
+ * Each tool's DEFAULT home is refused: its bare CLI (and anything else that
+ * doesn't go through a ccmon wrapper) falls back to that literal path when the
+ * home env var isn't set, so moving it would break tools outside ccmon's
+ * control. Live file-watching of the new path needs an app relaunch, same as
+ * `createAccountDir`.
  */
 export function renameAccountDir(
   root: string,
@@ -1330,18 +1341,19 @@ export function renameAccountDir(
   env: SetupEnv = defaultEnv(),
 ): { ok: boolean; root: string; error?: string } {
   const { home } = env;
-  if (root === path.join(home, '.claude')) {
-    return { ok: false, root, error: "can't rename the default ~/.claude account" };
+  const profile = toolForRoot(root);
+  if (profile.isDefaultRoot(root)) {
+    return { ok: false, root, error: `can't rename the default ~/.${profile.id} account` };
   }
   const clean = suffix.trim().replace(/^[.\s]+/, '');
   if (!SUFFIX_RE.test(clean)) {
     return { ok: false, root, error: 'use letters, digits, dash or underscore' };
   }
-  const newRoot = path.join(home, `.claude-${clean}`);
+  const newRoot = path.join(home, `.${profile.id}-${clean}`);
   if (newRoot === root) return { ok: true, root };
   if (!fs.existsSync(root)) return { ok: false, root, error: 'account folder not found' };
   if (fs.existsSync(newRoot)) {
-    return { ok: false, root, error: `~/.claude-${clean} already exists` };
+    return { ok: false, root, error: `~/.${profile.id}-${clean} already exists` };
   }
   try {
     fs.renameSync(root, newRoot);

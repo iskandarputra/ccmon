@@ -33,6 +33,7 @@ import type {
   ShellDetection,
   Snapshot,
   TimeRange,
+  ToolId,
 } from './types';
 
 export interface ScanProgress {
@@ -155,12 +156,18 @@ export interface CcmonApi {
   previewSetup(opts: SetupOptions): Promise<SetupPlan>;
   /** Apply a setup (writes the managed file + rc link + optional helper). */
   applySetup(opts: SetupOptions): Promise<SetupReport>;
-  /** Create a sibling config dir `~/.claude-<suffix>` for a new account. */
-  createAccount(suffix: string): Promise<{ ok: boolean; root: string; error?: string }>;
   /**
-   * Rename an account's config dir on disk to `~/.claude-<suffix>`. Refuses
-   * the default `~/.claude` root. Requires an app relaunch afterward for
-   * live file-watching to pick up the new path.
+   * Create a sibling home `~/.<tool>-<suffix>` for a new account, seeded with
+   * the subdir that makes it discoverable.
+   */
+  createAccount(
+    suffix: string,
+    tool: ToolId,
+  ): Promise<{ ok: boolean; root: string; error?: string }>;
+  /**
+   * Rename an account's home on disk to `~/.<tool>-<suffix>`; the tool is
+   * inferred from `root`. Refuses each tool's default home. Requires an app
+   * relaunch afterward for live file-watching to pick up the new path.
    */
   renameAccount(
     root: string,

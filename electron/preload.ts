@@ -12,6 +12,7 @@ import type {
   AppSettings,
   SetupOptions,
   TimeRange,
+  ToolId,
 } from '../shared/types';
 
 /** Subscribe helper — returns an unsubscribe function. */
@@ -55,7 +56,8 @@ const api: CcmonApi = {
   detectShells: () => ipcRenderer.invoke('setup:detectShells'),
   previewSetup: (opts: SetupOptions) => ipcRenderer.invoke('setup:preview', opts),
   applySetup: (opts: SetupOptions) => ipcRenderer.invoke('setup:apply', opts),
-  createAccount: (suffix: string) => ipcRenderer.invoke('setup:createAccount', suffix),
+  createAccount: (suffix: string, tool: ToolId) =>
+    ipcRenderer.invoke('setup:createAccount', suffix, tool),
   renameAccount: (root: string, suffix: string) =>
     ipcRenderer.invoke('setup:renameAccount', root, suffix),
   updateWrapperAccounts: (accounts: AccountSpec[]) =>

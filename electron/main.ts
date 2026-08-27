@@ -19,7 +19,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import { detectSourceRoots } from './services/adapters';
-import { toolFor } from '../shared/tools';
+import { toolFor, toolForRoot } from '../shared/tools';
 import { loadConfig, CONFIG_PATH } from './services/config';
 import { Settings } from './services/settings';
 import { createPricingEngine, costForMode, type PricingEngine } from './services/pricing';
@@ -90,6 +90,7 @@ import type {
   SetupOptions,
   Snapshot,
   TimeRange,
+  ToolId,
   UsageEntry,
 } from '../shared/types';
 import { resolveRange } from '../shared/range';
@@ -1214,8 +1215,8 @@ ipcMain.handle('setup:preview', (_e, opts: SetupOptions) =>
 ipcMain.handle('setup:apply', (_e, opts: SetupOptions) =>
   applySetup({ ...opts, accounts: withSecrets(opts.accounts, true) }),
 );
-ipcMain.handle('setup:createAccount', (_e, suffix: string) => {
-  const res = createAccountDir(suffix);
+ipcMain.handle('setup:createAccount', (_e, suffix: string, tool: ToolId = 'claude') => {
+  const res = createAccountDir(suffix, tool);
   if (res.ok) {
     // re-detect so the new root shows up immediately (live file-watching of it
     // still needs a relaunch; a brand-new account has nothing to watch yet)
@@ -1225,7 +1226,11 @@ ipcMain.handle('setup:createAccount', (_e, suffix: string) => {
   return res;
 });
 ipcMain.handle('setup:renameAccount', (_e, root: string, suffix: string) => {
-  const oldDir = path.join(root, 'projects');
+  // Every data dir of this tool, not just `projects`: a Codex home carries
+  // `sessions` AND `archived_sessions`, and migrating only one would leave the
+  // other named by its pre-rename path in the saved scope.
+  const dataDirs = toolForRoot(root).dataDirs;
+  const oldDirs = dataDirs.map((d) => path.join(root, d));
   const res = renameAccountDir(root, suffix);
   if (res.ok) {
     // same as setup:createAccount — re-detect so the renamed root shows up
@@ -1233,16 +1238,16 @@ ipcMain.handle('setup:renameAccount', (_e, root: string, suffix: string) => {
     refreshSourceDirs();
     void refreshLimits(true);
 
-    const newDir = path.join(res.root, 'projects');
-    state.limitsHistory?.renameDir(oldDir, newDir);
+    const renamed = new Map(oldDirs.map((old, i) => [old, path.join(res.root, dataDirs[i])]));
+    for (const [old, next] of renamed) state.limitsHistory?.renameDir(old, next);
 
-    // a saved scope (settings.sources) can still name the pre-rename dir —
+    // a saved scope (settings.sources) can still name a pre-rename dir —
     // migrate it so the renamed account doesn't silently drop out of the
     // overview/insights views after a restart
     const settings = state.settings;
     const sources = settings?.get().sources;
-    if (settings && Array.isArray(sources) && sources.includes(oldDir)) {
-      const next = settings.patch({ sources: sources.map((d) => (d === oldDir ? newDir : d)) });
+    if (settings && Array.isArray(sources) && sources.some((d) => renamed.has(d))) {
+      const next = settings.patch({ sources: sources.map((d) => renamed.get(d) ?? d) });
       send('settings:changed', next);
     }
   }

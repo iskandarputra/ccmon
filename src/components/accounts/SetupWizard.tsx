@@ -12,13 +12,14 @@ import { refreshAccounts, updateSettings } from '../../bootstrap';
 import { tildify } from '../../lib/format';
 import { accountRoot, suggestWrapperName } from '../../lib/crossAccount';
 import { PROVIDER_PRESETS } from '../../../shared/providerPresets';
-import { toolForRoot } from '../../../shared/tools';
+import { TOOLS, toolForRoot } from '../../../shared/tools';
 import type {
   AccountSpec,
   SetupOptions,
   SetupPlan,
   SetupReport,
   ShellTarget,
+  ToolId,
 } from '../../../shared/types';
 
 /**
@@ -75,6 +76,7 @@ export function SetupWizard() {
   const [busy, setBusy] = useState(false);
 
   const [newSuffix, setNewSuffix] = useState('');
+  const [newTool, setNewTool] = useState<ToolId>('claude');
   const [createErr, setCreateErr] = useState<string | null>(null);
   /** raw `KEY=value` text per root, and which rows have the editor open */
   const [envText, setEnvText] = useState<Record<string, string>>({});
@@ -221,7 +223,7 @@ export function SetupWizard() {
     setCreateErr(null);
     setBusy(true);
     try {
-      const res = await window.ccmon?.createAccount(newSuffix);
+      const res = await window.ccmon?.createAccount(newSuffix, newTool);
       if (res?.ok) {
         await refreshAccounts();
         setNewSuffix('');
@@ -339,7 +341,21 @@ export function SetupWizard() {
             })}
           </div>
           <div className="wiz-add">
-            <span className="wiz-add-pre">~/.claude-</span>
+            {/* the tool decides both the home name and the subdir that makes
+                it discoverable, so it has to be chosen before creating */}
+            <select
+              className="wiz-tool"
+              value={newTool}
+              onChange={(e) => setNewTool(e.target.value as ToolId)}
+              aria-label="which CLI this account is for"
+            >
+              {TOOLS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <span className="wiz-add-pre">~/.{newTool}-</span>
             <input
               className="wiz-suffix"
               value={newSuffix}

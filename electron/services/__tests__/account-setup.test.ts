@@ -682,16 +682,33 @@ describe('PowerShell (Windows) setup', () => {
 
 describe('createAccountDir', () => {
   it('creates ~/.claude-<suffix>/projects for a valid suffix', () => {
-    const res = createAccountDir('research', env);
+    const res = createAccountDir('research', 'claude', env);
     expect(res.ok).toBe(true);
     expect(res.root).toBe(path.join(home, '.claude-research'));
     expect(fs.existsSync(path.join(res.root, 'projects'))).toBe(true);
   });
 
   it('rejects an invalid suffix', () => {
-    const res = createAccountDir('../escape', env);
+    const res = createAccountDir('../escape', 'claude', env);
     expect(res.ok).toBe(false);
     expect(res.error).toBeTruthy();
+  });
+
+  it('seeds a Codex home with sessions/, not projects/', () => {
+    // the seed dir is what makes the new home DISCOVERABLE; the wrong one
+    // creates a directory the watcher never looks at
+    const res = createAccountDir('work', 'codex', env);
+    expect(res.ok).toBe(true);
+    expect(res.root).toBe(path.join(home, '.codex-work'));
+    expect(fs.existsSync(path.join(res.root, 'sessions'))).toBe(true);
+    expect(fs.existsSync(path.join(res.root, 'projects'))).toBe(false);
+  });
+
+  it('treats an existing home as success rather than an error', () => {
+    createAccountDir('work', 'codex', env);
+    const again = createAccountDir('work', 'codex', env);
+    expect(again.ok).toBe(true);
+    expect(again.root).toBe(path.join(home, '.codex-work'));
   });
 });
 
@@ -738,6 +755,26 @@ describe('renameAccountDir', () => {
     const res = renameAccountDir(path.join(home, '.claude-ghost'), 'ghost2', env);
     expect(res.ok).toBe(false);
     expect(res.error).toBeTruthy();
+  });
+
+  it('renames a Codex sibling, inferring the tool from the root', () => {
+    // a home cannot change tools, so the tool is derived rather than passed —
+    // one fewer argument the caller can get wrong
+    createAccountDir('work', 'codex', env);
+    const res = renameAccountDir(path.join(home, '.codex-work'), 'client', env);
+    expect(res.ok).toBe(true);
+    expect(res.root).toBe(path.join(home, '.codex-client'));
+    expect(fs.existsSync(path.join(res.root, 'sessions'))).toBe(true);
+    expect(fs.existsSync(path.join(home, '.codex-work'))).toBe(false);
+  });
+
+  it('refuses the default ~/.codex home, as it does the default ~/.claude one', () => {
+    const defaultRoot = path.join(home, '.codex');
+    fs.mkdirSync(path.join(defaultRoot, 'sessions'), { recursive: true });
+    const res = renameAccountDir(defaultRoot, 'other', env);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/default/);
+    expect(fs.existsSync(defaultRoot)).toBe(true);
   });
 });
 
