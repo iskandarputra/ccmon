@@ -302,6 +302,8 @@ export interface CurrencyRates {
 /** Hand-edited power-user config at ~/.config/ccmon/config.json. */
 export interface UserConfig {
   claudeDirs?: string[];
+  /** extra Codex homes (the dir holding `sessions/`), beyond `CODEX_HOME` */
+  codexDirs?: string[];
   pricing?: Record<string, PricingOverride>;
   /** raw model id → display label (DISPLAY ONLY — never affects pricing) */
   modelAliases?: Record<string, string>;

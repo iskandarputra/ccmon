@@ -240,7 +240,10 @@ function applyVisibility(): boolean {
 /** Re-detect roots from disk and re-apply the hide prefs on top. */
 function refreshSourceDirs(): void {
   const cfg = loadConfig();
-  state.allSourceDirs = detectSourceRoots(cfg.claudeDirs || []).map((r) => r.dir);
+  state.allSourceDirs = detectSourceRoots({
+    claude: cfg.claudeDirs || [],
+    codex: cfg.codexDirs || [],
+  }).map((r) => r.dir);
   applyVisibility();
   state.accounts = accountsFor(state.sourceDirs);
 }

@@ -41,6 +41,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { dayKeyFor, type Zone } from '../../../shared/daykey';
+import { splitPathList } from '../paths';
 import type { ParsedLine } from '../../../shared/types';
 import type { SourceAdapter } from './types';
 
@@ -118,7 +119,12 @@ export const codexAdapter: SourceAdapter = {
    * directory, so an archived copy can never drop usage the active copy lacks.
    */
   detectRoots(extra: string[] = []): string[] {
-    const homes = [process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), ...extra];
+    // CODEX_HOME holds a single path for Codex itself, but ccmon MONITORS
+    // rather than launches — accepting a comma list costs nothing and matches
+    // how CLAUDE_CONFIG_DIR is read. splitPathList also expands a leading `~`,
+    // which a quoted shell value would otherwise leave literal.
+    const env = splitPathList(process.env.CODEX_HOME);
+    const homes = [...(env.length ? env : [path.join(os.homedir(), '.codex')]), ...extra];
     const out: string[] = [];
     const seen = new Set<string>();
     for (const home of homes) {

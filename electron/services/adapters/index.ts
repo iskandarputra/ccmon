@@ -32,14 +32,18 @@ export function adapterById(id: string): SourceAdapter | null {
 
 /**
  * Every data root present on this machine, each tagged with its adapter.
- * Adapters that find nothing contribute nothing — a tool that isn't installed
- * is the normal case, not a failure.
+ *
+ * `extra` is keyed BY ADAPTER ID. Handing every adapter the same list was a
+ * latent bug: a user's `claudeDirs` entry was probed as a Codex home, so a
+ * Claude root that happened to hold a `sessions/` dir would be claimed by the
+ * wrong parser. Adapters that find nothing contribute nothing — a tool that
+ * isn't installed is the normal case, not a failure.
  */
-export function detectSourceRoots(extra: string[] = []): SourceRoot[] {
+export function detectSourceRoots(extra: Partial<Record<string, string[]>> = {}): SourceRoot[] {
   const roots: SourceRoot[] = [];
   const seen = new Set<string>();
   for (const adapter of ADAPTERS) {
-    for (const dir of adapter.detectRoots(extra)) {
+    for (const dir of adapter.detectRoots(extra[adapter.id] ?? [])) {
       if (seen.has(dir)) continue; // first adapter to claim a dir owns it
       seen.add(dir);
       roots.push({ dir, adapter });

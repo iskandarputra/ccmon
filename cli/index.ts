@@ -84,7 +84,12 @@ async function buildForCli(args: ParsedArgs): Promise<CliBuild> {
 
   // Every adapter's roots, not just Claude Code's — the CLI has to see exactly
   // what the app sees, or `ccmon json` silently under-reports next to the UI.
-  const roots = detectSourceRoots([...args.sources, ...(cfg.claudeDirs || [])]);
+  // `--source` carries no tool, so it is offered to every adapter and the one
+  // that recognises the layout claims it; the config keys stay tool-specific.
+  const roots = detectSourceRoots({
+    claude: [...args.sources, ...(cfg.claudeDirs || [])],
+    codex: [...args.sources, ...(cfg.codexDirs || [])],
+  });
   if (!roots.length) {
     throw new Error(
       'no coding-CLI data directories found — set CLAUDE_CONFIG_DIR or pass --source <dir>',

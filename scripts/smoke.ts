@@ -29,7 +29,10 @@ import type { Snapshot } from '../shared/types';
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
-  const roots = detectSourceRoots(cfg.claudeDirs || []);
+  const roots = detectSourceRoots({
+    claude: cfg.claudeDirs || [],
+    codex: cfg.codexDirs || [],
+  });
   const dirs = roots.map((r) => r.dir);
   console.log(
     'source roots:',
