@@ -102,6 +102,14 @@ describe('accountLabel', () => {
   it('never returns an empty label', () => {
     expect(accountLabel('/home/u/.claude-/projects')).toBe('.claude-');
   });
+
+  it('keeps the tool in a Codex label so tray rows stay unambiguous', () => {
+    // With both CLIs installed, a bare "work" would appear twice in the tray
+    // context menu — the only readable surface on Linux.
+    expect(accountLabel('/home/u/.codex/sessions')).toBe('codex');
+    expect(accountLabel('/home/u/.codex/archived_sessions')).toBe('codex');
+    expect(accountLabel('/home/u/.codex-work/sessions')).toBe('codex:work');
+  });
 });
 
 describe('capAlerts', () => {

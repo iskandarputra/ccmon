@@ -20,9 +20,14 @@
  * This file is the PURE half — no `fs`, no `os`, no `path` — so the renderer,
  * the main process and the CLI can all import it. The filesystem half is
  * `electron/services/tools/identity.ts`.
+ *
+ * `ToolId` itself lives in `shared/types.ts`, which is deliberately
+ * dependency-free; this module imports the id and supplies the behaviour.
  */
 
-export type ToolId = 'claude' | 'codex';
+import type { ToolId } from './types';
+
+export type { ToolId };
 
 export interface ToolProfile {
   /** joins to `SourceAdapter.id` */

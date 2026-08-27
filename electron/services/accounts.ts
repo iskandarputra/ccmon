@@ -7,6 +7,8 @@
 import fs from 'fs';
 import path from 'path';
 import { keychainReason, readKeychainSecret } from './keychain';
+import { accountRootFor, toolForRoot } from '../../shared/tools';
+import { identityFor, registerClaudeIdentity } from './tools/identity';
 import type { AccountInfo, AccountsMap, LimitsResult, LimitWindow } from '../../shared/types';
 
 /**
@@ -86,14 +88,18 @@ function readJson<T>(file: string): T | null {
   }
 }
 
-const rootOf = (projectDir: string) => path.dirname(projectDir);
+/**
+ * A source dir → its account root. Goes through the tool registry rather than
+ * a bare `path.dirname` so it stays right per tool: today both are the parent
+ * dir, but the registry is the one place that decides.
+ */
+const rootOf = (sourceDir: string) => accountRootFor(sourceDir);
 
 /** Absolute path to a source dir's OAuth credentials file (`<root>/.credentials.json`). */
 export const credentialsPath = (projectDir: string): string =>
   path.join(rootOf(projectDir), '.credentials.json');
 
-function accountConfig(projectDir: string): ClaudeConfig | null {
-  const root = rootOf(projectDir);
+function accountConfig(root: string): ClaudeConfig | null {
   const inside = readJson<ClaudeConfig>(path.join(root, '.claude.json'));
   if (inside) return inside;
   if (path.basename(root) === '.claude') {
@@ -108,10 +114,10 @@ function accountConfig(projectDir: string): ClaudeConfig | null {
  * default account, whose credentials are simply not on disk there (see
  * keychain.ts) — without it, every limits-driven surface is dark on a Mac.
  */
-function credentials(projectDir: string): OauthCredentials | null {
-  const creds = readJson<CredentialsFile>(credentialsPath(projectDir));
+function credentials(root: string): OauthCredentials | null {
+  const creds = readJson<CredentialsFile>(path.join(root, '.credentials.json'));
   if (creds?.claudeAiOauth) return creds.claudeAiOauth;
-  const secret = readKeychainSecret(rootOf(projectDir));
+  const secret = readKeychainSecret(root);
   if (!secret) return null;
   try {
     return (JSON.parse(secret) as CredentialsFile).claudeAiOauth || null;
@@ -129,8 +135,8 @@ function credentials(projectDir: string): OauthCredentials | null {
  * can only ever cover this many days back. Falls back to Claude Code's own
  * default when unset or invalid (the CLI itself rejects values below 1).
  */
-function cleanupPeriodDays(projectDir: string): number {
-  const settings = readJson<SettingsFile>(path.join(rootOf(projectDir), 'settings.json'));
+function cleanupPeriodDays(root: string): number {
+  const settings = readJson<SettingsFile>(path.join(root, 'settings.json'));
   const days = settings?.cleanupPeriodDays;
   return typeof days === 'number' && Number.isFinite(days) && days >= 1
     ? days
@@ -148,10 +154,10 @@ function tierOf(rateLimitTier: string | undefined): string | null {
   return m ? m[1].toLowerCase() : null;
 }
 
-/** Non-secret account identity for a source dir, or null when unknown. */
-export function accountInfo(projectDir: string): AccountInfo | null {
-  const oauth = accountConfig(projectDir)?.oauthAccount || null;
-  const creds = credentials(projectDir);
+/** Non-secret identity for a Claude account ROOT, or null when unknown. */
+export function claudeIdentity(root: string): AccountInfo | null {
+  const oauth = accountConfig(root)?.oauthAccount || null;
+  const creds = credentials(root);
   if (!oauth && !creds) return null;
   const plan =
     creds?.subscriptionType ||
@@ -159,27 +165,49 @@ export function accountInfo(projectDir: string): AccountInfo | null {
     oauth?.seatTier ||
     null;
   return {
+    tool: 'claude',
     plan,
     tier: tierOf(creds?.rateLimitTier),
     email: oauth?.emailAddress || null,
     organization: oauth?.organizationName || null,
     hasCredentials: !!creds?.accessToken,
-    cleanupPeriodDays: cleanupPeriodDays(projectDir),
+    authMode: null, // Claude Code has exactly one auth mode
+    cleanupPeriodDays: cleanupPeriodDays(root),
   };
 }
 
+// The registry dispatches by tool; the Claude reader registers itself rather
+// than being imported, so the dependency stays one-way (identity.ts knows
+// nothing about the Keychain or the limits poll that live here).
+registerClaudeIdentity(claudeIdentity);
+
+/** Non-secret account identity for a source dir, or null when unknown. */
+export function accountInfo(sourceDir: string): AccountInfo | null {
+  return identityFor(rootOf(sourceDir));
+}
+
 /**
- * Short human name for an account, derived from its root directory:
- * `~/.claude` → "default", `~/.claude-work` → "work".
+ * Short human name for an account, derived from its home directory:
+ * `~/.claude` → "default", `~/.claude-work` → "work", `~/.codex` → "codex",
+ * `~/.codex-work` → "codex:work".
+ *
+ * Codex keeps its tool in the label on purpose: with both CLIs installed a
+ * bare "work" would appear twice in the tray, and the tray context menu is the
+ * only readable surface on Linux.
  *
  * Display only. It is what the tray rows, the cap notification and the log
  * lines call an account, so it must never be used as an identity key — two
  * roots could decode to the same label.
  */
-export function accountLabel(projectDir: string): string {
-  const root = path.basename(path.dirname(projectDir));
-  if (root === '.claude') return 'default';
-  return root.replace(/^\.claude-?/, '') || root;
+export function accountLabel(sourceDir: string): string {
+  const root = rootOf(sourceDir);
+  const base = path.basename(root);
+  if (toolForRoot(root).id === 'codex') {
+    const suffix = base.replace(/^\.codex-?/, '');
+    return suffix ? `codex:${suffix}` : 'codex';
+  }
+  if (base === '.claude') return 'default';
+  return base.replace(/^\.claude-?/, '') || base;
 }
 
 /** Threshold at which a live usage window is considered "near cap". */

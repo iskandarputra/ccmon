@@ -8,6 +8,13 @@
  * file dependency-free so either side can import it.
  */
 
+/**
+ * The coding CLIs ccmon reads. Declared HERE rather than in `shared/tools.ts`
+ * so this file stays dependency-free: `tools.ts` imports the id from here, not
+ * the other way round. The profile behind each id lives there.
+ */
+export type ToolId = 'claude' | 'codex';
+
 // ---- entries (parser output, §1) -----------------------------------------
 
 export interface UsageEntry {
@@ -833,14 +840,26 @@ export interface DayBreakdown {
 // ---- accounts & live limits (§5) --------------------------------------------
 
 export interface AccountInfo {
+  /** which CLI this account belongs to — see `shared/tools.ts` */
+  tool: ToolId;
   plan: string | null;
-  /** plan multiplier parsed from rateLimitTier, e.g. '5x' | '20x' */
+  /** plan multiplier parsed from rateLimitTier, e.g. '5x' | '20x'; Claude only */
   tier: string | null;
   email: string | null;
   organization: string | null;
   hasCredentials: boolean;
-  /** Claude Code's transcript-retention window (`cleanupPeriodDays` in `<root>/settings.json`, default 30) */
-  cleanupPeriodDays: number;
+  /**
+   * Codex only: whether the CLI authenticates with a ChatGPT login or a bare
+   * API key. Null for Claude, which has exactly one mode.
+   */
+  authMode: 'chatgpt' | 'apikey' | null;
+  /**
+   * Claude Code's transcript-retention window (`cleanupPeriodDays` in
+   * `<root>/settings.json`, default 30). NULL for Codex, which has no
+   * retention setting — never coerce that null to 0, which would report
+   * "deletes everything immediately" instead of "no policy".
+   */
+  cleanupPeriodDays: number | null;
 }
 
 export interface LimitWindow {

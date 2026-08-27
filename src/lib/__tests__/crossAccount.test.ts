@@ -25,11 +25,13 @@ const PERSONAL = '/home/isz/.claude/projects';
 const WORK = '/home/isz/.claude-work/projects';
 
 const acct = (hasCredentials: boolean): AccountInfo => ({
+  tool: 'claude',
   plan: 'max',
   tier: '5x',
   email: null,
   organization: null,
   hasCredentials,
+  authMode: null,
   cleanupPeriodDays: 30,
 });
 
