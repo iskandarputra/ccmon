@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { accountLabel, accountInfo, capAlerts, limitWindow } from '../accounts';
+import { accountLabel, accountInfo, capAlerts, fetchLiveLimits, limitWindow } from '../accounts';
 import type { LimitsResult } from '../../../shared/types';
 
 describe('limitWindow — utilization scale', () => {
@@ -109,6 +109,39 @@ describe('accountLabel', () => {
     expect(accountLabel('/home/u/.codex/sessions')).toBe('codex');
     expect(accountLabel('/home/u/.codex/archived_sessions')).toBe('codex');
     expect(accountLabel('/home/u/.codex-work/sessions')).toBe('codex:work');
+  });
+});
+
+describe('fetchLiveLimits — reads the credentials from the ROOT, not the source dir', () => {
+  let home: string;
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-limits-'));
+  });
+  afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  it('finds <root>/.credentials.json given <root>/projects', async () => {
+    // The helpers take a ROOT and the public entry points take a SOURCE DIR,
+    // and both are `string` — the compiler cannot tell them apart, so passing
+    // the wrong one reads a path that never exists and reports "no stored
+    // login" for a perfectly good account. Pin it: an EXPIRED token proves the
+    // file was found, and costs no network call.
+    const root = path.join(home, '.claude');
+    fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, '.credentials.json'),
+      JSON.stringify({ claudeAiOauth: { accessToken: 'at', expiresAt: 1_000 } }),
+    );
+
+    const res = await fetchLiveLimits(path.join(root, 'projects'));
+    expect(res.ok).toBe(false);
+    expect(res.ok ? '' : res.error).toContain('login expired');
+  });
+
+  it('reports no stored login when the root genuinely has none', async () => {
+    const root = path.join(home, '.claude-empty');
+    fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+    const res = await fetchLiveLimits(path.join(root, 'projects'));
+    expect(res.ok ? '' : res.error).toContain('no stored login');
   });
 });
 

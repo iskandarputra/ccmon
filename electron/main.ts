@@ -19,6 +19,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import { detectSourceRoots } from './services/adapters';
+import { toolFor } from '../shared/tools';
 import { loadConfig, CONFIG_PATH } from './services/config';
 import { Settings } from './services/settings';
 import { createPricingEngine, costForMode, type PricingEngine } from './services/pricing';
@@ -441,7 +442,11 @@ async function refreshLimits(force = false): Promise<void> {
     // logins at once, and the account about to cap may not be the one whose
     // usage history is currently scoped. Scope governs which usage the
     // SNAPSHOT shows; it never narrows which logins we check.
-    const dirs = state.sourceDirs;
+    // …but only for tools that HAVE a limits endpoint. OpenAI publishes none
+    // reachable with a Codex credential, so polling a Codex home would report
+    // "no stored login" — a Claude-shaped failure for an account that simply
+    // has no such API. The card says "no usage limits published" instead.
+    const dirs = state.sourceDirs.filter((d) => toolFor(d).id === 'claude');
     const now = Date.now();
     const results = await Promise.all(
       dirs.map(async (d) => {

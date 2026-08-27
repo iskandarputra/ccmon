@@ -116,10 +116,17 @@ export function AdvisorView() {
       const r = limits[d];
       return r?.ok ? (r.session?.pct ?? null) : null;
     };
-    return sourceDirs
-      .filter((d) => accounts[d]?.hasCredentials)
-      .map((dir) => ({ dir, pct: sessionPct(dir) }))
-      .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999));
+    return (
+      sourceDirs
+        // Tool first, THEN credentials. A Codex account has credentials, but
+        // they are an OpenAI token — the advisor POSTs the Anthropic Messages
+        // API with the stored Claude Code login, so offering one would spend a
+        // request on a guaranteed 401. The compiler cannot catch this: it is a
+        // filter, not a type error.
+        .filter((d) => accounts[d]?.tool === 'claude' && accounts[d]?.hasCredentials)
+        .map((dir) => ({ dir, pct: sessionPct(dir) }))
+        .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999))
+    );
   }, [sourceDirs, accounts, limits]);
 
   // default/repair the selection: pick the most-headroom account once data

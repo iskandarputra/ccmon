@@ -244,3 +244,43 @@ describe('account root derivation is tool-aware', () => {
     expect(isDefaultAccountRoot('/home/u/.codex-work')).toBe(false);
   });
 });
+
+describe('crossAccountAdvice never proposes a Codex account', () => {
+  // This already holds structurally — candidates() iterates Object.keys(limits)
+  // and a Codex home is never polled, so it cannot appear. Pinned anyway: the
+  // day someone widens the candidate source to `sourceDirs`, this is the test
+  // that says why they must not, rather than a 401 in someone's advisor.
+  const codexAcct = (): AccountInfo => ({
+    tool: 'codex',
+    plan: 'pro',
+    tier: null,
+    email: null,
+    organization: null,
+    hasCredentials: true,
+    authMode: 'chatgpt',
+    cleanupPeriodDays: null,
+  });
+
+  it('ignores a logged-in Codex account when suggesting somewhere to switch', () => {
+    const accounts: AccountsMap = {
+      [PERSONAL]: acct(true),
+      '/home/isz/.codex/sessions': codexAcct(),
+    };
+    // one Claude account is not a pair, and Codex reports no window at all
+    const limits: LimitsMap = { [PERSONAL]: ok(95) };
+    expect(crossAccountAdvice(accounts, limits)).toEqual([]);
+  });
+
+  it('still advises between two Claude accounts', () => {
+    const accounts: AccountsMap = {
+      [PERSONAL]: acct(true),
+      [WORK]: acct(true),
+      '/home/isz/.codex/sessions': codexAcct(),
+    };
+    const limits: LimitsMap = { [PERSONAL]: ok(95), [WORK]: ok(10) };
+    const advice = crossAccountAdvice(accounts, limits);
+    expect(advice).toHaveLength(1);
+    expect(advice[0].fromDir).toBe(PERSONAL);
+    expect(advice[0].targets.map((t) => t.dir)).toEqual([WORK]);
+  });
+});

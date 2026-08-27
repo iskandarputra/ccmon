@@ -307,7 +307,7 @@ function httpReason(status: number): string {
  * for the UI: they say what happened AND why, not just a status code.
  */
 export async function fetchLiveLimits(projectDir: string): Promise<LimitsResult> {
-  const creds = credentials(projectDir);
+  const creds = credentials(rootOf(projectDir));
   if (!creds?.accessToken) {
     return {
       ok: false,
