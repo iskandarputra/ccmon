@@ -212,3 +212,33 @@ describe('effectiveWrapperAccounts — env survives a rename/untrack rewrite', (
     });
   });
 });
+
+describe('account root derivation is tool-aware', () => {
+  it('resolves a Codex source dir to its home, not to itself', () => {
+    // The old regex stripped a trailing `/projects`, which is a no-op here —
+    // it returned `~/.codex/sessions` and disagreed with visibleAccountDirs,
+    // so the hide-prefs and the wizard targeted different roots.
+    expect(accountRoot('/home/u/.codex/sessions')).toBe('/home/u/.codex');
+    expect(accountRoot('/home/u/.codex/archived_sessions')).toBe('/home/u/.codex');
+  });
+
+  it('still resolves a Claude source dir', () => {
+    expect(accountRoot('/home/u/.claude-work/projects')).toBe('/home/u/.claude-work');
+  });
+
+  it('suggests a codex-* wrapper name for a Codex home', () => {
+    expect(suggestWrapperName('/home/u/.codex')).toBe('codex-personal');
+    expect(suggestWrapperName('/home/u/.codex-work')).toBe('codex-work');
+  });
+
+  it('leaves Claude wrapper names exactly as they were', () => {
+    expect(suggestWrapperName('/home/u/.claude')).toBe('claude-personal');
+    expect(suggestWrapperName('/home/u/.claude-work')).toBe('claude-work');
+  });
+
+  it('protects both default roots from rename', () => {
+    expect(isDefaultAccountRoot('/home/u/.claude')).toBe(true);
+    expect(isDefaultAccountRoot('/home/u/.codex')).toBe(true);
+    expect(isDefaultAccountRoot('/home/u/.codex-work')).toBe(false);
+  });
+});
