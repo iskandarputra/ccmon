@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { planPriceUSD } from '../plans';
+import { noPriceReason, planPriceUSD } from '../plans';
 
 describe('planPriceUSD — Claude', () => {
   it('prices pro and both max tiers', () => {
@@ -61,5 +61,28 @@ describe('planPriceUSD — Codex', () => {
 
   it('ignores the tier, which Codex has no concept of', () => {
     expect(planPriceUSD('pro', '20x', 'codex')).toBe(200);
+  });
+});
+
+describe('noPriceReason — why a card shows no monthly price', () => {
+  it('does not call a free plan seat-priced', () => {
+    // the card said "seat-priced plan" to a ChatGPT free-tier user, which is
+    // three kinds of wrong at once
+    expect(noPriceReason('free')).toBe('free plan');
+  });
+
+  it('says seat-priced only for the plans that actually are', () => {
+    expect(noPriceReason('team')).toBe('seat-priced plan');
+    expect(noPriceReason('business')).toBe('seat-priced plan');
+    expect(noPriceReason('enterprise')).toBe('seat-priced plan');
+  });
+
+  it('admits when no plan was detected at all', () => {
+    expect(noPriceReason(null)).toBe('no plan detected');
+    expect(noPriceReason('')).toBe('no plan detected');
+  });
+
+  it('names an unrecognised plan rather than mislabelling it', () => {
+    expect(noPriceReason('edu')).toBe('edu plan · price unknown');
   });
 });

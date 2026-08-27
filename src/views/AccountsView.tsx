@@ -18,7 +18,7 @@ import { useScopedDirs } from '../hooks/useScopedDirs';
 import { refreshAccounts, updateSettings } from '../bootstrap';
 import { fmtPct, fmtTok, fmtUSD, relTime, sourceLabel, tildify } from '../lib/format';
 import { limitColor } from '../lib/limits';
-import { planBadgeColor, planPriceUSD } from '../lib/plans';
+import { noPriceReason, planBadgeColor, planPriceUSD } from '../lib/plans';
 import {
   accountRoot,
   crossAccountAdvice,
@@ -708,7 +708,7 @@ function AccountCard({
             <span className="acc-dim"> /mo plan</span>
           </span>
         ) : (
-          <span className="acc-price acc-dim">seat-priced plan</span>
+          <span className="acc-price acc-dim">{noPriceReason(acct?.plan ?? null)}</span>
         )}
         {limit?.ok && (
           <span className="acc-live">
