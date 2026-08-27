@@ -481,6 +481,22 @@ that never happened.
 `parseLimits` is a separate seam hook rather than a `ParsedLine` kind because
 one `token_count` line yields BOTH a usage entry and a limits reading.
 
+**Sessions running right now** come from each tool's own registry, exposed as
+`AppState.liveSessions` (dir → `LiveSession[]`) and polled locally every 10 s:
+
+- **claude** — `<root>/sessions/<pid>.json`, one per process, carrying `pid`,
+  `sessionId`, `cwd`, `procStart` and a `status` (busy | idle) the CLI keeps
+  updated.
+- **codex** — `<home>/thread-writer-locks/<id>.lock`, one per running session,
+  removed on exit. `.coordination.lock` is Codex's own and is not a session.
+
+Liveness is `process.kill(pid, 0)` on every platform PLUS, on Linux, a
+`/proc/<pid>` start-time comparison against `procStart`. The second check is
+what rules out a REUSED pid; without it a long-dead session whose number came
+around again reads as running. macOS and Windows cannot make that distinction
+and are documented as such. Codex's count is an upper bound — a crashed
+session leaves its lock behind — while Claude's is exact.
+
 **Freshness is the real constraint.** The block rides on a real TURN — `/status`
 and `/usage` write nothing — so the newest reading on disk can be days behind.
 `LimitsMarker.observedAt` records when it was true, and every surface showing
@@ -490,6 +506,21 @@ never the pulsing "live" one that means a current poll. A Codex account is also 
 an OpenAI token the Anthropic Messages API will reject.
 
 Exposed as `accounts` (dir-keyed) in `app:getState`.
+
+**A plan and a tier are separate facts.** `AccountInfo.plan` is the billing
+relationship (team / enterprise / pro / max, or Codex's free / plus / pro);
+`AccountInfo.tier` is that SEAT's rate-limit multiplier. On a Team org the
+tier is per member, so `claudeIdentity` reads `oauthAccount.userRateLimitTier`
+BEFORE the credentials' `rateLimitTier` — a member upgraded to Max 5x records
+`organizationType: 'claude_team'`, `rateLimitTier: 'default_raven'` (an org
+codename that parses to no multiplier at all) and
+`userRateLimitTier: 'default_claude_max_5x'`. `src/lib/plans.ts#planLabel`
+composes the pair for display ("Team - Pro Max x5").
+
+**`AccountInfo.organization` is null for a personal plan.** Both vendors model
+a solo subscriber as a one-person org — OpenAI titles it "Personal", Anthropic
+uses the account holder's own name — so the field is present, truthful and
+useless. `isPersonalPlan` suppresses it; only team/business/enterprise keep one.
 
 `AccountInfo.cleanupPeriodDays` is `number | null` — NULL for Codex, which has
 no retention setting. Never coerce that null to 0: it would report "deletes

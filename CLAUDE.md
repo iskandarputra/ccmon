@@ -12,7 +12,7 @@ it writes its own rate limits into the transcript rather than an API.
 | Command | What | When to run |
 |---|---|---|
 | `npm run dev` | esbuild + Vite + Electron, hot reload | developing |
-| `npm test` | vitest, 778 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
+| `npm test` | vitest, 808 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
 | `npm run lint` | eslint (correctness rules only; Prettier owns formatting) | before every commit |
 | `npm run format` | prettier over everything but Markdown and fixtures | before every commit |
 | `npm run smoke` | full pipeline against real `~/.claude` data, no Electron | after touching `electron/services/` |
@@ -71,7 +71,8 @@ exercised only against mocks on Linux. `build.yml` cuts releases on tags.
   never call. `shared/tools.ts` is the pure half (the renderer imports it too,
   which is what retired the hand-copied naming helpers in
   `src/lib/crossAccount.ts`); `tools/identity.ts` is the fs half, and
-  `tools/codex-resume.ts` holds the embedded helper scripts.
+  `tools/codex-resume.ts` holds the embedded helper scripts, and
+  `tools/sessions.ts` reads which sessions are running right now.
 - `electron/services/` — pure Node, **never** import Electron here (this is
   what keeps smoke and the unit tests possible; type-only electron imports
   erase, so they're fine). Twenty-five services: paths, config, settings,
@@ -380,6 +381,37 @@ exercised only against mocks on Linux. `build.yml` cuts releases on tags.
   fetched, so they travel beside it as `toolLimits`. `parseLimits` is its own
   seam hook rather than a `ParsedLine` kind, because one `token_count` line
   yields BOTH a usage entry and a limits reading.
+- **Live sessions come from each tool's own registry, never from mtimes.**
+  Claude Code keeps `<root>/sessions/<pid>.json` with a `status` it updates
+  (busy | idle); Codex keeps one `<home>/thread-writer-locks/<id>.lock` per
+  running session and removes it on exit. Liveness is `process.kill(pid, 0)`
+  everywhere PLUS a `/proc/<pid>` start-time comparison against the recorded
+  `procStart` on Linux — that second check is what rules out a REUSED pid,
+  which would otherwise report a long-dead session as running. macOS and
+  Windows get the portable probe alone and cannot make that distinction;
+  `sessions.test.ts` asserts both behaviours rather than skipping. Codex's
+  count is an upper bound (a crashed session leaves its lock); Claude's is
+  exact. Polled locally every 10 s and diffed, so an unchanged set is free.
+- **Two label functions, and they are not interchangeable.**
+  `accounts.ts#accountLabel` is the SHORT tray name ('work-ind');
+  `format.ts#sourceLabel` is the renderer's fuller one ('claude-work-ind').
+  Both must route through `accountRootFor` — `sourceLabel` used to strip the
+  literal `projects` and nothing else, which labelled a Codex account
+  "sessions" in the card title, the scope picker AND the plan-limits row.
+- **A plan and a tier are different facts.** The plan is the billing
+  relationship (Team, Enterprise, personal); the tier is that SEAT's
+  rate-limit entitlement, which on a Team org is set per member. Read
+  `oauthAccount.userRateLimitTier` BEFORE the credentials' `rateLimitTier`:
+  a Team member upgraded to Max 5x has `organizationType: 'claude_team'`,
+  `rateLimitTier: 'default_raven'` (an org codename parsing to no multiplier)
+  and `userRateLimitTier: 'default_claude_max_5x'`. `plans.ts#planLabel`
+  composes the two into "Team - Pro Max x5"; showing either half alone
+  describes neither.
+- **A personal account's "organization" is a billing artifact.** OpenAI
+  auto-creates a one-person org titled "Personal" and makes you its owner;
+  Anthropic uses the account holder's own name. Both are truthful and useless
+  — `isPersonalPlan` suppresses them so the row names someone OTHER than the
+  reader, or nothing.
 - **Codex accounts must stay out of Anthropic-only paths.** They have
   credentials, but OpenAI ones. `AdvisorView` filters on `tool === 'claude'`
   BEFORE `hasCredentials`; without that the advisor spends a request on a token
