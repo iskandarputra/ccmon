@@ -17,7 +17,11 @@ import {
   type KeychainIO,
 } from '../keychain';
 
-const HOME = '/Users/isz';
+// Resolved, not a bare POSIX literal: the code under test calls
+// `path.resolve(root)`, which on Windows prepends a drive letter. Without the
+// same normalisation here the fixture and the product disagree about a path
+// that is identical on the Mac this actually runs on.
+const HOME = path.resolve('/Users/isz');
 const DEFAULT_ROOT = path.join(HOME, '.claude');
 const WORK_ROOT = path.join(HOME, '.claude-work');
 const BLOB = JSON.stringify({ claudeAiOauth: { accessToken: 'tok', expiresAt: 4102444800000 } });

@@ -455,9 +455,14 @@ describe('listFiles — per-root adapter routing', () => {
 
 describe('source attribution', () => {
   it('maps a file to its owning root and memoizes the answer', () => {
-    const w = new UsageWatcher({ dirs: ['/roots/a', '/roots/b'], watch: false });
-    expect(w.sourceOf(path.join('/roots/b', 'p', 's.jsonl'))).toBe('/roots/b');
-    expect(w.sourceOf(path.join('/roots/a', 's.jsonl'))).toBe('/roots/a');
+    // Roots normalised the same way as the files under them: `sourceOf`
+    // matches on `dir + path.sep`, so a POSIX root string against a
+    // natively-joined file never matches on Windows.
+    const a = path.join('/roots/a');
+    const b = path.join('/roots/b');
+    const w = new UsageWatcher({ dirs: [a, b], watch: false });
+    expect(w.sourceOf(path.join(b, 'p', 's.jsonl'))).toBe(b);
+    expect(w.sourceOf(path.join(a, 's.jsonl'))).toBe(a);
   });
 
   it('falls back to the first root for a file outside every root', () => {

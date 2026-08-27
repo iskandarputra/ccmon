@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 // Strict CSP is injected at build time only — the Vite dev server needs
@@ -36,5 +36,13 @@ export default defineConfig({
   server: {
     port: 5183,
     strictPort: true,
+  },
+  test: {
+    // An isolated worktree under `.worktrees/` holds a full second copy of the
+    // repo, tests included. vitest does not read .gitignore, so without this
+    // every suite runs TWICE locally — which silently doubles the reported
+    // count and makes "did my change break anything" unanswerable. CI checks
+    // out clean and never sees it.
+    exclude: ['**/node_modules/**', '**/dist/**', '**/dist-cli/**', '**/.worktrees/**'],
   },
 });
