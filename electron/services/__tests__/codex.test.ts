@@ -545,6 +545,75 @@ describe('auto-review fallback model — resolved by session date', () => {
   });
 });
 
+describe('a bare-string root must still reach the right adapter', () => {
+  /**
+   * The bug this pins cost the app its entire Codex support, silently.
+   *
+   * `UsageWatcher` accepts `dirs` as either tagged `SourceRoot`s or bare
+   * strings, and a bare string used to default to the CLAUDE adapter. main.ts
+   * built its watcher from `state.allSourceDirs` — strings, because
+   * `refreshSourceDirs` computed the adapter tags and then dropped them with
+   * `.map(r => r.dir)`. So the GUI parsed every Codex rollout with the Claude
+   * parser, got nothing out, and showed "no usage data yet" for an account
+   * with real spend in it.
+   *
+   * Nothing caught it: the CLI, `npm run smoke` and every other test pass
+   * TAGGED roots, so they all saw Codex fine while the app saw none of it.
+   * The fallback now resolves the adapter from the tool registry by the dir's
+   * own shape, so the seam is right however the caller spells it.
+   */
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-bare-'));
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  const rollout = [
+    turnContext(),
+    tokenCount({
+      model: 'gpt-5.2-codex',
+      last_token_usage: { input_tokens: 1000, cached_input_tokens: 250, output_tokens: 125 },
+    }),
+  ];
+
+  it('indexes a Codex root passed as a plain string', async () => {
+    const sessions = path.join(tmp, 'sessions');
+    fs.mkdirSync(path.join(sessions, '2026', '05', '13'), { recursive: true });
+    fs.writeFileSync(
+      path.join(sessions, '2026', '05', '13', 'rollout-2026-05-13T09-00-00-abc.jsonl'),
+      `${rollout.join('\n')}\n`,
+    );
+
+    // exactly how main.ts builds its watcher — dirs, not tagged roots
+    const entries = await new UsageWatcher({ dirs: [sessions], watch: false }).start();
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ model: 'gpt-5.2-codex', in: 750, read: 250 });
+  });
+
+  it('still treats a Claude projects dir as Claude', async () => {
+    const projects = path.join(tmp, 'projects');
+    fs.mkdirSync(path.join(projects, 'proj'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projects, 'proj', 's.jsonl'),
+      `${JSON.stringify({
+        type: 'assistant',
+        timestamp: '2026-05-13T09:00:00.000Z',
+        message: {
+          id: 'm1',
+          model: 'claude-opus-5',
+          usage: { input_tokens: 5, output_tokens: 2 },
+        },
+        requestId: 'r1',
+      })}\n`,
+    );
+
+    const entries = await new UsageWatcher({ dirs: [projects], watch: false }).start();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ model: 'claude-opus-5' });
+  });
+});
+
 describe('forked sessions — the replayed prefix is not billed twice', () => {
   /**
    * A forked or subagent rollout REPLAYS its parent's history before its own

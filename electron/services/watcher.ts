@@ -10,6 +10,8 @@ import { EventEmitter } from 'events';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { dayKeyFor } from '../../shared/daykey';
 import { claudeAdapter } from './adapters/claude';
+import { adapterById } from './adapters';
+import { toolFor } from '../../shared/tools';
 import type { SourceAdapter, SourceRoot } from './adapters/types';
 import type { CompactMarker, ToolResultByDay, UsageEntry } from '../../shared/types';
 import type { ScanProgress } from '../../shared/ipc';
@@ -146,7 +148,20 @@ export class UsageWatcher extends EventEmitter {
 
   constructor({ dirs, watch = true, sinceMs = null, timezone = null }: UsageWatcherOptions) {
     super();
-    this.roots = dirs.map((d) => (typeof d === 'string' ? { dir: d, adapter: claudeAdapter } : d));
+    // A bare string used to default to the CLAUDE adapter, which cost the app
+    // its entire Codex support in silence: main built its watcher from
+    // `state.allSourceDirs` (strings — the adapter tags were computed by
+    // `detectSourceRoots` and then dropped), so every Codex rollout was read
+    // with the Claude parser and produced nothing. The CLI, smoke and the
+    // tests all pass TAGGED roots, so none of them could see it.
+    //
+    // The fallback now asks the tool registry what a dir of that shape
+    // belongs to, so the seam is right however the caller spells it. Passing
+    // tagged roots is still the contract — this is the safety net, not the
+    // mechanism.
+    this.roots = dirs.map((d) =>
+      typeof d === 'string' ? { dir: d, adapter: adapterById(toolFor(d).id) ?? claudeAdapter } : d,
+    );
     this.dirs = this.roots.map((r) => r.dir);
     this.watchEnabled = watch;
     this.sinceMs = sinceMs;

@@ -19,6 +19,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import { detectSourceRoots } from './services/adapters';
+import type { SourceRoot } from './services/adapters/types';
 import { toolFor, toolForRoot } from '../shared/tools';
 import { loadConfig, CONFIG_PATH } from './services/config';
 import { Settings } from './services/settings';
@@ -142,7 +143,17 @@ interface MainState {
   snapshot: Snapshot | null;
   status: AppStatus;
   progress: ScanProgress;
-  /** every discovered source dir, hidden ones included */
+  /**
+   * Every discovered source root, hidden ones included, WITH its adapter.
+   *
+   * The tags are the point. `detectSourceRoots` works out which format owns
+   * each dir, and main used to keep only `allSourceDirs` — so the watcher
+   * received bare strings, fell back to the Claude adapter for all of them,
+   * and read every Codex rollout with the wrong parser. The app held zero
+   * Codex entries while the CLI, which passes tagged roots, held them all.
+   */
+  allSourceRoots: SourceRoot[];
+  /** every discovered source dir, hidden ones included — derived from the above */
   allSourceDirs: string[];
   /** the dirs ccmon actually shows and polls — `allSourceDirs` minus hidden */
   sourceDirs: string[];
@@ -191,6 +202,7 @@ const state: MainState = {
   snapshot: null,
   status: 'scanning',
   progress: { scanned: 0, total: 0, entries: 0 },
+  allSourceRoots: [],
   allSourceDirs: [],
   sourceDirs: [],
   recomputeTimer: null,
@@ -242,10 +254,11 @@ function applyVisibility(): boolean {
 /** Re-detect roots from disk and re-apply the hide prefs on top. */
 function refreshSourceDirs(): void {
   const cfg = loadConfig();
-  state.allSourceDirs = detectSourceRoots({
+  state.allSourceRoots = detectSourceRoots({
     claude: cfg.claudeDirs || [],
     codex: cfg.codexDirs || [],
-  }).map((r) => r.dir);
+  });
+  state.allSourceDirs = state.allSourceRoots.map((r) => r.dir);
   applyVisibility();
   state.accounts = accountsFor(state.sourceDirs);
 }
@@ -668,7 +681,9 @@ function startWatcher(): void {
   // so unhiding has to bring the account back live rather than needing a
   // relaunch to start watching it again
   const watcher = new UsageWatcher({
-    dirs: state.allSourceDirs,
+    // TAGGED roots, never bare dirs: a bare string makes the watcher guess the
+    // adapter, and guessing wrong reads a whole format with the wrong parser.
+    dirs: state.allSourceRoots,
     timezone: state.settings?.get().timezone || null,
   });
   state.watcher = watcher;
