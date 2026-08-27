@@ -98,9 +98,15 @@ export function DayDrilldown({ date, onClose }: DayDrilldownProps) {
                 <span className="dd-median">median day {fmtUSD(data.medianCost)}</span>
               </div>
               <div className="dd-stats">
-                <span><b>{fmtTok(data.tokens)}</b> tokens</span>
-                <span><b>{data.sessions}</b> sessions</span>
-                <span><b>{data.entries}</b> entries</span>
+                <span>
+                  <b>{fmtTok(data.tokens)}</b> tokens
+                </span>
+                <span>
+                  <b>{data.sessions}</b> sessions
+                </span>
+                <span>
+                  <b>{data.entries}</b> entries
+                </span>
               </div>
             </div>
 
@@ -139,7 +145,8 @@ export function DayDrilldown({ date, onClose }: DayDrilldownProps) {
                   className="dd-chip dd-chip-new"
                   title={data.newProjects.map(projectName).join(', ')}
                 >
-                  ✨ {data.newProjects.length} new project{data.newProjects.length === 1 ? '' : 's'} started
+                  ✨ {data.newProjects.length} new project{data.newProjects.length === 1 ? '' : 's'}{' '}
+                  started
                 </span>
               )}
             </div>

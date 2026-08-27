@@ -118,17 +118,14 @@ export const useUsageStore = create<UsageState>((set) => ({
       snapshot,
       status: 'ready',
       // Seed the feed from the snapshot's recent entries on first load.
-      feed: st.feed.length
-        ? st.feed
-        : (snapshot.recentEvents || []).slice().reverse(),
+      feed: st.feed.length ? st.feed : (snapshot.recentEvents || []).slice().reverse(),
       lastEventTs: Math.max(st.lastEventTs || 0, snapshot.totals.lastTs || 0) || null,
     })),
 
   pushEvents: (events) =>
     set((st) => ({
       feed: [...events.slice().reverse(), ...st.feed].slice(0, FEED_LIMIT),
-      lastEventTs:
-        Math.max(st.lastEventTs || 0, ...events.map((e) => e.ts)) || null,
+      lastEventTs: Math.max(st.lastEventTs || 0, ...events.map((e) => e.ts)) || null,
     })),
 
   reset: () =>

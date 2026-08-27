@@ -25,11 +25,13 @@ const PERSONAL = '/home/isz/.claude/projects';
 const WORK = '/home/isz/.claude-work/projects';
 
 const acct = (hasCredentials: boolean): AccountInfo => ({
+  tool: 'claude',
   plan: 'max',
   tier: '5x',
   email: null,
   organization: null,
   hasCredentials,
+  authMode: null,
   cleanupPeriodDays: 30,
 });
 
@@ -116,7 +118,9 @@ describe('crossAccountAdvice — weekly window', () => {
   it('advises on the weekly window too', () => {
     const limits: LimitsMap = { [PERSONAL]: ok(20, 91), [WORK]: ok(5, 8) };
     const a = crossAccountAdvice(accounts, limits);
-    expect(a.some((x) => x.kind === 'week' && x.fromDir === PERSONAL && x.toDir === WORK)).toBe(true);
+    expect(a.some((x) => x.kind === 'week' && x.fromDir === PERSONAL && x.toDir === WORK)).toBe(
+      true,
+    );
   });
 });
 
@@ -153,8 +157,8 @@ describe('suggestWrapperName + effectiveWrapperAccounts', () => {
   it('resolves every source dir to its root with the suggested name by default', () => {
     const accounts = effectiveWrapperAccounts([PERSONAL, WORK], {});
     expect(accounts).toEqual([
-      { name: 'claude-personal', root: '/home/isz/.claude' },
-      { name: 'claude-work', root: '/home/isz/.claude-work' },
+      { tool: 'claude', name: 'claude-personal', root: '/home/isz/.claude' },
+      { tool: 'claude', name: 'claude-work', root: '/home/isz/.claude-work' },
     ]);
   });
 
@@ -172,6 +176,31 @@ describe('suggestWrapperName + effectiveWrapperAccounts', () => {
     };
     const accounts = effectiveWrapperAccounts([PERSONAL, WORK], prefs);
     expect(accounts.map((a) => a.root)).toEqual(['/home/isz/.claude']);
+  });
+
+  it('emits one spec per ACCOUNT, not per source dir', () => {
+    // A Codex home contributes two source dirs but is one account. Emitting it
+    // twice would be a duplicate function name, which validateAccounts rejects
+    // on apply — so the whole wizard would fail on a valid setup.
+    const specs = effectiveWrapperAccounts(
+      [PERSONAL, '/home/isz/.codex/sessions', '/home/isz/.codex/archived_sessions'],
+      {},
+    );
+    expect(specs).toHaveLength(2);
+    expect(specs.map((s) => s.tool)).toEqual(['claude', 'codex']);
+    expect(specs.map((s) => s.name)).toEqual(['claude-personal', 'codex-personal']);
+  });
+
+  it('honours a saved rename and env on a Codex account', () => {
+    const specs = effectiveWrapperAccounts(['/home/isz/.codex/sessions'], {
+      '/home/isz/.codex': { name: 'cx', env: { FOO: 'bar' } },
+    });
+    expect(specs[0]).toEqual({
+      tool: 'codex',
+      name: 'cx',
+      root: '/home/isz/.codex',
+      env: { FOO: 'bar' },
+    });
   });
 });
 
@@ -194,8 +223,9 @@ describe('effectiveWrapperAccounts — env survives a rename/untrack rewrite', (
     };
     const out = effectiveWrapperAccounts(dirs, prefs);
     expect(out).toEqual([
-      { name: 'claude-personal', root: '/home/isz/.claude' },
+      { tool: 'claude', name: 'claude-personal', root: '/home/isz/.claude' },
       {
+        tool: 'claude',
         name: 'claude-deepseek',
         root: '/home/isz/.claude-work',
         env: { ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic' },
@@ -205,8 +235,79 @@ describe('effectiveWrapperAccounts — env survives a rename/untrack rewrite', (
 
   it('omits the key entirely when there is no env', () => {
     expect(effectiveWrapperAccounts([PERSONAL], {})[0]).toEqual({
+      tool: 'claude',
       name: 'claude-personal',
       root: '/home/isz/.claude',
     });
+  });
+});
+
+describe('account root derivation is tool-aware', () => {
+  it('resolves a Codex source dir to its home, not to itself', () => {
+    // The old regex stripped a trailing `/projects`, which is a no-op here —
+    // it returned `~/.codex/sessions` and disagreed with visibleAccountDirs,
+    // so the hide-prefs and the wizard targeted different roots.
+    expect(accountRoot('/home/u/.codex/sessions')).toBe('/home/u/.codex');
+    expect(accountRoot('/home/u/.codex/archived_sessions')).toBe('/home/u/.codex');
+  });
+
+  it('still resolves a Claude source dir', () => {
+    expect(accountRoot('/home/u/.claude-work/projects')).toBe('/home/u/.claude-work');
+  });
+
+  it('suggests a codex-* wrapper name for a Codex home', () => {
+    expect(suggestWrapperName('/home/u/.codex')).toBe('codex-personal');
+    expect(suggestWrapperName('/home/u/.codex-work')).toBe('codex-work');
+  });
+
+  it('leaves Claude wrapper names exactly as they were', () => {
+    expect(suggestWrapperName('/home/u/.claude')).toBe('claude-personal');
+    expect(suggestWrapperName('/home/u/.claude-work')).toBe('claude-work');
+  });
+
+  it('protects both default roots from rename', () => {
+    expect(isDefaultAccountRoot('/home/u/.claude')).toBe(true);
+    expect(isDefaultAccountRoot('/home/u/.codex')).toBe(true);
+    expect(isDefaultAccountRoot('/home/u/.codex-work')).toBe(false);
+  });
+});
+
+describe('crossAccountAdvice never proposes a Codex account', () => {
+  // This already holds structurally — candidates() iterates Object.keys(limits)
+  // and a Codex home is never polled, so it cannot appear. Pinned anyway: the
+  // day someone widens the candidate source to `sourceDirs`, this is the test
+  // that says why they must not, rather than a 401 in someone's advisor.
+  const codexAcct = (): AccountInfo => ({
+    tool: 'codex',
+    plan: 'pro',
+    tier: null,
+    email: null,
+    organization: null,
+    hasCredentials: true,
+    authMode: 'chatgpt',
+    cleanupPeriodDays: null,
+  });
+
+  it('ignores a logged-in Codex account when suggesting somewhere to switch', () => {
+    const accounts: AccountsMap = {
+      [PERSONAL]: acct(true),
+      '/home/isz/.codex/sessions': codexAcct(),
+    };
+    // one Claude account is not a pair, and Codex reports no window at all
+    const limits: LimitsMap = { [PERSONAL]: ok(95) };
+    expect(crossAccountAdvice(accounts, limits)).toEqual([]);
+  });
+
+  it('still advises between two Claude accounts', () => {
+    const accounts: AccountsMap = {
+      [PERSONAL]: acct(true),
+      [WORK]: acct(true),
+      '/home/isz/.codex/sessions': codexAcct(),
+    };
+    const limits: LimitsMap = { [PERSONAL]: ok(95), [WORK]: ok(10) };
+    const advice = crossAccountAdvice(accounts, limits);
+    expect(advice).toHaveLength(1);
+    expect(advice[0].fromDir).toBe(PERSONAL);
+    expect(advice[0].targets.map((t) => t.dir)).toEqual([WORK]);
   });
 });

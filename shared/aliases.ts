@@ -45,7 +45,7 @@ export function aliasFor(raw: string, aliases: AliasMap | null | undefined): str
 export function shortProject(raw: string): string {
   if (!raw) return raw;
   const parts = raw.split(/[\\/]/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1]! : raw;
+  return parts.length ? parts[parts.length - 1] : raw;
 }
 
 /** Alias if one exists, else the shortened path. */

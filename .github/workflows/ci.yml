@@ -9,8 +9,16 @@ permissions:
   contents: read
 
 jobs:
+  # Three OSes because platform-specific code exists and was previously only
+  # ever exercised against mocks on Linux: keychain.ts shells out to macOS
+  # `security(1)`, and account-setup.ts emits PowerShell for Windows shells.
   check:
-    runs-on: ubuntu-latest
+    name: check-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,3 +34,66 @@ jobs:
 
       - name: unit tests
         run: npm test
+
+  # Lint and formatting are OS-independent, so they run once rather than three
+  # times. `eslint` exits non-zero on errors only — the React-Compiler warnings
+  # are a tracked backlog (see eslint.config.mjs), not a gate.
+  style:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: lint
+        run: npm run lint
+
+      - name: format
+        run: npm run format:check
+
+  # Catches bundler and packaging breaks on every push instead of at tag time,
+  # when build.yml runs for the first time and a release is already in flight.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: build renderer + main
+        run: npm run build
+
+      - name: build cli
+        run: npm run build:cli
+
+      - name: cli runs
+        run: node dist-cli/index.cjs --version
+
+  # The ccusage cross-check, against the committed corpus rather than a real
+  # ~/.claude (a clean runner has none). Separate job because it shells out to
+  # `npx ccusage@latest`, so it needs the network and is only as reliable as
+  # the npm registry — keep it off the critical path of the other two.
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: token parity vs ccusage (fixture corpus)
+        run: npm run parity -- --fixture

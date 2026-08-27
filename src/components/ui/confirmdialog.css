@@ -12,23 +12,36 @@
   animation: cfd-fade var(--dur-1) var(--ease-out);
 }
 @keyframes cfd-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .cfd {
   width: min(420px, 92%);
   background: var(--bg1);
   border-radius: 14px;
-  box-shadow: calc(var(--neu-dist) * 1.4) calc(var(--neu-dist) * 1.4) calc(var(--neu-blur) * 1.6) var(--neu-dark),
-    calc(var(--neu-dist) * -1.4) calc(var(--neu-dist) * -1.4) calc(var(--neu-blur) * 1.6) var(--neu-light),
+  box-shadow:
+    calc(var(--neu-dist) * 1.4) calc(var(--neu-dist) * 1.4) calc(var(--neu-blur) * 1.6)
+      var(--neu-dark),
+    calc(var(--neu-dist) * -1.4) calc(var(--neu-dist) * -1.4) calc(var(--neu-blur) * 1.6)
+      var(--neu-light),
     0 0 0 1px var(--neu-edge);
   padding: 20px;
   animation: cfd-rise var(--dur-2) var(--ease-out);
 }
 @keyframes cfd-rise {
-  from { transform: translateY(-8px); opacity: 0; }
-  to { transform: none; opacity: 1; }
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
 }
 
 .cfd-title {
@@ -79,17 +92,25 @@
 .cfd-confirm {
   background: color-mix(in srgb, var(--amber) 16%, var(--bg1));
   color: var(--text);
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 .cfd-confirm:hover {
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  box-shadow:
+    var(--neu-inset),
+    inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
 }
 .cfd-confirm.is-danger {
   background: color-mix(in srgb, var(--rose) 16%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent);
 }
 .cfd-confirm.is-danger:hover {
-  box-shadow: var(--neu-inset), inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent);
+  box-shadow:
+    var(--neu-inset),
+    inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent);
 }
 .cfd-confirm:disabled,
 .cfd-cancel:disabled {

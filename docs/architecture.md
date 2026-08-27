@@ -155,7 +155,27 @@ Step by step:
 
 ## Extension points
 
-- **New data source.** Implement the watcher's event contract
+- **New coding CLI — TWO registries, joined on id.** Supporting another tool
+  end to end means one entry in each:
+  - `ADAPTERS` (`electron/services/adapters/`) owns what is FORMAT-specific:
+    `detectRoots`, `owns`, `parseLine`, optionally `createState`. This is all
+    that is needed to READ and price a tool's usage.
+  - `TOOLS` (`shared/tools.ts` + `electron/services/tools/`) owns what is
+    INSTALL-specific: which env var selects the home, which binary a wrapper
+    runs, what that wrapper is called, which subdir seeds a new home, where
+    the credentials live. This is what makes the tool an ACCOUNT — a labelled
+    row with identity, a generated shell wrapper, and cross-account resume.
+
+  They are separate interfaces on purpose. Adapters are stateless singletons
+  that the CLI (`cli/`) and `scripts/smoke.ts` import under plain node, and
+  they must stay that way because the app and the CLI each run a watcher over
+  the same instances. Account setup writes shell rc files and reads credential
+  stores — app-only work the CLI never does. Folding one interface into the
+  other would make every `ccmon json` invocation import code it can never call.
+  A unit test asserts every `ADAPTERS` id has a `TOOLS` entry, because an
+  adapter without a profile yields accounts with no label and no wrapper,
+  silently.
+- **New data source (non-CLI).** Implement the watcher's event contract
   (`progress` / `ready` / `entries` / `reset`) and swap it in `main.ts`;
   nothing downstream changes.
 - **Pricing.** Regex overrides in `~/.config/ccmon/config.json`, or refresh

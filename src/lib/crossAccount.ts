@@ -4,6 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
+import { accountGroups, accountRootFor, toolForRoot } from '../../shared/tools';
 import type { AccountSpec, AccountWrapperPrefs, AccountsMap, LimitsMap } from '../../shared/types';
 
 /**
@@ -133,10 +134,7 @@ function adviceForKind(
  * want to switch, not only when a cap looms. Empty only when there's nowhere
  * to switch to (one account, or no other logged-in account).
  */
-export function crossAccountAdvice(
-  accounts: AccountsMap,
-  limits: LimitsMap,
-): CrossAccountAdvice[] {
+export function crossAccountAdvice(accounts: AccountsMap, limits: LimitsMap): CrossAccountAdvice[] {
   const out: CrossAccountAdvice[] = [];
   for (const kind of ['session', 'week'] as const) {
     const a = adviceForKind(accounts, limits, kind);
@@ -145,9 +143,13 @@ export function crossAccountAdvice(
   return out.sort((a, b) => b.fromPct - a.fromPct);
 }
 
-/** `<root>/projects` → the account root (config) dir Claude Code reads. */
-export const accountRoot = (projectDir: string): string =>
-  projectDir.replace(/[\\/]projects[\\/]?$/, '');
+/**
+ * A source dir → the account root (home) the tool reads. Tool-aware: a Claude
+ * source dir is `<root>/projects`, a Codex one is `<home>/sessions` or
+ * `<home>/archived_sessions`. See `shared/tools.ts#accountRootFor`, which is
+ * the single definition — `visibleAccountDirs` keys the hide-prefs on it too.
+ */
+export const accountRoot = accountRootFor;
 
 const needsQuote = (s: string) => /[^A-Za-z0-9_./-]/.test(s);
 const sh = (s: string) => (needsQuote(s) ? `"${s.replace(/(["$`\\])/g, '\\$1')}"` : s);
@@ -173,26 +175,23 @@ export function crossResumeCommand(fromDir: string, toDir: string, sessionId?: s
   return `${CROSS_RESUME_BIN} ${from} ${to} ${sessionId ?? '<session-id>'}`;
 }
 
-// ---- shell-wrapper naming (mirrors electron/services/account-setup.ts, which
-// can't import from src/) -----------------------------------------------------
+// ---- shell-wrapper naming ---------------------------------------------------
+// Both of these used to be hand-copied from account-setup.ts, because a
+// service cannot import from `src/`. They now come from `shared/tools.ts`,
+// which BOTH sides can import — one definition, no drift.
 
-/** A nice default wrapper name for a config root (~/.claude → claude-personal). */
-export function suggestWrapperName(root: string): string {
-  const base = root.split(/[\\/]/).filter(Boolean).pop() || root;
-  if (base === '.claude') return 'claude-personal';
-  const suffix = base.replace(/^\.+/, '').replace(/^claude[-_]?/, '');
-  return suffix ? `claude-${suffix}` : 'claude-account';
-}
+/** A nice default wrapper name for a home (~/.claude → claude-personal). */
+export const suggestWrapperName = (root: string): string =>
+  toolForRoot(root).suggestWrapperName(root);
 
 /**
- * True for the literal `~/.claude` root — the default Claude Code CLI and
- * any tool that doesn't go through a ccmon wrapper falls back to this exact
- * path when `CLAUDE_CONFIG_DIR` isn't set, so it's the one root that must
- * never be renamed or moved.
+ * True for a tool's default home — the path its bare CLI falls back to when
+ * the home env var is unset (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`). Anything not
+ * going through a ccmon wrapper still expects to find it there, so it is the
+ * one root per tool that must never be renamed or moved.
  */
-export function isDefaultAccountRoot(root: string): boolean {
-  return root.split(/[\\/]/).filter(Boolean).pop() === '.claude';
-}
+export const isDefaultAccountRoot = (root: string): boolean =>
+  toolForRoot(root).isDefaultRoot(root);
 
 /** Same shape the service enforces server-side (`account-setup.ts#NAME_RE`). */
 export const WRAPPER_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
@@ -211,13 +210,16 @@ export function effectiveWrapperAccounts(
   sourceDirs: string[],
   prefs: Record<string, AccountWrapperPrefs>,
 ): AccountSpec[] {
-  return sourceDirs
-    .map(accountRoot)
-    .filter((root) => !prefs[root]?.disabled)
-    .map((root) => {
+  // groups, not source dirs: a Codex home contributes two source dirs but is
+  // ONE account, and emitting it twice would be a duplicate function name that
+  // validateAccounts rejects on apply.
+  return accountGroups(sourceDirs)
+    .filter(({ root }) => !prefs[root]?.disabled)
+    .map(({ root, tool }) => {
       const env = prefs[root]?.env;
       return {
-        name: prefs[root]?.name || suggestWrapperName(root),
+        tool: tool.id,
+        name: prefs[root]?.name || tool.suggestWrapperName(root),
         root,
         ...(env && Object.keys(env).length ? { env } : {}),
       };

@@ -172,7 +172,11 @@ export function DeepseekCard() {
 
   if (!result.ok) {
     return (
-      <Panel className="ds-card" title={head} right={<span className="panel-note">unavailable</span>}>
+      <Panel
+        className="ds-card"
+        title={head}
+        right={<span className="panel-note">unavailable</span>}
+      >
         <div className="ds-error">
           <span className="ds-error-msg">{result.error}</span>
           {result.nextRetryAt && (
@@ -237,10 +241,7 @@ export function DeepseekCard() {
           <b style={{ color: runway ? runwayColor(runway.days) : undefined }}>
             {runway ? runwayLabel(runway.days) : '—'}
             {runway && (
-              <i className="ds-src">
-                {' '}
-                · {runway.source === 'measured' ? 'measured' : 'estimated'}
-              </i>
+              <i className="ds-src"> · {runway.source === 'measured' ? 'measured' : 'estimated'}</i>
             )}
           </b>
         </li>
@@ -262,9 +263,7 @@ export function DeepseekCard() {
           <span>cost check</span>
           <b style={{ color: driftAlert ? 'var(--warn)' : undefined }}>
             {drift?.ratio != null ? driftLabel(drift.ratio) : '—'}
-            {drift?.ratio != null && (
-              <i className="ds-src"> · vs ccmon</i>
-            )}
+            {drift?.ratio != null && <i className="ds-src"> · vs ccmon</i>}
           </b>
         </li>
       </ul>
@@ -282,8 +281,8 @@ export function DeepseekCard() {
         </button>
         <Hint label="how these are computed">
           Balance comes straight from DeepSeek's <code>/user/balance</code>, polled every 5 minutes,
-          read-only. It is the only account endpoint DeepSeek publishes — there is no usage or
-          quota API, so everything else here is measured locally.
+          read-only. It is the only account endpoint DeepSeek publishes — there is no usage or quota
+          API, so everything else here is measured locally.
           <br />
           <br />
           <b>Runway</b> is balance ÷ burn. Once ccmon has a couple of hours of polls it measures

@@ -17,7 +17,11 @@ import {
   type KeychainIO,
 } from '../keychain';
 
-const HOME = '/Users/isz';
+// Resolved, not a bare POSIX literal: the code under test calls
+// `path.resolve(root)`, which on Windows prepends a drive letter. Without the
+// same normalisation here the fixture and the product disagree about a path
+// that is identical on the Mac this actually runs on.
+const HOME = path.resolve('/Users/isz');
 const DEFAULT_ROOT = path.join(HOME, '.claude');
 const WORK_ROOT = path.join(HOME, '.claude-work');
 const BLOB = JSON.stringify({ claudeAiOauth: { accessToken: 'tok', expiresAt: 4102444800000 } });
@@ -69,7 +73,9 @@ describe('readKeychainSecret', () => {
   it('never shells out for a root it does not apply to', () => {
     const f = fakeIO();
     expect(readKeychainSecret(WORK_ROOT, mac({ io: f.io }))).toBeNull();
-    expect(readKeychainSecret(DEFAULT_ROOT, { platform: 'linux', home: HOME, io: f.io })).toBeNull();
+    expect(
+      readKeychainSecret(DEFAULT_ROOT, { platform: 'linux', home: HOME, io: f.io }),
+    ).toBeNull();
     expect(f.calls).toHaveLength(0);
   });
 
@@ -101,26 +107,41 @@ describe('writeKeychainSecret — token rotation goes back where it came from', 
   it('refuses roots it does not own, so the caller writes the file instead', () => {
     const f = fakeIO();
     expect(writeKeychainSecret(WORK_ROOT, 'x', mac({ io: f.io }))).toBe(false);
-    expect(writeKeychainSecret(DEFAULT_ROOT, 'x', { platform: 'linux', home: HOME, io: f.io })).toBe(false);
+    expect(
+      writeKeychainSecret(DEFAULT_ROOT, 'x', { platform: 'linux', home: HOME, io: f.io }),
+    ).toBe(false);
     expect(f.calls).toHaveLength(0);
   });
 });
 
 describe('classifySecurityError — tell "not logged in" apart from "cannot reach it"', () => {
   it('says nothing for an absent item — that is the ordinary not-logged-in case', () => {
-    expect(classifySecurityError(44, 'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.')).toBeNull();
+    expect(
+      classifySecurityError(
+        44,
+        'security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.',
+      ),
+    ).toBeNull();
   });
 
   it('explains the GUI-session refusal, which is what SSH and detached tmux hit', () => {
     // credentials exist and the Mac is logged in — the process just cannot
     // reach the Keychain, which reads as "no stored login" without this
-    const msg = classifySecurityError(36, 'security: SecKeychainSearchCopyNext: User interaction is not allowed.');
+    const msg = classifySecurityError(
+      36,
+      'security: SecKeychainSearchCopyNext: User interaction is not allowed.',
+    );
     expect(msg).toContain('without a GUI session');
     expect(msg).toContain('unlock-keychain');
   });
 
   it('reports a locked keychain and a cancelled prompt', () => {
-    expect(classifySecurityError(51, 'The user name or passphrase you entered is not correct; keychain is locked')).toContain('locked');
+    expect(
+      classifySecurityError(
+        51,
+        'The user name or passphrase you entered is not correct; keychain is locked',
+      ),
+    ).toContain('locked');
     expect(classifySecurityError(128, 'User canceled the operation.')).toContain('cancelled');
   });
 

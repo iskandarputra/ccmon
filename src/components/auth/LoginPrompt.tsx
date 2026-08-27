@@ -66,7 +66,11 @@ export function LoginPrompt({ dir, label = 'log in' }: LoginPromptProps) {
         <button type="button" className="login-btn" onClick={startLogin} disabled={busy}>
           {busy ? 'signing in…' : label}
         </button>
-        {error && <span className="login-err" title={error}>{error}</span>}
+        {error && (
+          <span className="login-err" title={error}>
+            {error}
+          </span>
+        )}
       </div>
     );
   }
@@ -99,7 +103,11 @@ export function LoginPrompt({ dir, label = 'log in' }: LoginPromptProps) {
           reopen
         </button>
       </div>
-      {error && <span className="login-err" title={error}>{error}</span>}
+      {error && (
+        <span className="login-err" title={error}>
+          {error}
+        </span>
+      )}
     </div>
   );
 }

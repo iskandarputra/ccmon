@@ -67,7 +67,11 @@ describe('deepseekWrapperName — is a DeepSeek launcher actually set up?', () =
   it('ignores an untracked account, whose wrapper is not generated', () => {
     expect(
       deepseekWrapperName({
-        [root]: { name: 'ds', disabled: true, env: { ANTHROPIC_BASE_URL: 'https://api.deepseek.com' } },
+        [root]: {
+          name: 'ds',
+          disabled: true,
+          env: { ANTHROPIC_BASE_URL: 'https://api.deepseek.com' },
+        },
       }),
     ).toBeNull();
   });

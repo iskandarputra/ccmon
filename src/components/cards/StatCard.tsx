@@ -24,10 +24,7 @@ export function StatCard({ label, value, sub, delta, aside, hint }: StatCardProp
       <div className="stat-foot">
         <span className="stat-sub">{sub}</span>
         {delta != null && Number.isFinite(delta) ? (
-          <span
-            className={`stat-delta ${delta >= 0 ? 'is-up' : 'is-down'}`}
-            title="vs yesterday"
-          >
+          <span className={`stat-delta ${delta >= 0 ? 'is-up' : 'is-down'}`} title="vs yesterday">
             {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}%
           </span>
         ) : aside ? (

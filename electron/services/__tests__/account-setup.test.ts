@@ -25,7 +25,16 @@ import {
   type SetupEnv,
 } from '../account-setup';
 import { PROVIDER_PRESETS } from '../../../shared/providerPresets';
-import type { SetupOptions } from '../../../shared/types';
+import type { AccountSpec, SetupOptions } from '../../../shared/types';
+
+/**
+ * These suites render the POSIX shell family explicitly and assert its exact
+ * shape — `$HOME`-relative dirs, `~/.local/bin` helper paths, 0600 modes.
+ * Windows produces the PowerShell family instead and honours no mode bits, so
+ * on that host the assertions test the OS rather than ccmon. The PowerShell
+ * equivalents below are NOT skipped: those are the ones that matter there.
+ */
+const isWindows = process.platform === 'win32';
 
 let home: string;
 let env: SetupEnv;
@@ -38,8 +47,21 @@ afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
 
 const opts = (over: Partial<SetupOptions> = {}): SetupOptions => ({
   accounts: [
-    { name: 'claude-personal', root: path.join(home, '.claude') },
-    { name: 'claude-work', root: path.join(home, '.claude-work') },
+    { tool: 'claude', name: 'claude-personal', root: path.join(home, '.claude') },
+    { tool: 'claude', name: 'claude-work', root: path.join(home, '.claude-work') },
+  ],
+  rcPaths: [path.join(home, '.bashrc')],
+  installHelper: true,
+  ...over,
+});
+
+/** Two accounts per tool — the set that exercises per-tool files and pairing. */
+const mixedOpts = (over: Partial<SetupOptions> = {}): SetupOptions => ({
+  accounts: [
+    { tool: 'claude', name: 'claude-personal', root: path.join(home, '.claude') },
+    { tool: 'claude', name: 'claude-work', root: path.join(home, '.claude-work') },
+    { tool: 'codex', name: 'codex-personal', root: path.join(home, '.codex') },
+    { tool: 'codex', name: 'codex-work', root: path.join(home, '.codex-work') },
   ],
   rcPaths: [path.join(home, '.bashrc')],
   installHelper: true,
@@ -127,10 +149,20 @@ describe('detectShells — per-OS targets', () => {
 
   it('Windows offers a single PowerShell profile target', () => {
     const profile = path.join(home, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1');
-    const { platform, shells } = detectShells({ home, loginShell: null, platform: 'win32', psProfile: profile });
+    const { platform, shells } = detectShells({
+      home,
+      loginShell: null,
+      platform: 'win32',
+      psProfile: profile,
+    });
     expect(platform).toBe('win32');
     expect(shells).toHaveLength(1);
-    expect(shells[0]).toMatchObject({ shell: 'powershell', family: 'powershell', detected: true, rcPath: profile });
+    expect(shells[0]).toMatchObject({
+      shell: 'powershell',
+      family: 'powershell',
+      detected: true,
+      rcPath: profile,
+    });
   });
 });
 
@@ -169,7 +201,7 @@ describe('resolveLoginShell — per-OS account record', () => {
 });
 
 describe('renderManagedScript', () => {
-  it('emits a launcher per account with $HOME-relative config dirs', () => {
+  it.skipIf(isWindows)('emits a launcher per account with $HOME-relative config dirs', () => {
     const out = renderManagedScript(opts().accounts, home);
     expect(out).toContain('claude-personal() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude";');
     expect(out).toContain('claude-work() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude-work";');
@@ -181,11 +213,16 @@ describe('renderManagedScript', () => {
     expect(out).toContain('claude-work-from-personal() {');
   });
 
-  it('calls the helper by its install path — ~/.local/bin is not on PATH on macOS', () => {
-    const out = renderManagedScript(opts().accounts, home);
-    expect(out).toContain('"$HOME/.local/bin/claude-cross-resume" "$HOME/.claude-work" "$HOME/.claude"');
-    expect(out).not.toMatch(/^\s*claude-\S+\(\) \{ claude-cross-resume/m); // never bare
-  });
+  it.skipIf(isWindows)(
+    'calls the helper by its install path — ~/.local/bin is not on PATH on macOS',
+    () => {
+      const out = renderManagedScript(opts().accounts, home);
+      expect(out).toContain(
+        '"$HOME/.local/bin/claude-cross-resume" "$HOME/.claude-work" "$HOME/.claude"',
+      );
+      expect(out).not.toMatch(/^\s*claude-\S+\(\) \{ claude-cross-resume/m); // never bare
+    },
+  );
 
   it('suggestLabel maps the default root to claude-personal', () => {
     expect(suggestLabel(path.join(home, '.claude'))).toBe('claude-personal');
@@ -197,9 +234,10 @@ describe('renderManagedScript', () => {
 describe('renderManagedScript — per-account environment (alternate providers)', () => {
   // the real case: Claude Code pointed at DeepSeek is a base URL + a token +
   // a model mapping, none of which is a config dir
-  const deepseek = () => [
-    { name: 'claude-personal', root: path.join(home, '.claude') },
+  const deepseek = (): AccountSpec[] => [
+    { tool: 'claude', name: 'claude-personal', root: path.join(home, '.claude') },
     {
+      tool: 'claude',
       name: 'claude-deepseek',
       root: path.join(home, '.claude-deepseek'),
       env: {
@@ -210,7 +248,7 @@ describe('renderManagedScript — per-account environment (alternate providers)'
     },
   ];
 
-  it('exports the extra env inside the same subshell as the config dir', () => {
+  it.skipIf(isWindows)('exports the extra env inside the same subshell as the config dir', () => {
     const out = renderManagedScript(deepseek(), home);
     expect(out).toContain(
       `claude-deepseek() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude-deepseek" ` +
@@ -218,21 +256,28 @@ describe('renderManagedScript — per-account environment (alternate providers)'
         `ANTHROPIC_MODEL='deepseek-v4-pro[1m]'; claude "$@" ); }`,
     );
     // an account with no env keeps exactly the old one-variable form
-    expect(out).toContain('claude-personal() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude"; claude "$@" ); }');
+    expect(out).toContain(
+      'claude-personal() { ( export CLAUDE_CONFIG_DIR="$HOME/.claude"; claude "$@" ); }',
+    );
   });
 
   it('single-quotes values so nothing in a token or URL is expanded', () => {
     const out = renderManagedScript(
       [
-        { name: 'claude-a', root: path.join(home, '.claude') },
-        { name: 'claude-b', root: path.join(home, '.claude-b'), env: { T: "a$HOME`x'y" } },
-      ],
+        { tool: 'claude', name: 'claude-a', root: path.join(home, '.claude') },
+        {
+          tool: 'claude',
+          name: 'claude-b',
+          root: path.join(home, '.claude-b'),
+          env: { T: "a$HOME`x'y" },
+        },
+      ] satisfies AccountSpec[],
       home,
     );
     expect(out).toContain(`T='a$HOME\`x'\\''y'`);
   });
 
-  it('a cross-resume INTO a provider account carries that provider', () => {
+  it.skipIf(isWindows)('a cross-resume INTO a provider account carries that provider', () => {
     // without this the helper ends in `exec claude --resume` with only
     // CLAUDE_CONFIG_DIR set, and the resumed session silently talks to Anthropic
     const out = renderManagedScript(deepseek(), home);
@@ -257,25 +302,35 @@ describe('renderManagedScript — per-account environment (alternate providers)'
 
   it('rejects an unusable variable name, a reserved one, and an embedded newline', () => {
     const bad = (env: Record<string, string>) =>
-      planSetup(opts({ accounts: [{ name: 'claude-x', root: path.join(home, '.claude'), env }] })).problems;
-    expect(bad({ 'BAD NAME': 'v' }).some((p) => p.includes('invalid environment variable name'))).toBe(true);
-    expect(bad({ CLAUDE_CONFIG_DIR: '/x' }).some((p) => p.includes('comes from the config dir'))).toBe(true);
+      planSetup(
+        opts({
+          accounts: [{ tool: 'claude', name: 'claude-x', root: path.join(home, '.claude'), env }],
+        }),
+      ).problems;
+    expect(
+      bad({ 'BAD NAME': 'v' }).some((p) => p.includes('invalid environment variable name')),
+    ).toBe(true);
+    expect(
+      bad({ CLAUDE_CONFIG_DIR: '/x' }).some((p) => p.includes('comes from the config dir')),
+    ).toBe(true);
     expect(bad({ T: 'a\nb' }).some((p) => p.includes('line break'))).toBe(true);
   });
 });
 
 describe('provider presets + secret references', () => {
   const preset = () => PROVIDER_PRESETS.find((p) => p.id === 'deepseek')!;
-  const withPreset = () => [
-    { name: 'claude-deepseek', root: path.join(home, '.claude-deepseek'), env: preset().env },
+  const withPreset = (): AccountSpec[] => [
+    {
+      tool: 'claude',
+      name: 'claude-deepseek',
+      root: path.join(home, '.claude-deepseek'),
+      env: preset().env,
+    },
   ];
 
   it('the DeepSeek preset is valid input to the generator', () => {
     // a preset that trips its own validator would be worse than no preset
-    const p = planSetup(
-      opts({ accounts: resolveEnvSecrets(withPreset(), () => 'sk-real') }),
-      env,
-    );
+    const p = planSetup(opts({ accounts: resolveEnvSecrets(withPreset(), () => 'sk-real') }), env);
     expect(p.problems).toEqual([]);
   });
 
@@ -298,14 +353,17 @@ describe('provider presets + secret references', () => {
     const masked = resolveEnvSecrets(withPreset(), () => '••••••••real');
     const p = planSetup(opts({ accounts: masked }), env);
     expect(p.problems).toEqual([]);
-    expect(p.managedScript).toContain('••••••••real');
-    expect(p.managedScript).not.toContain('sk-real');
+    expect(p.managed[0].script).toContain('••••••••real');
+    expect(p.managed[0].script).not.toContain('sk-real');
   });
 });
 
 describe('planSetup — validation', () => {
   it('flags an invalid wrapper name', () => {
-    const p = planSetup(opts({ accounts: [{ name: 'bad name', root: path.join(home, '.claude') }] }), env);
+    const p = planSetup(
+      opts({ accounts: [{ tool: 'claude', name: 'bad name', root: path.join(home, '.claude') }] }),
+      env,
+    );
     expect(p.problems.some((x) => x.includes('invalid wrapper name'))).toBe(true);
   });
 
@@ -314,32 +372,56 @@ describe('planSetup — validation', () => {
     expect(p.problems).toContain('pick at least one shell to link');
   });
 
-  it('marks an already-linked rc as no-change', () => {
+  it('marks an rc whose block is already current as no-change', () => {
+    const rc = path.join(home, '.bashrc');
+    applySetup(opts(), env); // writes the real, current block
+    const p = planSetup(opts(), env);
+    expect(p.rcEdits[0].rcPath).toBe(rc);
+    expect(p.rcEdits[0].alreadyLinked).toBe(true);
+    expect(p.rcEdits[0].blockReplaces).toBe(false);
+    expect(p.rcEdits[0].blockToAdd).toBe('');
+  });
+
+  it('repairs a truncated block rather than treating the marker as done', () => {
+    // A lone MARK_BEGIN — an interrupted write, or a half-deleted block. The
+    // old rule was "any marker means linked", which left this broken forever.
     const rc = path.join(home, '.bashrc');
     fs.writeFileSync(rc, '# >>> ccmon managed >>>\n');
     const p = planSetup(opts(), env);
     expect(p.rcEdits[0].alreadyLinked).toBe(true);
-    expect(p.rcEdits[0].blockToAdd).toBe('');
+    expect(p.rcEdits[0].blockReplaces).toBe(true);
+    expect(p.rcEdits[0].blockToAdd).toContain('<<< ccmon managed <<<');
+
+    applySetup(opts(), env);
+    const text = fs.readFileSync(rc, 'utf8');
+    expect(text).toContain('<<< ccmon managed <<<');
+    expect(text.match(/>>> ccmon managed >>>/g)).toHaveLength(1);
   });
 });
 
 describe('applySetup — writes and idempotency', () => {
-  it('writes the managed file, links the rc, and installs the executable helper', () => {
-    const r = applySetup(opts(), env);
-    expect(r.ok).toBe(true);
+  it.skipIf(isWindows)(
+    'writes the managed file, links the rc, and installs the executable helper',
+    () => {
+      const r = applySetup(opts(), env);
+      expect(r.ok).toBe(true);
 
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
-    expect(managed).toContain('claude-work() {');
+      const managed = fs.readFileSync(
+        path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+        'utf8',
+      );
+      expect(managed).toContain('claude-work() {');
 
-    const rc = fs.readFileSync(path.join(home, '.bashrc'), 'utf8');
-    expect(rc).toContain('# >>> ccmon managed >>>');
-    expect(rc).toContain('claude-accounts.sh');
+      const rc = fs.readFileSync(path.join(home, '.bashrc'), 'utf8');
+      expect(rc).toContain('# >>> ccmon managed >>>');
+      expect(rc).toContain('claude-accounts.sh');
 
-    const helper = path.join(home, '.local', 'bin', 'claude-cross-resume');
-    expect(fs.existsSync(helper)).toBe(true);
-    expect(fs.statSync(helper).mode & 0o111).toBeGreaterThan(0); // executable
-    expect(r.reloadHint).toContain('source ~/.bashrc');
-  });
+      const helper = path.join(home, '.local', 'bin', 'claude-cross-resume');
+      expect(fs.existsSync(helper)).toBe(true);
+      expect(fs.statSync(helper).mode & 0o111).toBeGreaterThan(0); // executable
+      expect(r.reloadHint).toContain('source ~/.bashrc');
+    },
+  );
 
   it('is idempotent — a second apply links nothing new and never duplicates the block', () => {
     applySetup(opts(), env);
@@ -380,7 +462,10 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
   it('writes the managed file without touching any rc', () => {
     const r = writeWrapperAccounts(opts().accounts, env);
     expect(r.ok).toBe(true);
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).toContain('claude-work() {');
     expect(fs.existsSync(path.join(home, '.bashrc'))).toBe(false);
   });
@@ -391,7 +476,10 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
       a.name === 'claude-work' ? { ...a, name: 'claude-client-x' } : a,
     );
     writeWrapperAccounts(renamed, env);
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).toContain('claude-client-x() {');
     expect(managed).not.toContain('claude-work() {');
     expect(managed).toContain('claude-personal() {'); // untouched account survives
@@ -401,18 +489,26 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
     writeWrapperAccounts(opts().accounts, env);
     const kept = opts().accounts.filter((a) => a.name !== 'claude-work');
     writeWrapperAccounts(kept, env);
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).not.toContain('claude-work');
     expect(managed).toContain('claude-personal() {');
   });
 
-  it('untracking every account leaves an empty (but valid) managed file', () => {
+  it('untracking every account removes the managed file rather than emptying it', () => {
+    // Was: left an empty-but-valid file. Now removed, per tool. Safe because
+    // every rc source line is existence-guarded (`[ -f ]` / `Test-Path`), so a
+    // missing file is a no-op — and an empty one was only ever litter. What
+    // matters either way is that no stale wrapper stays defined.
     writeWrapperAccounts(opts().accounts, env);
+    const managed = path.join(home, '.config', 'ccmon', 'claude-accounts.sh');
+    expect(fs.existsSync(managed)).toBe(true);
+
     const r = writeWrapperAccounts([], env);
     expect(r.ok).toBe(true);
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
-    expect(managed).not.toContain('claude-personal');
-    expect(managed).not.toContain('claude-work');
+    expect(fs.existsSync(managed)).toBe(false);
   });
 
   it('rejects an invalid or duplicate name without writing', () => {
@@ -420,19 +516,25 @@ describe('writeWrapperAccounts — quick rename/untrack, no rc involved', () => 
     const before = 'sentinel';
     fs.writeFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), before);
 
-    const bad = writeWrapperAccounts([{ name: '1bad', root: path.join(home, '.claude') }], env);
+    const bad = writeWrapperAccounts(
+      [{ tool: 'claude', name: '1bad', root: path.join(home, '.claude') }],
+      env,
+    );
     expect(bad.ok).toBe(false);
 
     const dup = writeWrapperAccounts(
       [
-        { name: 'claude-x', root: path.join(home, '.claude') },
-        { name: 'claude-x', root: path.join(home, '.claude-work') },
+        { tool: 'claude', name: 'claude-x', root: path.join(home, '.claude') },
+        { tool: 'claude', name: 'claude-x', root: path.join(home, '.claude-work') },
       ],
       env,
     );
     expect(dup.ok).toBe(false);
 
-    const managed = fs.readFileSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'), 'utf8');
+    const managed = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'claude-accounts.sh'),
+      'utf8',
+    );
     expect(managed).toBe(before); // rejected writes never touch the file
   });
 });
@@ -464,7 +566,9 @@ describe('conflict detection — pre-existing hand-written wrappers', () => {
   it('planSetup warns about shadowing and lists the defs per rc', () => {
     fs.writeFileSync(path.join(home, '.zyrc'), HANDWRITTEN);
     const p = planSetup(zyOpts(), env);
-    expect(p.warnings.some((w) => w.includes('already defines') && w.includes('shadowed'))).toBe(true);
+    expect(p.warnings.some((w) => w.includes('already defines') && w.includes('shadowed'))).toBe(
+      true,
+    );
     expect(p.rcEdits[0].existing.length).toBe(3);
   });
 
@@ -516,7 +620,12 @@ describe('conflict detection — pre-existing hand-written wrappers', () => {
 
 describe('PowerShell (Windows) setup', () => {
   const profile = () => path.join(home, 'profile.ps1');
-  const winEnv = (): SetupEnv => ({ home, loginShell: null, platform: 'win32', psProfile: profile() });
+  const winEnv = (): SetupEnv => ({
+    home,
+    loginShell: null,
+    platform: 'win32',
+    psProfile: profile(),
+  });
   const winOpts = (over: Partial<SetupOptions> = {}): SetupOptions => ({
     ...opts(),
     rcPaths: [profile()],
@@ -565,7 +674,9 @@ describe('PowerShell (Windows) setup', () => {
   it('warns about the execution policy, which the wizard cannot change itself', () => {
     const p = planSetup(winOpts({ installHelper: true }), winEnv());
     expect(p.warnings.some((w) => w.includes('Set-ExecutionPolicy'))).toBe(true);
-    expect(p.helperDest).toBe(path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1'));
+    expect(p.helpers.map((h) => h.dest)).toEqual([
+      path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1'),
+    ]);
   });
 
   it('detects and tidies a pre-existing PowerShell function def', () => {
@@ -578,22 +689,41 @@ describe('PowerShell (Windows) setup', () => {
     expect(found.find((f) => f.name === 'claude-work')!.canTidy).toBe(true);
 
     applySetup(winOpts({ tidyExisting: true }), winEnv());
-    expect(fs.readFileSync(profile(), 'utf8')).toContain('# ccmon superseded → function claude-work {');
+    expect(fs.readFileSync(profile(), 'utf8')).toContain(
+      '# ccmon superseded → function claude-work {',
+    );
   });
 });
 
 describe('createAccountDir', () => {
   it('creates ~/.claude-<suffix>/projects for a valid suffix', () => {
-    const res = createAccountDir('research', env);
+    const res = createAccountDir('research', 'claude', env);
     expect(res.ok).toBe(true);
     expect(res.root).toBe(path.join(home, '.claude-research'));
     expect(fs.existsSync(path.join(res.root, 'projects'))).toBe(true);
   });
 
   it('rejects an invalid suffix', () => {
-    const res = createAccountDir('../escape', env);
+    const res = createAccountDir('../escape', 'claude', env);
     expect(res.ok).toBe(false);
     expect(res.error).toBeTruthy();
+  });
+
+  it('seeds a Codex home with sessions/, not projects/', () => {
+    // the seed dir is what makes the new home DISCOVERABLE; the wrong one
+    // creates a directory the watcher never looks at
+    const res = createAccountDir('work', 'codex', env);
+    expect(res.ok).toBe(true);
+    expect(res.root).toBe(path.join(home, '.codex-work'));
+    expect(fs.existsSync(path.join(res.root, 'sessions'))).toBe(true);
+    expect(fs.existsSync(path.join(res.root, 'projects'))).toBe(false);
+  });
+
+  it('treats an existing home as success rather than an error', () => {
+    createAccountDir('work', 'codex', env);
+    const again = createAccountDir('work', 'codex', env);
+    expect(again.ok).toBe(true);
+    expect(again.root).toBe(path.join(home, '.codex-work'));
   });
 });
 
@@ -641,6 +771,26 @@ describe('renameAccountDir', () => {
     expect(res.ok).toBe(false);
     expect(res.error).toBeTruthy();
   });
+
+  it('renames a Codex sibling, inferring the tool from the root', () => {
+    // a home cannot change tools, so the tool is derived rather than passed —
+    // one fewer argument the caller can get wrong
+    createAccountDir('work', 'codex', env);
+    const res = renameAccountDir(path.join(home, '.codex-work'), 'client', env);
+    expect(res.ok).toBe(true);
+    expect(res.root).toBe(path.join(home, '.codex-client'));
+    expect(fs.existsSync(path.join(res.root, 'sessions'))).toBe(true);
+    expect(fs.existsSync(path.join(home, '.codex-work'))).toBe(false);
+  });
+
+  it('refuses the default ~/.codex home, as it does the default ~/.claude one', () => {
+    const defaultRoot = path.join(home, '.codex');
+    fs.mkdirSync(path.join(defaultRoot, 'sessions'), { recursive: true });
+    const res = renameAccountDir(defaultRoot, 'other', env);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/default/);
+    expect(fs.existsSync(defaultRoot)).toBe(true);
+  });
 });
 
 describe('visibleAccountDirs', () => {
@@ -682,5 +832,289 @@ describe('visibleAccountDirs', () => {
     expect(visibleAccountDirs([DEFAULT], { '/home/u/.claude-gone': { hidden: true } })).toEqual([
       DEFAULT,
     ]);
+  });
+});
+
+describe('renderManagedScript — codex', () => {
+  it.skipIf(isWindows)('exports CODEX_HOME and invokes codex, in a subshell', () => {
+    const out = renderManagedScript(mixedOpts().accounts, home, 'posix', 'codex');
+    expect(out).toContain(`codex-personal() { ( export CODEX_HOME="$HOME/.codex"; codex "$@" ); }`);
+    expect(out).toContain(
+      `codex-work() { ( export CODEX_HOME="$HOME/.codex-work"; codex "$@" ); }`,
+    );
+    // the Claude accounts belong in the other file
+    expect(out).not.toContain('CLAUDE_CONFIG_DIR');
+    expect(out).not.toContain('claude-personal');
+  });
+
+  it('scopes and restores $env:CODEX_HOME on PowerShell', () => {
+    const out = renderManagedScript(mixedOpts().accounts, home, 'powershell', 'codex');
+    expect(out).toContain('function codex-personal {');
+    expect(out).toContain(`'CODEX_HOME' = "$HOME/.codex"`);
+    expect(out).toContain('codex @args');
+    // psScopedBody's finally block is what stops the var leaking into the session
+    expect(out).toContain('} finally {');
+    expect(out).not.toContain('CLAUDE_CONFIG_DIR');
+  });
+
+  it('renders the Claude file exactly as before when asked for claude', () => {
+    // a Codex account in the list must not perturb the Claude output at all
+    expect(renderManagedScript(mixedOpts().accounts, home, 'posix', 'claude')).toBe(
+      renderManagedScript(opts().accounts, home, 'posix', 'claude'),
+    );
+  });
+});
+
+describe('crossPairs partitions by tool', () => {
+  it('never pairs a Claude account with a Codex one', () => {
+    const names = managedNames(mixedOpts().accounts);
+    expect(names).toContain('claude-work-from-personal');
+    expect(names).toContain('codex-work-from-personal');
+    // the nonsense pair: copying a Claude transcript into a Codex home
+    expect(names).not.toContain('codex-work-from-claude-personal');
+    expect(names.filter((n) => n.includes('-from-'))).toHaveLength(4); // 2 per tool
+  });
+
+  it('emits no pairs for a lone account of a tool', () => {
+    const names = managedNames([
+      { tool: 'claude', name: 'claude-personal', root: path.join(home, '.claude') },
+      { tool: 'codex', name: 'codex-personal', root: path.join(home, '.codex') },
+    ]);
+    expect(names.filter((n) => n.includes('-from-'))).toEqual([]);
+  });
+});
+
+describe('planSetup — one managed file per tool in use', () => {
+  it('plans both files for a mixed account set', () => {
+    const plan = planSetup(mixedOpts(), env);
+    expect(plan.managed.map((m) => m.tool)).toEqual(['claude', 'codex']);
+    expect(plan.managed[1].path).toBe(path.join(home, '.config', 'ccmon', 'codex-accounts.sh'));
+    expect(plan.managed[1].script).toContain('codex-personal()');
+  });
+
+  it('plans only the Claude file when there is no Codex account', () => {
+    const plan = planSetup(opts(), env);
+    expect(plan.managed.map((m) => m.tool)).toEqual(['claude']);
+  });
+});
+
+describe('applySetup — per-tool files', () => {
+  it.skipIf(isWindows)('writes both files 0600', () => {
+    const report = applySetup(mixedOpts(), env);
+    expect(report.ok).toBe(true);
+    for (const f of ['claude-accounts.sh', 'codex-accounts.sh']) {
+      const p = path.join(home, '.config', 'ccmon', f);
+      expect(fs.existsSync(p)).toBe(true);
+      expect(fs.statSync(p).mode & 0o777).toBe(0o600);
+    }
+  });
+
+  it("removes a tool's file when its last account goes away", () => {
+    applySetup(mixedOpts(), env);
+    const codexFile = path.join(home, '.config', 'ccmon', 'codex-accounts.sh');
+    expect(fs.existsSync(codexFile)).toBe(true);
+
+    applySetup(opts(), env); // claude only
+    expect(fs.existsSync(codexFile)).toBe(false);
+    expect(fs.existsSync(path.join(home, '.config', 'ccmon', 'claude-accounts.sh'))).toBe(true);
+  });
+});
+
+describe('validateAccounts — a tool home env var is reserved', () => {
+  it('rejects CODEX_HOME in the extra-env box', () => {
+    const plan = planSetup(
+      mixedOpts({
+        accounts: [
+          {
+            tool: 'codex',
+            name: 'codex-personal',
+            root: path.join(home, '.codex'),
+            env: { CODEX_HOME: '/somewhere/else' },
+          },
+        ],
+      }),
+      env,
+    );
+    expect(plan.problems.join(' ')).toContain('CODEX_HOME comes from the config dir');
+  });
+
+  it('still rejects CLAUDE_CONFIG_DIR', () => {
+    const plan = planSetup(
+      opts({
+        accounts: [
+          {
+            tool: 'claude',
+            name: 'claude-personal',
+            root: path.join(home, '.claude'),
+            env: { CLAUDE_CONFIG_DIR: '/elsewhere' },
+          },
+        ],
+      }),
+      env,
+    );
+    expect(plan.problems.join(' ')).toContain('CLAUDE_CONFIG_DIR comes from the config dir');
+  });
+});
+
+describe('rc block — sources every tool file, unconditionally', () => {
+  it('emits a guarded source line per tool regardless of which accounts exist', () => {
+    applySetup(opts(), env); // claude only
+    const rc = fs.readFileSync(path.join(home, '.bashrc'), 'utf8');
+    expect(rc).toContain('claude-accounts.sh');
+    // present but [ -f ]-guarded, so the block's content never depends on
+    // which accounts exist and never has to change again
+    expect(rc).toContain('codex-accounts.sh');
+    expect(rc).toContain('[ -f "$HOME/.config/ccmon/codex-accounts.sh" ]');
+  });
+});
+
+describe('rc block — in-place replacement', () => {
+  /** The block shape ccmon wrote before Codex support: one source line. */
+  const OLD_BLOCK = [
+    '# >>> ccmon managed >>>',
+    '# Claude Code multi-account wrappers, managed by ccmon. Remove this block',
+    '# (and $HOME/.config/ccmon/claude-accounts.sh) to uninstall.',
+    '[ -f "$HOME/.config/ccmon/claude-accounts.sh" ] && . "$HOME/.config/ccmon/claude-accounts.sh"',
+    '# <<< ccmon managed <<<',
+  ].join('\n');
+
+  it('replaces a stale block instead of leaving it or appending a second one', () => {
+    const rc = path.join(home, '.bashrc');
+    fs.writeFileSync(rc, `# user stuff\nalias ll='ls -l'\n\n${OLD_BLOCK}\n\n# after\n`);
+
+    applySetup(mixedOpts(), env);
+
+    const text = fs.readFileSync(rc, 'utf8');
+    expect(text.match(/>>> ccmon managed >>>/g)).toHaveLength(1);
+    expect(text).toContain('codex-accounts.sh');
+    // everything outside the markers survives, in place and in order
+    expect(text).toContain("alias ll='ls -l'");
+    expect(text).toContain('# after');
+    expect(text.indexOf("alias ll='ls -l'")).toBeLessThan(text.indexOf('>>> ccmon managed'));
+    expect(text.indexOf('# after')).toBeGreaterThan(text.indexOf('<<< ccmon managed'));
+  });
+
+  it('is idempotent — a second apply changes nothing', () => {
+    const rc = path.join(home, '.bashrc');
+    applySetup(mixedOpts(), env);
+    const first = fs.readFileSync(rc, 'utf8');
+    applySetup(mixedOpts(), env);
+    expect(fs.readFileSync(rc, 'utf8')).toBe(first);
+  });
+
+  it('never touches a hand-written line outside the markers', () => {
+    const rc = path.join(home, '.bashrc');
+    fs.writeFileSync(rc, `${OLD_BLOCK}\nexport EDITOR=vim\n`);
+    applySetup(mixedOpts(), env);
+    expect(fs.readFileSync(rc, 'utf8')).toContain('export EDITOR=vim');
+  });
+
+  it('still appends when there is no block at all', () => {
+    const rc = path.join(home, '.bashrc');
+    fs.writeFileSync(rc, '# just my stuff\n');
+    const report = applySetup(mixedOpts(), env);
+    expect(report.linkedRc).toEqual([rc]);
+    const text = fs.readFileSync(rc, 'utf8');
+    expect(text).toContain('# just my stuff');
+    expect(text).toContain('>>> ccmon managed >>>');
+  });
+
+  it('reports the replacement in the preview rather than calling it a no-op', () => {
+    const rc = path.join(home, '.bashrc');
+    fs.writeFileSync(rc, `${OLD_BLOCK}\n`);
+    const plan = planSetup(mixedOpts(), env);
+    const edit = plan.rcEdits[0];
+    expect(edit.alreadyLinked).toBe(true);
+    expect(edit.blockReplaces).toBe(true);
+    expect(edit.blockToAdd).toContain('codex-accounts.sh');
+  });
+
+  it('reports nothing to do when the block is already current', () => {
+    applySetup(mixedOpts(), env);
+    const edit = planSetup(mixedOpts(), env).rcEdits[0];
+    expect(edit.alreadyLinked).toBe(true);
+    expect(edit.blockReplaces).toBe(false);
+    expect(edit.blockToAdd).toBe('');
+  });
+});
+
+describe('codex-cross-resume helper', () => {
+  it.skipIf(isWindows)('is installed beside the Claude one, executable', () => {
+    const report = applySetup(mixedOpts(), env);
+    expect(report.ok).toBe(true);
+    const dest = path.join(home, '.local', 'bin', 'codex-cross-resume');
+    expect(fs.existsSync(dest)).toBe(true);
+    expect(fs.statSync(dest).mode & 0o777).toBe(0o755);
+    expect(fs.existsSync(path.join(home, '.local', 'bin', 'claude-cross-resume'))).toBe(true);
+  });
+
+  it('is not installed when no Codex account exists', () => {
+    applySetup(opts(), env);
+    expect(fs.existsSync(path.join(home, '.local', 'bin', 'codex-cross-resume'))).toBe(false);
+    expect(fs.existsSync(path.join(home, '.local', 'bin', 'claude-cross-resume'))).toBe(true);
+  });
+
+  it('resolves the session by the uuid INSIDE the filename, not the basename', () => {
+    applySetup(mixedOpts(), env);
+    const script = fs.readFileSync(path.join(home, '.local', 'bin', 'codex-cross-resume'), 'utf8');
+    expect(script).toContain('rollout-*-${id}.jsonl');
+    // both live and archived rollouts are resumable
+    expect(script).toContain('archived_sessions');
+    // the date-nested path must survive the copy or `codex resume` cannot find it
+    expect(script).toContain('rel="${src_file#$src/$src_base/}"');
+    expect(script).toContain('exec codex resume');
+    expect(script).toContain('export CODEX_HOME="$dst"');
+  });
+
+  it('the generated wrapper calls the codex helper, not the claude one', () => {
+    const out = renderManagedScript(mixedOpts().accounts, home, 'posix', 'codex');
+    expect(out).toContain('"$HOME/.local/bin/codex-cross-resume"');
+    expect(out).not.toContain('claude-cross-resume');
+  });
+
+  it('plans one helper per tool in use', () => {
+    expect(planSetup(mixedOpts(), env).helpers.map((h) => h.tool)).toEqual(['claude', 'codex']);
+    expect(planSetup(opts(), env).helpers.map((h) => h.tool)).toEqual(['claude']);
+  });
+
+  it('reports both helpers as current on a second plan', () => {
+    applySetup(mixedOpts(), env);
+    expect(planSetup(mixedOpts(), env).helpers.every((h) => h.installed)).toBe(true);
+  });
+});
+
+describe('codex-cross-resume — PowerShell', () => {
+  const winEnv = (h: string): SetupEnv => ({
+    home: h,
+    loginShell: null,
+    platform: 'win32',
+    psProfile: path.join(h, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'),
+  });
+
+  it('installs the .ps1 beside the managed file', () => {
+    const e = winEnv(home);
+    const report = applySetup({ ...mixedOpts(), rcPaths: [e.psProfile!] }, e);
+    expect(report.ok).toBe(true);
+    expect(fs.existsSync(path.join(home, '.config', 'ccmon', 'codex-cross-resume.ps1'))).toBe(true);
+  });
+
+  it('stays PowerShell 5.1-compatible', () => {
+    // Windows ships 5.1; a script that only parses under pwsh 7 is useless on
+    // a stock box. The three-OS CI matrix is what actually runs the parser.
+    const e = winEnv(home);
+    applySetup({ ...mixedOpts(), rcPaths: [e.psProfile!] }, e);
+    const script = fs.readFileSync(
+      path.join(home, '.config', 'ccmon', 'codex-cross-resume.ps1'),
+      'utf8',
+    );
+    expect(script).not.toMatch(/\?\?/); // null-coalescing: 7+ only
+    expect(script).toContain('$env:CODEX_HOME');
+    expect(script).toContain('codex resume');
+  });
+
+  it('the generated PS wrapper points at the codex helper', () => {
+    const out = renderManagedScript(mixedOpts().accounts, home, 'powershell', 'codex');
+    expect(out).toContain('codex-cross-resume.ps1');
+    expect(out).not.toContain('claude-cross-resume.ps1');
   });
 });

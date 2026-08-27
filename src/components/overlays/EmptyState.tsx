@@ -12,7 +12,11 @@ export function EmptyState() {
 
   return (
     <div className="overlay">
-      <div className="logo-bars"><i /><i /><i /></div>
+      <div className="logo-bars">
+        <i />
+        <i />
+        <i />
+      </div>
       <h1>no usage data yet</h1>
       <p className="ov-sub">looked for transcripts in:</p>
       <ul className="ov-dirs">
@@ -20,9 +24,7 @@ export function EmptyState() {
           <li key={d}>{tildify(d)}</li>
         ))}
       </ul>
-      <p className="ov-meta">
-        run a Claude Code session and this dashboard lights up on its own
-      </p>
+      <p className="ov-meta">run a Claude Code session and this dashboard lights up on its own</p>
       <button className="sb-btn" onClick={() => window.ccmon?.rescan()}>
         rescan now
       </button>

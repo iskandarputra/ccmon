@@ -51,7 +51,13 @@ export function ConfirmDialog({
 
   return (
     <div className="cfd-overlay" onClick={onCancel}>
-      <div className="cfd" role="alertdialog" aria-modal aria-labelledby="cfd-title" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="cfd"
+        role="alertdialog"
+        aria-modal
+        aria-labelledby="cfd-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div id="cfd-title" className="cfd-title">
           {title}
         </div>

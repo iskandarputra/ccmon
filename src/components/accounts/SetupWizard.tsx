@@ -10,14 +10,15 @@ import { Hint } from '../ui/Hint';
 import { useUsageStore } from '../../store/useUsageStore';
 import { refreshAccounts, updateSettings } from '../../bootstrap';
 import { tildify } from '../../lib/format';
-import { accountRoot, suggestWrapperName } from '../../lib/crossAccount';
 import { PROVIDER_PRESETS } from '../../../shared/providerPresets';
+import { TOOLS, accountGroups, claudeTool } from '../../../shared/tools';
 import type {
   AccountSpec,
   SetupOptions,
   SetupPlan,
   SetupReport,
   ShellTarget,
+  ToolId,
 } from '../../../shared/types';
 
 /**
@@ -74,6 +75,7 @@ export function SetupWizard() {
   const [busy, setBusy] = useState(false);
 
   const [newSuffix, setNewSuffix] = useState('');
+  const [newTool, setNewTool] = useState<ToolId>('claude');
   const [createErr, setCreateErr] = useState<string | null>(null);
   /** raw `KEY=value` text per root, and which rows have the editor open */
   const [envText, setEnvText] = useState<Record<string, string>>({});
@@ -92,7 +94,9 @@ export function SetupWizard() {
       const only = found.shells.length === 1;
       setShells(found.shells);
       setPlatform(found.platform);
-      setPicked(new Set(found.shells.filter((s) => only || s.detected || s.linked).map((s) => s.rcPath)));
+      setPicked(
+        new Set(found.shells.filter((s) => only || s.detected || s.linked).map((s) => s.rcPath)),
+      );
     });
     return () => {
       alive = false;
@@ -100,11 +104,14 @@ export function SetupWizard() {
   }, []);
 
   // untracked (deleted) accounts stay out of the wizard entirely — re-add
-  // them from the Accounts view, which doesn't need a confirmation
-  const roots = useMemo(
-    () => sourceDirs.map(accountRoot).filter((root) => !prefs[root]?.disabled),
+  // them from the Accounts view, which doesn't need a confirmation.
+  // Grouped, not per source dir: a Codex home feeds two and is one account.
+  const groups = useMemo(
+    () => accountGroups(sourceDirs).filter(({ root }) => !prefs[root]?.disabled),
     [sourceDirs, prefs],
   );
+  const roots = useMemo(() => groups.map((g) => g.root), [groups]);
+  const toolOf = useMemo(() => new Map(groups.map((g) => [g.root, g.tool])), [groups]);
 
   // seed wrapper-name suggestions for every account root, preferring a saved
   // rename over the auto-suggested default
@@ -112,7 +119,9 @@ export function SetupWizard() {
     setNames((prev) => {
       const next = { ...prev };
       for (const root of roots) {
-        if (next[root] === undefined) next[root] = prefs[root]?.name ?? suggestWrapperName(root);
+        if (next[root] === undefined)
+          next[root] =
+            prefs[root]?.name ?? (toolOf.get(root) ?? claudeTool).suggestWrapperName(root);
       }
       return next;
     });
@@ -144,10 +153,11 @@ export function SetupWizard() {
 
   const opts: SetupOptions = useMemo(
     () => ({
-      accounts: roots.map<AccountSpec>((root) => {
+      accounts: groups.map<AccountSpec>(({ root, tool }) => {
         const env = envByRoot[root];
         return {
-          name: names[root] || suggestWrapperName(root),
+          tool: tool.id,
+          name: names[root] || tool.suggestWrapperName(root),
           root,
           ...(env && Object.keys(env).length ? { env } : {}),
         };
@@ -156,7 +166,7 @@ export function SetupWizard() {
       installHelper,
       tidyExisting: tidy,
     }),
-    [roots, names, envByRoot, picked, installHelper, tidy],
+    [groups, names, envByRoot, picked, installHelper, tidy],
   );
 
   // any edit invalidates a stale preview so apply can't run against old input
@@ -217,7 +227,7 @@ export function SetupWizard() {
     setCreateErr(null);
     setBusy(true);
     try {
-      const res = await window.ccmon?.createAccount(newSuffix);
+      const res = await window.ccmon?.createAccount(newSuffix, newTool);
       if (res?.ok) {
         await refreshAccounts();
         setNewSuffix('');
@@ -236,7 +246,11 @@ export function SetupWizard() {
     <Panel
       className="acc-wiz"
       title="multi-account setup"
-      right={<span className="panel-note">generate the claude-* wrappers for your shell</span>}
+      right={
+        <span className="panel-note">
+          generate the {TOOLS.map((t) => `${t.id}-*`).join(' / ')} wrappers for your shell
+        </span>
+      }
     >
       <div className="wiz-columns">
         {/* Step 1 Column */}
@@ -246,15 +260,17 @@ export function SetupWizard() {
               and nothing else on this screen says they exist — the DeepSeek card
               that would is hidden until you already use DeepSeek */}
           <div className="wiz-step-note">
-            each wrapper sets <code>CLAUDE_CONFIG_DIR</code>; <code>+ env</code> adds provider
-            settings — that is how an account runs on DeepSeek instead of Anthropic
+            each wrapper sets its tool&apos;s home variable (
+            {TOOLS.map((t) => t.homeEnvVar).join(', ')}); <code>+ env</code> adds provider settings
+            — that is how a Claude account runs on DeepSeek instead of Anthropic
           </div>
           <div className="wiz-accts-list">
-            {roots.map((root) => {
+            {groups.map(({ root, tool }) => {
               const envCount = Object.keys(envByRoot[root] ?? {}).length;
               return (
                 <div className="wiz-acct-row" key={root}>
                   <div className="wiz-acct">
+                    <span className="wiz-acct-tool">{tool.label}</span>
                     <input
                       className="wiz-name"
                       value={names[root] ?? ''}
@@ -282,7 +298,10 @@ export function SetupWizard() {
                       {envCount ? `env · ${envCount}` : '+ env'}
                     </button>
                   </div>
-                  {envOpen.has(root) && (
+                  {/* PROVIDER_PRESETS is a set of ANTHROPIC_* variables for
+                      pointing Claude Code at another endpoint — meaningless
+                      for Codex. The free-form env box stays on both. */}
+                  {envOpen.has(root) && tool.id === 'claude' && (
                     <div className="wiz-env-presets">
                       <span className="wiz-env-presets-label">preset</span>
                       {PROVIDER_PRESETS.map((p) => (
@@ -320,7 +339,9 @@ export function SetupWizard() {
                       // grows with the content: a provider preset is ~11 lines,
                       // and a 3-row box hides all but the first two of them
                       rows={Math.min(12, Math.max(3, (envText[root] ?? '').split('\n').length))}
-                      placeholder={'ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic\nANTHROPIC_AUTH_TOKEN=sk-…'}
+                      placeholder={
+                        'ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic\nANTHROPIC_AUTH_TOKEN=sk-…'
+                      }
                       value={envText[root] ?? ''}
                       onChange={(e) => {
                         setEnvText((p) => ({ ...p, [root]: e.target.value }));
@@ -333,7 +354,21 @@ export function SetupWizard() {
             })}
           </div>
           <div className="wiz-add">
-            <span className="wiz-add-pre">~/.claude-</span>
+            {/* the tool decides both the home name and the subdir that makes
+                it discoverable, so it has to be chosen before creating */}
+            <select
+              className="wiz-tool"
+              value={newTool}
+              onChange={(e) => setNewTool(e.target.value as ToolId)}
+              aria-label="which CLI this account is for"
+            >
+              {TOOLS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <span className="wiz-add-pre">~/.{newTool}-</span>
             <input
               className="wiz-suffix"
               value={newSuffix}
@@ -356,7 +391,8 @@ export function SetupWizard() {
         {/* Step 2 Column */}
         <div className="wiz-col">
           <div className="wiz-step-label">
-            2 · shell to link {platform && <span className="wiz-os">· {osLabel(platform)} detected</span>}
+            2 · shell to link{' '}
+            {platform && <span className="wiz-os">· {osLabel(platform)} detected</span>}
           </div>
           <div className="wiz-shells">
             {shells.map((s) => (
@@ -377,10 +413,9 @@ export function SetupWizard() {
           </div>
           {platform === 'win32' ? (
             <div className="wiz-os-note">
-              on Windows ccmon writes a PowerShell <code>function</code> per account and
-              dot-sources them from your <code>$PROFILE</code>. The bash{' '}
-              <code>claude-cross-resume</code> helper is Unix-only, so cross-account resume from
-              the dashboard needs WSL or Git Bash.
+              on Windows ccmon writes a PowerShell <code>function</code> per account and dot-sources
+              them from your <code>$PROFILE</code>. The bash <code>claude-cross-resume</code> helper
+              is Unix-only, so cross-account resume from the dashboard needs WSL or Git Bash.
             </div>
           ) : (
             <label className="wiz-toggle">
@@ -409,8 +444,8 @@ export function SetupWizard() {
             />
             <span className="wiz-toggle-track" aria-hidden="true" />
             <span className="wiz-toggle-text">
-              tidy up: comment out any existing hand-written <code>claude-*</code> defs the
-              managed file replaces (single-line only · shown in preview)
+              tidy up: comment out any existing hand-written <code>claude-*</code> defs the managed
+              file replaces (single-line only · shown in preview)
             </span>
           </label>
         </div>
@@ -438,19 +473,29 @@ export function SetupWizard() {
                 ⚠ {w}
               </div>
             ))}
-            <div className="wiz-pre-label">
-              {tildify(plan.managedPath)} <span className="wiz-dim">(rewritten)</span>
-            </div>
-            <pre className="wiz-pre">{plan.managedScript}</pre>
+            {plan.managed.map((m) => (
+              <div key={m.path}>
+                <div className="wiz-pre-label">
+                  {tildify(m.path)} <span className="wiz-dim">(rewritten)</span>
+                </div>
+                <pre className="wiz-pre">{m.script}</pre>
+              </div>
+            ))}
             {plan.rcEdits.map((e) => (
               <div className="wiz-rc" key={e.rcPath}>
                 <div className="wiz-pre-label">
                   {tildify(e.rcPath)}{' '}
                   <span className="wiz-dim">
-                    {e.alreadyLinked ? '(already linked — no change)' : '(append)'}
+                    {e.blockReplaces
+                      ? '(update the existing ccmon block — it predates Codex support)'
+                      : e.alreadyLinked
+                        ? '(already linked — no change)'
+                        : '(append)'}
                   </span>
                 </div>
-                {!e.alreadyLinked && <pre className="wiz-pre wiz-pre-sm">{e.blockToAdd}</pre>}
+                {/* show the block whenever it will actually be written, so a
+                    replacement is previewed rather than happening silently */}
+                {e.blockToAdd && <pre className="wiz-pre wiz-pre-sm">{e.blockToAdd}</pre>}
                 {e.existing.length > 0 && (
                   <div className="wiz-conflicts">
                     <div className="wiz-conflicts-head">
@@ -459,11 +504,7 @@ export function SetupWizard() {
                     {e.existing.map((x) => (
                       <div className="wiz-conflict" key={x.line}>
                         <span className="wiz-conflict-tag">
-                          {tidy
-                            ? x.canTidy
-                              ? 'comment out'
-                              : 'remove by hand'
-                            : 'shadowed'}
+                          {tidy ? (x.canTidy ? 'comment out' : 'remove by hand') : 'shadowed'}
                         </span>
                         <code className="wiz-conflict-line">
                           L{x.line}: {x.text}
@@ -474,16 +515,18 @@ export function SetupWizard() {
                 )}
               </div>
             ))}
-            <div className="wiz-pre-label">
-              {tildify(plan.helperDest)}{' '}
-              <span className="wiz-dim">
-                {!installHelper
-                  ? '(skipped)'
-                  : plan.helperInstalled
-                    ? '(already current)'
-                    : '(install, chmod +x)'}
-              </span>
-            </div>
+            {plan.helpers.map((h) => (
+              <div className="wiz-pre-label" key={h.dest}>
+                {tildify(h.dest)}{' '}
+                <span className="wiz-dim">
+                  {!installHelper
+                    ? '(skipped)'
+                    : h.installed
+                      ? '(already current)'
+                      : '(install, chmod +x)'}
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
@@ -492,8 +535,7 @@ export function SetupWizard() {
             <div className="wiz-report-head">{report.ok ? 'done ✓' : 'finished with errors'}</div>
             {report.tidiedRc.length > 0 && (
               <div className="wiz-report-line">
-                commented out superseded defs in{' '}
-                {report.tidiedRc.map((p) => tildify(p)).join(', ')}
+                commented out superseded defs in {report.tidiedRc.map((p) => tildify(p)).join(', ')}
               </div>
             )}
             {report.reloadHint && <div className="wiz-report-line">{report.reloadHint}</div>}
@@ -507,31 +549,30 @@ export function SetupWizard() {
       </div>
 
       <Hint label="what this writes (and won't break)">
-        ccmon writes one file it owns — <code>~/.config/ccmon/claude-accounts.sh</code> — with
-        a <code>claude-&lt;name&gt;</code> launcher per account (each sets{' '}
-        <code>CLAUDE_CONFIG_DIR</code> in a subshell) plus the cross-account resume helpers. It
-        then appends a single guarded <code>source</code> line to the shell rc you pick.
-        Re-running is safe: the guarded block is added at most once (never duplicated), and your
-        rc is only ever appended to — unless you tick <b>tidy up</b>, the one option that edits
-        existing lines, and even then only to comment out single-line <code>claude-*</code>{' '}
-        definitions the managed file replaces (shown in the preview, reversible, written
-        atomically). If you already have hand-written wrappers, the preview flags them so you
-        choose: leave them (the managed copies are identical, so they just shadow) or tidy them
-        away. Remove the <code>ccmon managed</code> block to uninstall. Nothing runs until you
-        open a new shell and call a wrapper.
+        ccmon writes one file it owns — <code>~/.config/ccmon/claude-accounts.sh</code> — with a{' '}
+        <code>claude-&lt;name&gt;</code> launcher per account (each sets{' '}
+        <code>CLAUDE_CONFIG_DIR</code> in a subshell) plus the cross-account resume helpers. It then
+        appends a single guarded <code>source</code> line to the shell rc you pick. Re-running is
+        safe: the guarded block is added at most once (never duplicated), and your rc is only ever
+        appended to — unless you tick <b>tidy up</b>, the one option that edits existing lines, and
+        even then only to comment out single-line <code>claude-*</code> definitions the managed file
+        replaces (shown in the preview, reversible, written atomically). If you already have
+        hand-written wrappers, the preview flags them so you choose: leave them (the managed copies
+        are identical, so they just shadow) or tidy them away. Remove the <code>ccmon managed</code>{' '}
+        block to uninstall. Nothing runs until you open a new shell and call a wrapper.
       </Hint>
       <Hint label="env: running an account on another provider">
         <code>+ env</code> adds variables the wrapper exports alongside{' '}
-        <code>CLAUDE_CONFIG_DIR</code>, which is what an alternate-provider account needs —
-        Claude Code pointed at DeepSeek is <code>ANTHROPIC_BASE_URL</code> +{' '}
+        <code>CLAUDE_CONFIG_DIR</code>, which is what an alternate-provider account needs — Claude
+        Code pointed at DeepSeek is <code>ANTHROPIC_BASE_URL</code> +{' '}
         <code>ANTHROPIC_AUTH_TOKEN</code> + a model mapping, none of which is a config dir. Give
         that account its own root (<code>~/.claude-deepseek</code>) so its usage stays separate:
-        ccmon prices every model it finds, but transcripts written into{' '}
-        <code>~/.claude</code> belong to that account. Values are exported in a subshell (on
-        Windows, restored afterwards) so they never leak into your session, and the cross-resume
-        wrappers re-export the destination's env — resuming into a DeepSeek account keeps
-        DeepSeek. A token typed here is stored in the generated wrapper file and in ccmon's
-        settings, both written <code>0600</code>: private to your user, not encrypted.
+        ccmon prices every model it finds, but transcripts written into <code>~/.claude</code>{' '}
+        belong to that account. Values are exported in a subshell (on Windows, restored afterwards)
+        so they never leak into your session, and the cross-resume wrappers re-export the
+        destination's env — resuming into a DeepSeek account keeps DeepSeek. A token typed here is
+        stored in the generated wrapper file and in ccmon's settings, both written <code>0600</code>
+        : private to your user, not encrypted.
       </Hint>
     </Panel>
   );

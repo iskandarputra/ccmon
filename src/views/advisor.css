@@ -291,7 +291,9 @@
   animation-delay: 0.36s;
 }
 @keyframes adv-bounce {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     opacity: 0.35;
     transform: translateY(0);
   }
@@ -301,8 +303,13 @@
   }
 }
 @keyframes adv-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ── Composer Input ──────────────────────────────────────────────────────── */

@@ -60,11 +60,14 @@ export function classifySecurityError(status: number | undefined, stderr: string
   const text = (stderr || '').toLowerCase();
   if (status === 44 || text.includes('could not be found')) return null; // no item — ordinary
   if (status === 36 || text.includes('interaction is not allowed')) {
-    return 'the macOS Keychain refused access without a GUI session (SSH or a detached tmux) — ' +
-      'run `security unlock-keychain` in that session, or start it from a terminal you logged into';
+    return (
+      'the macOS Keychain refused access without a GUI session (SSH or a detached tmux) — ' +
+      'run `security unlock-keychain` in that session, or start it from a terminal you logged into'
+    );
   }
   if (status === 51 || text.includes('locked')) return 'the macOS Keychain is locked';
-  if (status === 128 || text.includes('user canceled')) return 'the macOS Keychain prompt was cancelled';
+  if (status === 128 || text.includes('user canceled'))
+    return 'the macOS Keychain prompt was cancelled';
   return stderr.trim() ? `macOS Keychain error: ${stderr.trim().slice(0, 120)}` : null;
 }
 
@@ -93,10 +96,14 @@ export const securityIO: KeychainIO = {
   },
   write(service, account, secret) {
     // -U updates in place when the item already exists, rather than erroring
-    execFileSync('security', ['add-generic-password', '-U', '-s', service, '-a', account, '-w', secret], {
-      encoding: 'utf8',
-      timeout: RW_TIMEOUT_MS,
-    });
+    execFileSync(
+      'security',
+      ['add-generic-password', '-U', '-s', service, '-a', account, '-w', secret],
+      {
+        encoding: 'utf8',
+        timeout: RW_TIMEOUT_MS,
+      },
+    );
   },
 };
 
@@ -181,7 +188,11 @@ export function readKeychainSecret(root: string, opts: KeychainOptions = {}): st
  * Keychain is not the store for this root — the caller then writes the file,
  * which is the correct behaviour everywhere except a default-root Mac.
  */
-export function writeKeychainSecret(root: string, secret: string, opts: KeychainOptions = {}): boolean {
+export function writeKeychainSecret(
+  root: string,
+  secret: string,
+  opts: KeychainOptions = {},
+): boolean {
   if (!keychainApplies(root, opts)) return false;
   const io = opts.io ?? securityIO;
   io.write(KEYCHAIN_SERVICE, opts.user ?? userName(), secret);

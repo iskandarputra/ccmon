@@ -44,7 +44,15 @@ function blend(i: number, rgb: RGB, a: number): void {
 
 const cov = (d: number) => Math.min(1, Math.max(0, 0.5 - d)); // SDF → coverage
 
-function roundRect(x: number, y: number, cx: number, cy: number, w: number, h: number, r: number): number {
+function roundRect(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  r: number,
+): number {
   const dx = Math.abs(x - cx) - (w / 2 - r);
   const dy = Math.abs(y - cy) - (h / 2 - r);
   const ox = Math.max(dx, 0);

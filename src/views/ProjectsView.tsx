@@ -188,7 +188,9 @@ export function ProjectsView() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = q
-      ? projects.filter((p) => p.path.toLowerCase().includes(q) || projectName(p.path).toLowerCase().includes(q))
+      ? projects.filter(
+          (p) => p.path.toLowerCase().includes(q) || projectName(p.path).toLowerCase().includes(q),
+        )
       : projects.slice();
 
     if (sort === 'total') list.sort((a, b) => (b.cost || 0) - (a.cost || 0));
@@ -210,7 +212,9 @@ export function ProjectsView() {
     const totalCost = filtered.reduce((s, p) => s + (p.cost || 0), 0);
     const totalSessions = filtered.reduce((s, p) => s + (p.sessions || 0), 0);
     const totalTokens = filtered.reduce((s, p) => s + (p.tokens || 0), 0);
-    const topProject = filtered.length ? [...filtered].sort((a, b) => (b.cost || 0) - (a.cost || 0))[0] : null;
+    const topProject = filtered.length
+      ? [...filtered].sort((a, b) => (b.cost || 0) - (a.cost || 0))[0]
+      : null;
 
     return { totalCost, totalSessions, totalTokens, topProject };
   }, [filtered]);
@@ -251,7 +255,8 @@ export function ProjectsView() {
             <>
               project directories
               <Hint label="what is this?">
-                Breakdown of LLM usage, cost estimates, and cache efficiency grouped by workspace directory.
+                Breakdown of LLM usage, cost estimates, and cache efficiency grouped by workspace
+                directory.
               </Hint>
             </>
           }
@@ -309,7 +314,9 @@ export function ProjectsView() {
                 <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h5l2 2.5h8A1.5 1.5 0 0 1 21 10v7.5A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
               </Glyph>
               <p className="prj-empty-lead">No project directories detected</p>
-              <p className="prj-empty-sub">Usage in local project directories will automatically appear here</p>
+              <p className="prj-empty-sub">
+                Usage in local project directories will automatically appear here
+              </p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="prj-empty">

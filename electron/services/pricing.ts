@@ -244,7 +244,9 @@ export function costWith(row: RateRow, t: TokenCounts): number {
   const w1h = t.w1h || 0;
   const r = row.tiered && inTok + read + w5m + w1h > TIER_THRESHOLD ? row.tiered : row;
   const w1hRate = row.cacheCreate1h ?? r.input * CACHE_1H_MULTIPLIER;
-  return inTok * r.input + outTok * r.output + read * r.cacheRead + w5m * r.cacheCreate + w1h * w1hRate;
+  return (
+    inTok * r.input + outTok * r.output + read * r.cacheRead + w5m * r.cacheCreate + w1h * w1hRate
+  );
 }
 
 /** Scale every rate in a row for a `-fast` variant (limits unchanged). */
@@ -286,7 +288,12 @@ export class PricingEngine {
   private inflight: Promise<void> | null = null;
   private refreshErrorMsg: string | null = null;
 
-  constructor({ cacheDir = null, offline = false, overrides = {}, archive = null }: PricingEngineOptions = {}) {
+  constructor({
+    cacheDir = null,
+    offline = false,
+    overrides = {},
+    archive = null,
+  }: PricingEngineOptions = {}) {
     this.cacheDir = cacheDir;
     this.offline = !!offline;
     this.archive = archive;
@@ -301,9 +308,9 @@ export class PricingEngine {
     }
 
     this.bundled = bundledLitellmJson as LitellmCatalog;
-    this.bundledDeepseek = bundledDeepseekJson as LitellmCatalog;
-    this.modelsdev = bundledModelsDevJson as ModelsDevCatalog;
-    this.modelsdevDeepseek = bundledModelsDevDeepseekJson as ModelsDevCatalog;
+    this.bundledDeepseek = bundledDeepseekJson;
+    this.modelsdev = bundledModelsDevJson;
+    this.modelsdevDeepseek = bundledModelsDevDeepseekJson;
 
     // Runtime LiteLLM layer from the disk cache, when present and sane.
     // A stale cache is still kept as a layer — better than nothing until
@@ -493,7 +500,7 @@ export class PricingEngine {
    */
   private resolveInLayer(model: string, layerIdx: number, models: LitellmCatalog): RateRow | null {
     let memo = this.archiveMemo.get(layerIdx);
-    if (!memo) this.archiveMemo.set(layerIdx, (memo = new Map()));
+    if (!memo) this.archiveMemo.set(layerIdx, (memo = new Map<string, RateRow | null>()));
     const hit = memo.get(model);
     if (hit !== undefined) return hit;
     let row: RateRow | null = this.matchOverride(model);
@@ -517,7 +524,11 @@ export class PricingEngine {
   private lookupData(model: string): RateRow | null {
     const memo = this.dataMemo.get(model);
     if (memo !== undefined) return memo;
-    const layers: Array<{ models: LitellmCatalog | ModelsDevCatalog | null; litellm: boolean; source: string }> = [
+    const layers: Array<{
+      models: LitellmCatalog | ModelsDevCatalog | null;
+      litellm: boolean;
+      source: string;
+    }> = [
       { models: this.bundled, litellm: true, source: 'litellm-bundled' },
       { models: this.bundledDeepseek, litellm: true, source: 'litellm-bundled-deepseek' },
       { models: this.runtime, litellm: true, source: this.source },
@@ -555,6 +566,10 @@ export class PricingEngine {
  * the disk cache is missing or older than 24 h (and not offline) a
  * background refresh is kicked off — it never blocks and never throws.
  */
+// Async with nothing awaited, on purpose: the signature is the contract that
+// this MAY do IO, and callers already await it. Making it synchronous today
+// would force every call site to change the day it needs to block on a fetch.
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function createPricingEngine(opts: PricingEngineOptions = {}): Promise<PricingEngine> {
   const engine = new PricingEngine(opts);
   const fetchedAt = engine.meta().fetchedAt;

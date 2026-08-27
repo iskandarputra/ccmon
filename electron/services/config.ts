@@ -15,6 +15,7 @@ export const CONFIG_PATH = path.join(os.homedir(), '.config', 'ccmon', 'config.j
  * Optional user config. Shape:
  * {
  *   "claudeDirs": ["/extra/claude/root", "~/archive/claude"],
+ *   "codexDirs":  ["~/.codex-work"],           // dirs holding a `sessions/`
  *   "pricing": {                                   // per-MTok overrides
  *     "fable": { "in": 5, "out": 25, "w5m": 6.25, "w1h": 10, "read": 0.5 },
  *     "^my-proxy-opus": {
@@ -34,8 +35,9 @@ export const CONFIG_PATH = path.join(os.homedir(), '.config', 'ccmon', 'config.j
  * Keys of `pricing` are case-insensitive regexes matched against model ids;
  * overrides win over the built-in table. Every field the engine consumes is
  * reachable — unset `tier` fields derive from `tier.in`, and `fast: 1` prices a
- * `-fast` variant absolutely instead of as a multiple. `claudeDirs` entries may
- * use a leading `~`.
+ * `-fast` variant absolutely instead of as a multiple. `claudeDirs` and
+ * `codexDirs` entries may use a leading `~`, and each is routed to its OWN
+ * adapter — a Claude root is never probed as a Codex home.
  */
 export function loadConfig(): UserConfig {
   try {

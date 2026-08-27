@@ -12,14 +12,20 @@ export function ScanOverlay() {
   const status = useUsageStore((s) => s.status);
 
   const pct =
-    progress.total > 0 ? Math.min(100, Math.round((progress.scanned / progress.total) * 100)) : null;
+    progress.total > 0
+      ? Math.min(100, Math.round((progress.scanned / progress.total) * 100))
+      : null;
 
   return (
     <div className="overlay">
       <div className="ov-hud">
         <div className="ov-hud-head">
           <div className="ov-brand">
-            <span className="tb-glyph"><i /><i /><i /></span>
+            <span className="tb-glyph">
+              <i />
+              <i />
+              <i />
+            </span>
             <span className="ov-title">ccmon</span>
           </div>
           <span className={`ov-state ${status === 'error' ? 'is-err' : 'is-active'}`}>
@@ -28,9 +34,7 @@ export function ScanOverlay() {
         </div>
 
         <div className="ov-readout">
-          <div className="ov-main-num">
-            {pct != null ? `${pct}%` : '—'}
-          </div>
+          <div className="ov-main-num">{pct != null ? `${pct}%` : '—'}</div>
           <div className="ov-main-label">
             {status === 'error'
               ? 'Parsing failed — inspect terminal logs'
@@ -49,7 +53,9 @@ export function ScanOverlay() {
           <div className="ov-cell">
             <span className="ov-k">Transcripts</span>
             <span className="ov-v">
-              {progress.total > 0 ? `${fmtInt(progress.scanned)} / ${fmtInt(progress.total)}` : 'locating…'}
+              {progress.total > 0
+                ? `${fmtInt(progress.scanned)} / ${fmtInt(progress.total)}`
+                : 'locating…'}
             </span>
           </div>
           <div className="ov-cell">

@@ -8,6 +8,13 @@
  * file dependency-free so either side can import it.
  */
 
+/**
+ * The coding CLIs ccmon reads. Declared HERE rather than in `shared/tools.ts`
+ * so this file stays dependency-free: `tools.ts` imports the id from here, not
+ * the other way round. The profile behind each id lives there.
+ */
+export type ToolId = 'claude' | 'codex';
+
 // ---- entries (parser output, §1) -----------------------------------------
 
 export interface UsageEntry {
@@ -93,11 +100,7 @@ export interface ToolResultMarker {
 export type ToolResultByDay = Map<string, { count: number; chars: number }>;
 
 export type ParsedLine =
-  | ({ kind: 'entry' } & UsageEntry)
-  | ResetMarker
-  | CompactMarker
-  | ToolResultMarker
-  | null;
+  ({ kind: 'entry' } & UsageEntry) | ResetMarker | CompactMarker | ToolResultMarker | null;
 
 /** Token splits accepted by the pricing engine's cost(). */
 export interface TokenCounts {
@@ -306,6 +309,8 @@ export interface CurrencyRates {
 /** Hand-edited power-user config at ~/.config/ccmon/config.json. */
 export interface UserConfig {
   claudeDirs?: string[];
+  /** extra Codex homes (the dir holding `sessions/`), beyond `CODEX_HOME` */
+  codexDirs?: string[];
   pricing?: Record<string, PricingOverride>;
   /** raw model id → display label (DISPLAY ONLY — never affects pricing) */
   modelAliases?: Record<string, string>;
@@ -610,15 +615,7 @@ export interface SnapshotTotals {
  * cache, what-if, tools, insights). Live plan limits and per-account spend are
  * separate paths and never range-scoped.
  */
-export type RangePreset =
-  | 'today'
-  | '7d'
-  | '30d'
-  | '90d'
-  | 'month'
-  | 'lastMonth'
-  | 'all'
-  | 'custom';
+export type RangePreset = 'today' | '7d' | '30d' | '90d' | 'month' | 'lastMonth' | 'all' | 'custom';
 
 export interface TimeRange {
   preset: RangePreset;
@@ -788,7 +785,12 @@ export interface AdvisorMessage {
 export type AdvisorResult = { ok: true; answer: string } | { ok: false; error: string };
 
 /** Candidate models offered in Settings for the advisor. */
-export const ADVISOR_MODELS = ['claude-opus-4-8', 'claude-sonnet-5', 'claude-sonnet-4-6', 'claude-haiku-4-5'] as const;
+export const ADVISOR_MODELS = [
+  'claude-opus-4-8',
+  'claude-sonnet-5',
+  'claude-sonnet-4-6',
+  'claude-haiku-4-5',
+] as const;
 
 // ---- CSV export -------------------------------------------------------------
 
@@ -797,8 +799,7 @@ export type ExportKind = 'days' | 'sessions' | 'projects' | 'models';
 
 /** Result of a CSV export: written path, user cancellation, or a failure. */
 export type ExportResult =
-  | { ok: true; path: string; rows: number }
-  | { ok: false; canceled?: boolean; error?: string };
+  { ok: true; path: string; rows: number } | { ok: false; canceled?: boolean; error?: string };
 
 /** One ranked contributor to a day's spend (project / model / session). */
 export interface DayContributor {
@@ -839,14 +840,26 @@ export interface DayBreakdown {
 // ---- accounts & live limits (§5) --------------------------------------------
 
 export interface AccountInfo {
+  /** which CLI this account belongs to — see `shared/tools.ts` */
+  tool: ToolId;
   plan: string | null;
-  /** plan multiplier parsed from rateLimitTier, e.g. '5x' | '20x' */
+  /** plan multiplier parsed from rateLimitTier, e.g. '5x' | '20x'; Claude only */
   tier: string | null;
   email: string | null;
   organization: string | null;
   hasCredentials: boolean;
-  /** Claude Code's transcript-retention window (`cleanupPeriodDays` in `<root>/settings.json`, default 30) */
-  cleanupPeriodDays: number;
+  /**
+   * Codex only: whether the CLI authenticates with a ChatGPT login or a bare
+   * API key. Null for Claude, which has exactly one mode.
+   */
+  authMode: 'chatgpt' | 'apikey' | null;
+  /**
+   * Claude Code's transcript-retention window (`cleanupPeriodDays` in
+   * `<root>/settings.json`, default 30). NULL for Codex, which has no
+   * retention setting — never coerce that null to 0, which would report
+   * "deletes everything immediately" instead of "no policy".
+   */
+  cleanupPeriodDays: number | null;
 }
 
 export interface LimitWindow {
@@ -934,9 +947,7 @@ export type LimitsMap = Record<string, LimitsResult>;
  * is 'error' with a verbose reason.
  */
 export type LoginResult =
-  | { status: 'refreshed' }
-  | { status: 'awaiting-code' }
-  | { status: 'error'; error: string };
+  { status: 'refreshed' } | { status: 'awaiting-code' } | { status: 'error'; error: string };
 
 /** Outcome of submitting the pasted authorization code to finish a browser login. */
 export interface LoginCodeResult {
@@ -1059,11 +1070,13 @@ export interface ShellDetection {
   shells: ShellTarget[];
 }
 
-/** One account wrapper to generate: a command name bound to a config root. */
+/** One account wrapper to generate: a command name bound to a tool's home. */
 export interface AccountSpec {
-  /** wrapper command, e.g. 'claude-work' */
+  /** which CLI this wrapper launches, and so which env var it exports */
+  tool: ToolId;
+  /** wrapper command, e.g. 'claude-work' or 'codex-work' */
   name: string;
-  /** config dir Claude Code reads (CLAUDE_CONFIG_DIR), e.g. ~/.claude-work */
+  /** the tool's home dir, exported as its `homeEnvVar` (e.g. ~/.claude-work) */
   root: string;
   /**
    * Extra environment exported by this wrapper, on top of `CLAUDE_CONFIG_DIR`.
@@ -1102,20 +1115,33 @@ export interface RcExisting {
 
 /** Dry-run of a setup apply — exactly what would be written, nothing done. */
 export interface SetupPlan {
-  /** the ccmon-owned file that holds the wrappers */
-  managedPath: string;
-  /** full contents that would be (re)written there */
-  managedScript: string;
+  /**
+   * The ccmon-owned wrapper files, one per tool that has accounts. A tool with
+   * none contributes no entry, and its file is REMOVED on apply — deleting
+   * your last account of a tool cleans up after itself rather than leaving a
+   * stale file the rc keeps sourcing.
+   */
+  managed: Array<{ tool: ToolId; path: string; script: string }>;
   /** per chosen rc: link state, the block we'd append, and any clashing defs */
   rcEdits: Array<{
     rcPath: string;
     alreadyLinked: boolean;
+    /** the block to write — empty when the file is already current */
     blockToAdd: string;
+    /**
+     * True when a ccmon block is already there but its contents are stale, so
+     * apply will REPLACE it in place rather than append. Distinct from
+     * `alreadyLinked`, which only says a block exists.
+     */
+    blockReplaces: boolean;
     existing: RcExisting[];
   }>;
-  /** where the cross-resume helper goes, and whether it's already current */
-  helperDest: string;
-  helperInstalled: boolean;
+  /**
+   * Where each tool's cross-resume helper goes and whether it is already
+   * current — one entry per tool that has accounts, so a Claude-only setup
+   * never mentions codex-cross-resume.
+   */
+  helpers: Array<{ tool: ToolId; dest: string; installed: boolean }>;
   /** validation problems that block apply (bad name, no rc selected, …) */
   problems: string[];
   /** non-blocking advisories (shadowed hand-written wrappers, …) */

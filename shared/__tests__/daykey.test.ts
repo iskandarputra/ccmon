@@ -5,13 +5,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  dayKeyFor,
-  isValidZone,
-  resetZoneCaches,
-  systemZone,
-  zonedParts,
-} from '../daykey';
+import { dayKeyFor, isValidZone, resetZoneCaches, systemZone, zonedParts } from '../daykey';
 
 afterEach(() => resetZoneCaches());
 

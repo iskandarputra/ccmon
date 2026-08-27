@@ -18,7 +18,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { UsageWatcher } from '../watcher';
-import { ADAPTERS, adapterById, claudeAdapter, detectSourceRoots } from '../adapters';
+import { ADAPTERS, adapterById, claudeAdapter, codexAdapter, detectSourceRoots } from '../adapters';
 import type { SourceAdapter } from '../adapters/types';
 import type { ParsedLine } from '../../../shared/types';
 import { dayKeyFor } from '../../../shared/daykey';
@@ -134,7 +134,7 @@ describe('watcher — adapter routing', () => {
     expect(entries.some((e) => e.read === 3792)).toBe(true);
   });
 
-  it('honours the adapter\'s `owns` — a sibling log is not usage', async () => {
+  it("honours the adapter's `owns` — a sibling log is not usage", async () => {
     const root = path.join(tmp, 'mixed');
     fs.mkdirSync(root, { recursive: true });
     fs.writeFileSync(path.join(root, 'a.usage.jsonl'), `${usageLine()}\n`);
@@ -216,5 +216,80 @@ describe('claude adapter', () => {
     });
     const parsed = claudeAdapter.parseLine(raw, '/x/projects/p/s.jsonl', 1, null);
     expect(parsed).toMatchObject({ kind: 'entry', model: 'claude-opus-5', in: 5, out: 2 });
+  });
+});
+
+describe('detectSourceRoots — per-adapter extras', () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-extras-'));
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  // Discovery always includes the machine's real roots on top of the extras,
+  // so these assert on the temp paths specifically rather than the whole list.
+  const dirsUnder = (roots: ReturnType<typeof detectSourceRoots>, prefix: string) =>
+    roots.filter((r) => r.dir.startsWith(prefix)).map((r) => `${r.adapter.id}:${r.dir}`);
+
+  it('does not probe a claudeDirs entry as a Codex home', () => {
+    // A Claude root that happens to hold a `sessions/` dir must not be claimed
+    // by the codex adapter — its files would be read with the wrong parser.
+    const root = path.join(tmp, 'root');
+    fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'sessions'), { recursive: true });
+
+    const roots = detectSourceRoots({ claude: [root] });
+    expect(dirsUnder(roots, tmp)).toEqual([`claude:${path.join(root, 'projects')}`]);
+  });
+
+  it('routes codexDirs to the codex adapter only', () => {
+    const root = path.join(tmp, 'cx');
+    fs.mkdirSync(path.join(root, 'sessions'), { recursive: true });
+
+    const roots = detectSourceRoots({ codex: [root] });
+    expect(dirsUnder(roots, tmp)).toEqual([`codex:${path.join(root, 'sessions')}`]);
+  });
+
+  it('accepts no extras at all', () => {
+    expect(() => detectSourceRoots()).not.toThrow();
+  });
+});
+
+describe('codex detectRoots — CODEX_HOME is a list', () => {
+  let tmp: string;
+  let prev: string | undefined;
+
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-codexhome-'));
+    prev = process.env.CODEX_HOME;
+  });
+  afterEach(() => {
+    if (prev === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = prev;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('splits a comma-separated CODEX_HOME', () => {
+    const a = path.join(tmp, 'a');
+    const b = path.join(tmp, 'b');
+    fs.mkdirSync(path.join(a, 'sessions'), { recursive: true });
+    fs.mkdirSync(path.join(b, 'sessions'), { recursive: true });
+
+    process.env.CODEX_HOME = `${a},${b}`;
+    const dirs = codexAdapter.detectRoots();
+    expect(dirs).toContain(path.join(a, 'sessions'));
+    expect(dirs).toContain(path.join(b, 'sessions'));
+  });
+
+  it('still honours a single CODEX_HOME', () => {
+    const a = path.join(tmp, 'solo');
+    fs.mkdirSync(path.join(a, 'sessions'), { recursive: true });
+    fs.mkdirSync(path.join(a, 'archived_sessions'), { recursive: true });
+
+    process.env.CODEX_HOME = a;
+    expect(codexAdapter.detectRoots()).toEqual([
+      path.join(a, 'sessions'),
+      path.join(a, 'archived_sessions'),
+    ]);
   });
 });

@@ -17,7 +17,7 @@
  */
 
 import path from 'path';
-import { detectProjectDirs } from '../electron/services/paths';
+import { detectSourceRoots } from '../electron/services/adapters';
 import { loadConfig } from '../electron/services/config';
 import { Settings } from '../electron/services/settings';
 import { createPricingEngine } from '../electron/services/pricing';
@@ -82,15 +82,29 @@ async function buildForCli(args: ParsedArgs): Promise<CliBuild> {
   const timezone = args.timezone ?? settings.timezone ?? null;
   const offline = args.offline || settings.pricingOffline;
 
-  const detected = detectProjectDirs([...args.sources, ...(cfg.claudeDirs || [])]);
-  if (!detected.length) {
+  // Every adapter's roots, not just Claude Code's — the CLI has to see exactly
+  // what the app sees, or `ccmon json` silently under-reports next to the UI.
+  // `--source` carries no tool, so it is offered to every adapter and the one
+  // that recognises the layout claims it; the config keys stay tool-specific.
+  const roots = detectSourceRoots({
+    claude: [...args.sources, ...(cfg.claudeDirs || [])],
+    codex: [...args.sources, ...(cfg.codexDirs || [])],
+  });
+  if (!roots.length) {
     throw new Error(
-      'no Claude Code data directories found — set CLAUDE_CONFIG_DIR or pass --source <dir>',
+      'no coding-CLI data directories found — set CLAUDE_CONFIG_DIR or pass --source <dir>',
     );
   }
   // Respect the app's hidden-account preference: a root the user hid in the UI
   // must stay hidden here too, or the CLI reports spend the app does not show.
-  const dirs = visibleAccountDirs(detected, settings.accountWrapperPrefs ?? {});
+  const visible = new Set(
+    visibleAccountDirs(
+      roots.map((r) => r.dir),
+      settings.accountWrapperPrefs ?? {},
+    ),
+  );
+  const sourceRoots = roots.filter((r) => visible.has(r.dir));
+  const dirs = sourceRoots.map((r) => r.dir);
 
   const pricing = await createPricingEngine({
     cacheDir: userData,
@@ -104,7 +118,7 @@ async function buildForCli(args: ParsedArgs): Promise<CliBuild> {
   const sinceMs = scanDays > 0 ? Date.now() - scanDays * 86_400_000 : null;
 
   const watcher = new UsageWatcher({
-    dirs,
+    dirs: sourceRoots, // adapter-tagged, so a Codex root parses as Codex
     watch: false,
     sinceMs,
     timezone: timezone || null,
@@ -154,9 +168,7 @@ async function run(argv: string[]): Promise<number> {
   const { snap, privacy } = await buildForCli(args);
 
   if (args.command === 'statusline') {
-    process.stdout.write(
-      `${formatStatusline(snap, parseHookPayload(hookRaw), privacy)}\n`,
-    );
+    process.stdout.write(`${formatStatusline(snap, parseHookPayload(hookRaw), privacy)}\n`);
     return 0;
   }
   if (args.command === 'csv') {

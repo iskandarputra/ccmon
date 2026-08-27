@@ -34,10 +34,7 @@ export function scopedDirs(sources: string[] | null | undefined, all: string[]):
  * to bind across all logins (e.g. the accounts dashboard). Returns
  * {pct, resetsAt} or null when no considered account has live data.
  */
-export function bindingSession(
-  limits: LimitsMap = {},
-  dirs?: string[],
-): LimitWindow | null {
+export function bindingSession(limits: LimitsMap = {}, dirs?: string[]): LimitWindow | null {
   let best: LimitWindow | null = null;
   for (const k of dirs ?? Object.keys(limits)) {
     const r = limits[k];
@@ -49,10 +46,7 @@ export function bindingSession(
 }
 
 /** The binding weekly (all-models) window; `dirs` scopes it as bindingSession. */
-export function bindingWeek(
-  limits: LimitsMap = {},
-  dirs?: string[],
-): LimitWindow | null {
+export function bindingWeek(limits: LimitsMap = {}, dirs?: string[]): LimitWindow | null {
   let best: LimitWindow | null = null;
   for (const k of dirs ?? Object.keys(limits)) {
     const r = limits[k];
@@ -92,8 +86,7 @@ export function displayWindow(
   liveSession: LimitWindow | null,
   now: number,
 ): DisplayWindow {
-  const liveEnd =
-    liveSession?.resetsAt && liveSession.resetsAt > now ? liveSession.resetsAt : null;
+  const liveEnd = liveSession?.resetsAt && liveSession.resetsAt > now ? liveSession.resetsAt : null;
   return liveEnd
     ? { start: liveEnd - SESSION_MS, end: liveEnd, live: true }
     : { start: block.start, end: block.end, live: false };

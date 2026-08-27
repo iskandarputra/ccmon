@@ -138,11 +138,20 @@ function StackTip({ active, payload, series }: StackTipProps) {
             </span>
             <b>{fmtUSD(d[s.key])}</b>
           </div>
-        ) : null
+        ) : null,
       )}
-      <div className="tip-row"><span>total</span><b>{fmtUSD(d.cost)}</b></div>
-      <div className="tip-row"><span>tokens</span><b>{fmtTok(d.tokens)}</b></div>
-      <div className="tip-row"><span>entries</span><b>{fmtInt(d.entries)}</b></div>
+      <div className="tip-row">
+        <span>total</span>
+        <b>{fmtUSD(d.cost)}</b>
+      </div>
+      <div className="tip-row">
+        <span>tokens</span>
+        <b>{fmtTok(d.tokens)}</b>
+      </div>
+      <div className="tip-row">
+        <span>entries</span>
+        <b>{fmtInt(d.entries)}</b>
+      </div>
     </div>
   );
 }
@@ -158,8 +167,14 @@ function CumTip({ active, payload }: CumTipProps) {
   return (
     <div className="chart-tip">
       <div className="tip-title">{dayLabel(d.date)}</div>
-      <div className="tip-row"><span>cumulative</span><b>{fmtUSD(d.cum)}</b></div>
-      <div className="tip-row"><span>that day</span><b>{fmtUSD(d.cost)}</b></div>
+      <div className="tip-row">
+        <span>cumulative</span>
+        <b>{fmtUSD(d.cum)}</b>
+      </div>
+      <div className="tip-row">
+        <span>that day</span>
+        <b>{fmtUSD(d.cost)}</b>
+      </div>
     </div>
   );
 }
@@ -181,10 +196,22 @@ function BucketTip<T extends { cost: number; tokens: number; entries: number; da
   return (
     <div className="chart-tip">
       <div className="tip-title">{titleFor(d)}</div>
-      <div className="tip-row"><span>est cost</span><b>{fmtUSD(d.cost)}</b></div>
-      <div className="tip-row"><span>tokens</span><b>{fmtTok(d.tokens)}</b></div>
-      <div className="tip-row"><span>entries</span><b>{fmtInt(d.entries)}</b></div>
-      <div className="tip-row"><span>active days</span><b>{d.days}</b></div>
+      <div className="tip-row">
+        <span>est cost</span>
+        <b>{fmtUSD(d.cost)}</b>
+      </div>
+      <div className="tip-row">
+        <span>tokens</span>
+        <b>{fmtTok(d.tokens)}</b>
+      </div>
+      <div className="tip-row">
+        <span>entries</span>
+        <b>{fmtInt(d.entries)}</b>
+      </div>
+      <div className="tip-row">
+        <span>active days</span>
+        <b>{d.days}</b>
+      </div>
     </div>
   );
 }
@@ -197,7 +224,7 @@ export function ActivityView() {
   const bounded = snapshot.range.preset !== 'all';
 
   const { rows, series, cumRows, rangeCost } = useMemo(() => {
-    const days = bounded ? (snapshot.days || []) : (snapshot.days || []).slice(-range);
+    const days = bounded ? snapshot.days || [] : (snapshot.days || []).slice(-range);
 
     // rank models by total cost over the range; keep top 5, fold rest into "other"
     const totals = new Map<string, number>();
@@ -263,13 +290,17 @@ export function ActivityView() {
         <div className="g12">
           <div className="act-strip">
             <div className="act-stat">
-              <span className="act-stat-icon"><Glyph>{ICONS.avg}</Glyph></span>
+              <span className="act-stat-icon">
+                <Glyph>{ICONS.avg}</Glyph>
+              </span>
               <span className="act-stat-label">avg daily cost</span>
               <span className="act-stat-value">{fmtUSD(records.avgDailyCost)}</span>
               <span className="act-stat-sub">per active day</span>
             </div>
             <div className="act-stat">
-              <span className="act-stat-icon"><Glyph>{ICONS.active}</Glyph></span>
+              <span className="act-stat-icon">
+                <Glyph>{ICONS.active}</Glyph>
+              </span>
               <span className="act-stat-label">active days</span>
               <span className="act-stat-value">
                 {fmtInt(records.activeDays)}
@@ -278,19 +309,25 @@ export function ActivityView() {
               <span className="act-stat-sub">of tracked span</span>
             </div>
             <div className="act-stat">
-              <span className="act-stat-icon"><Glyph>{ICONS.streak}</Glyph></span>
+              <span className="act-stat-icon">
+                <Glyph>{ICONS.streak}</Glyph>
+              </span>
               <span className="act-stat-label">current streak</span>
               <span className="act-stat-value">{records.streak?.current ?? 0}d</span>
               <span className="act-stat-sub">consecutive active days</span>
             </div>
             <div className="act-stat">
-              <span className="act-stat-icon"><Glyph>{ICONS.longest}</Glyph></span>
+              <span className="act-stat-icon">
+                <Glyph>{ICONS.longest}</Glyph>
+              </span>
               <span className="act-stat-label">longest streak</span>
               <span className="act-stat-value">{records.streak?.longest ?? 0}d</span>
               <span className="act-stat-sub">all time</span>
             </div>
             <div className="act-stat">
-              <span className="act-stat-icon"><Glyph>{ICONS.record}</Glyph></span>
+              <span className="act-stat-icon">
+                <Glyph>{ICONS.record}</Glyph>
+              </span>
               <span className="act-stat-label">record day</span>
               <span className="act-stat-value">
                 {records.maxDay ? fmtUSD(records.maxDay.cost) : '—'}
@@ -304,7 +341,18 @@ export function ActivityView() {
       )}
 
       <div className="g12">
-        <Panel title={<>daily cost by model <Hint label="how is this stacked?">Costs are grouped by model for the selected range. The top 5 models are shown explicitly, and the rest are grouped into "other".</Hint></>} right={pills}>
+        <Panel
+          title={
+            <>
+              daily cost by model{' '}
+              <Hint label="how is this stacked?">
+                Costs are grouped by model for the selected range. The top 5 models are shown
+                explicitly, and the rest are grouped into "other".
+              </Hint>
+            </>
+          }
+          right={pills}
+        >
           {series.length ? (
             <>
               <ResponsiveContainer width="100%" height={240}>
@@ -353,15 +401,29 @@ export function ActivityView() {
               </div>
             </>
           ) : (
-            <Empty lead="No usage in the selected range" sub="adjust the range or start a session" />
+            <Empty
+              lead="No usage in the selected range"
+              sub="adjust the range or start a session"
+            />
           )}
         </Panel>
       </div>
 
       <div className="g12">
         <Panel
-          title={<>cumulative cost <Hint label="what is this?">A running total of your estimated spend over the selected date range.</Hint></>}
-          right={<span className="panel-note">{fmtUSD(rangeCost)} · last {range}d</span>}
+          title={
+            <>
+              cumulative cost{' '}
+              <Hint label="what is this?">
+                A running total of your estimated spend over the selected date range.
+              </Hint>
+            </>
+          }
+          right={
+            <span className="panel-note">
+              {fmtUSD(rangeCost)} · last {range}d
+            </span>
+          }
         >
           {cumRows.length ? (
             <ResponsiveContainer width="100%" height={180}>
@@ -403,7 +465,14 @@ export function ActivityView() {
 
       <div className="g6">
         <Panel
-          title={<>weekly <Hint label="how to read this">Data rolls up to the start of each week. The current week is still accumulating.</Hint></>}
+          title={
+            <>
+              weekly{' '}
+              <Hint label="how to read this">
+                Data rolls up to the start of each week. The current week is still accumulating.
+              </Hint>
+            </>
+          }
           right={<span className="panel-note">last {weekly.length} wk</span>}
         >
           {weekly.length ? (
@@ -450,7 +519,14 @@ export function ActivityView() {
 
       <div className="g6">
         <Panel
-          title={<>monthly <Hint label="how to read this">Data rolls up to the start of each month. The current month is still accumulating.</Hint></>}
+          title={
+            <>
+              monthly{' '}
+              <Hint label="how to read this">
+                Data rolls up to the start of each month. The current month is still accumulating.
+              </Hint>
+            </>
+          }
           right={<span className="panel-note">last {monthly.length} mo</span>}
         >
           {monthly.length ? (
@@ -494,7 +570,6 @@ export function ActivityView() {
           )}
         </Panel>
       </div>
-
     </div>
   );
 }

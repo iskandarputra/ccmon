@@ -75,10 +75,13 @@ describe('parseLine — entries', () => {
 
   it('uses the ephemeral breakdown and bills the remainder as 5m', () => {
     const e = entry(
-      assistantLine({}, {
-        cache_creation_input_tokens: 300,
-        cache_creation: { ephemeral_5m_input_tokens: 100, ephemeral_1h_input_tokens: 50 },
-      }),
+      assistantLine(
+        {},
+        {
+          cache_creation_input_tokens: 300,
+          cache_creation: { ephemeral_5m_input_tokens: 100, ephemeral_1h_input_tokens: 50 },
+        },
+      ),
     );
     // 100 + 50 < 300 → remainder billed at 5m: w5m = 300 − 50
     expect(e.w5m).toBe(250);
@@ -232,7 +235,11 @@ describe('parseLine — markers', () => {
         ],
       },
     });
-    expect(parseLine(raw, FILE, 1)).toMatchObject({ kind: 'toolresult', sessionId: 'sess-tr', chars: 11 });
+    expect(parseLine(raw, FILE, 1)).toMatchObject({
+      kind: 'toolresult',
+      sessionId: 'sess-tr',
+      chars: 11,
+    });
   });
 
   it('does NOT treat a user line without tool_result as a marker', () => {

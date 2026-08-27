@@ -25,7 +25,10 @@ export function Heatmap() {
   const nowHour = t.getHours();
 
   return (
-    <Panel title={`rhythm · ${rangeLabel}`} right={<span className="panel-note">tokens by hour</span>}>
+    <Panel
+      title={`rhythm · ${rangeLabel}`}
+      right={<span className="panel-note">tokens by hour</span>}
+    >
       <div className="hm-grid">
         <span className="hm-label" />
         {Array.from({ length: 24 }, (_, h) => (

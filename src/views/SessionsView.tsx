@@ -24,14 +24,7 @@ import type { SessionContext, SessionRow } from '../../shared/types';
 import './sessions.css';
 
 type ColumnKey =
-  | 'project'
-  | 'lastTs'
-  | 'durationMs'
-  | 'entries'
-  | 'tokens'
-  | 'cost'
-  | 'models'
-  | 'context';
+  'project' | 'lastTs' | 'durationMs' | 'entries' | 'tokens' | 'cost' | 'models' | 'context';
 
 type SortDir = 'asc' | 'desc';
 
@@ -154,9 +147,7 @@ export function SessionsView() {
     const q = query.trim().toLowerCase();
     if (!q) return sessions;
     return sessions.filter(
-      (s) =>
-        (s.project || '').toLowerCase().includes(q) ||
-        (s.id || '').toLowerCase().includes(q)
+      (s) => (s.project || '').toLowerCase().includes(q) || (s.id || '').toLowerCase().includes(q),
     );
   }, [sessions, query]);
 
@@ -166,22 +157,18 @@ export function SessionsView() {
     return [...filtered].sort((a, b) => {
       const av = sortValue(a, key);
       const bv = sortValue(b, key);
-      const cmp =
-        typeof av === 'string' ? av.localeCompare(bv as string) : av - (bv as number);
+      const cmp = typeof av === 'string' ? av.localeCompare(bv as string) : av - (bv as number);
       return cmp * mul;
     });
   }, [filtered, sort]);
 
-  const totalCost = useMemo(
-    () => filtered.reduce((sum, s) => sum + (s.cost || 0), 0),
-    [filtered]
-  );
+  const totalCost = useMemo(() => filtered.reduce((sum, s) => sum + (s.cost || 0), 0), [filtered]);
 
   const onSort = (key: ColumnKey) =>
     setSort((prev) =>
       prev.key === key
         ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { key, dir: key === 'project' ? 'asc' : 'desc' }
+        : { key, dir: key === 'project' ? 'asc' : 'desc' },
     );
 
   // virtualize the table body — only visible rows hit the DOM, so the list
@@ -193,7 +180,16 @@ export function SessionsView() {
     return (
       <div className="grid">
         <div className="g12">
-          <Panel title={<>sessions <Hint label="what is this?">A complete, searchable list of all your local Claude Code sessions.</Hint></>}>
+          <Panel
+            title={
+              <>
+                sessions{' '}
+                <Hint label="what is this?">
+                  A complete, searchable list of all your local Claude Code sessions.
+                </Hint>
+              </>
+            }
+          >
             <div className="ses-empty">
               <Glyph className="ses-empty-icon">
                 <path d="M4 7c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2z" />
@@ -201,9 +197,7 @@ export function SessionsView() {
                 <path d="M4 12c0 1.1 3.6 2 8 2s8-.9 8-2" />
               </Glyph>
               <p className="ses-empty-lead">no sessions recorded yet</p>
-              <p className="ses-empty-sub">
-                start a Claude Code session and it will appear here
-              </p>
+              <p className="ses-empty-sub">start a Claude Code session and it will appear here</p>
             </div>
           </Panel>
         </div>
@@ -215,7 +209,14 @@ export function SessionsView() {
     <div className="grid">
       <div className="g12">
         <Panel
-          title={<>sessions <Hint label="what is this?">A complete, searchable list of all your local Claude Code sessions.</Hint></>}
+          title={
+            <>
+              sessions{' '}
+              <Hint label="what is this?">
+                A complete, searchable list of all your local Claude Code sessions.
+              </Hint>
+            </>
+          }
           right={
             <div className="ses-head">
               <label className="ses-search">
@@ -304,9 +305,7 @@ export function SessionsView() {
                           <line x1="21" y1="21" x2="16.5" y2="16.5" />
                         </Glyph>
                         <p className="ses-empty-lead">no matching sessions</p>
-                        <p className="ses-empty-sub">
-                          nothing matches “{query.trim()}”
-                        </p>
+                        <p className="ses-empty-sub">nothing matches “{query.trim()}”</p>
                       </div>
                     </td>
                   </tr>

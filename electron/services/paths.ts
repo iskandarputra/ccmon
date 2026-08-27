@@ -72,9 +72,7 @@ export function detectProjectDirs(extra: string[] = []): string[] {
     // already-expanded candidateRoots() entries is harmless.
     const root = expandHome(raw.trim());
     if (!root) continue;
-    const p = path.resolve(
-      root.endsWith('projects') ? root : path.join(root, 'projects'),
-    );
+    const p = path.resolve(root.endsWith('projects') ? root : path.join(root, 'projects'));
     if (seen.has(p)) continue;
     seen.add(p);
     try {

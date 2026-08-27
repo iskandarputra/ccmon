@@ -192,7 +192,9 @@ describe('historical pricing — archive + costAt', () => {
     const dir = fs.mkdtempSync(path.join(tmp, 'arch-'));
     const archive = mkArchive(dir);
     expect(archive.size).toBe(2);
-    expect(archive.record('2026-03-05', { 'hist-model': { input_cost_per_token: 2e-6 } })).toBe(false);
+    expect(archive.record('2026-03-05', { 'hist-model': { input_cost_per_token: 2e-6 } })).toBe(
+      false,
+    );
     expect(archive.size).toBe(2);
     expect(new PricingArchive(dir).size).toBe(2);
   });

@@ -63,7 +63,10 @@ export interface NearestCap {
  * hiding a 95% window because the last poll failed would be the dangerous
  * choice. Failed results carry no windows and are skipped.
  */
-export function nearestCap(limits: LimitsMap, labelFor: (dir: string) => string): NearestCap | null {
+export function nearestCap(
+  limits: LimitsMap,
+  labelFor: (dir: string) => string,
+): NearestCap | null {
   let best: NearestCap | null = null;
   for (const [dir, r] of Object.entries(limits || {})) {
     if (!r || !r.ok) continue;

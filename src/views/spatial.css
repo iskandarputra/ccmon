@@ -172,7 +172,9 @@
   font-size: 11px;
   pointer-events: none;
   z-index: 10;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .spa-hud-title {

@@ -210,12 +210,18 @@ function BlockNode({ block }: { block: Block }) {
       const text = <FormattedInline text={block.text} />;
       const cls = `md-h md-h${block.level}`;
       switch (block.level) {
-        case 1: return <h1 className={cls}>{text}</h1>;
-        case 2: return <h2 className={cls}>{text}</h2>;
-        case 3: return <h3 className={cls}>{text}</h3>;
-        case 4: return <h4 className={cls}>{text}</h4>;
-        case 5: return <h5 className={cls}>{text}</h5>;
-        default: return <h6 className={cls}>{text}</h6>;
+        case 1:
+          return <h1 className={cls}>{text}</h1>;
+        case 2:
+          return <h2 className={cls}>{text}</h2>;
+        case 3:
+          return <h3 className={cls}>{text}</h3>;
+        case 4:
+          return <h4 className={cls}>{text}</h4>;
+        case 5:
+          return <h5 className={cls}>{text}</h5>;
+        default:
+          return <h6 className={cls}>{text}</h6>;
       }
     }
     case 'codeblock':

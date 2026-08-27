@@ -49,7 +49,14 @@ import {
   runwayColor,
   runwayLabel,
 } from '../lib/deepseek';
-import type { AccountInfo, AccountsMap, ModelRow, MonthlyRow, Snapshot, WeeklyRow } from '../../shared/types';
+import type {
+  AccountInfo,
+  AccountsMap,
+  ModelRow,
+  MonthlyRow,
+  Snapshot,
+  WeeklyRow,
+} from '../../shared/types';
 
 const AXIS_TICK = { fill: 'var(--text-faint)', fontSize: 10, fontFamily: 'JetBrains Mono' };
 const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -90,7 +97,10 @@ const RECORD_ICONS: ReactNode[] = [
   <path key="trunc" d="M5 12h14M16 7l5 5-5 5M3 7v10" />, // truncated (cut/arrow)
   <path key="compact" d="M7 9l5-5 5 5M7 15l5 5 5-5" />, // compactions (compress)
   <path key="reread" d="M5 12a7 7 0 1 1 2 5M5 17v-5h5" />, // compaction re-reads (refresh)
-  <path key="tool" d="M14.5 5.5a3.5 3.5 0 0 1-4.6 4.6L5 15v4h4l4.9-4.9a3.5 3.5 0 0 0 4.6-4.6l-2.3 2.3-2-2z" />, // tool output (wrench)
+  <path
+    key="tool"
+    d="M14.5 5.5a3.5 3.5 0 0 1-4.6 4.6L5 15v4h4l4.9-4.9a3.5 3.5 0 0 0 4.6-4.6l-2.3 2.3-2-2z"
+  />, // tool output (wrench)
 ];
 
 interface TrendPoint {
@@ -218,7 +228,10 @@ function deriveInsights(snapshot: Snapshot) {
 
   // robust spike threshold over the window's active days (MAD-based — a
   // couple of huge days can't drag the cut the way a mean/std would)
-  const nonzero = days.map((d) => d.cost).filter((c) => c > 0).sort((a, b) => a - b);
+  const nonzero = days
+    .map((d) => d.cost)
+    .filter((c) => c > 0)
+    .sort((a, b) => a - b);
   const med = medianSorted(nonzero);
   const mad = medianSorted(nonzero.map((v) => Math.abs(v - med)).sort((a, b) => a - b));
   const spikeCut = nonzero.length >= 5 && mad > 0 ? med + 3.5 * 1.4826 * mad : Infinity;
@@ -351,8 +364,14 @@ function TrendTip({ active, payload }: TrendTipProps) {
   return (
     <div className="chart-tip">
       <div className="tip-title">{dayLabel(d.date)}</div>
-      <div className="tip-row"><span>est cost</span><b>{fmtUSD(d.cost)}</b></div>
-      <div className="tip-row"><span>7-day avg</span><b>{fmtUSD(d.ma7)}</b></div>
+      <div className="tip-row">
+        <span>est cost</span>
+        <b>{fmtUSD(d.cost)}</b>
+      </div>
+      <div className="tip-row">
+        <span>7-day avg</span>
+        <b>{fmtUSD(d.ma7)}</b>
+      </div>
       {d.spike && (
         <div className="tip-row">
           <span>flag</span>
@@ -374,13 +393,25 @@ function WeeklyTip({ active, payload }: WeeklyTipProps) {
   return (
     <div className="chart-tip">
       <div className="tip-title">week of {dayLabel(w.week)}</div>
-      <div className="tip-row"><span>est cost</span><b>{fmtUSD(w.cost)}</b></div>
-      <div className="tip-row"><span>tokens</span><b>{fmtTok(w.tokens)}</b></div>
-      <div className="tip-row"><span>active days</span><b>{w.days}</b></div>
+      <div className="tip-row">
+        <span>est cost</span>
+        <b>{fmtUSD(w.cost)}</b>
+      </div>
+      <div className="tip-row">
+        <span>tokens</span>
+        <b>{fmtTok(w.tokens)}</b>
+      </div>
+      <div className="tip-row">
+        <span>active days</span>
+        <b>{w.days}</b>
+      </div>
       {w.wowPct != null && (
         <div className="tip-row">
           <span>vs prev week</span>
-          <b>{w.wowPct >= 0 ? '+' : ''}{w.wowPct.toFixed(0)}%</b>
+          <b>
+            {w.wowPct >= 0 ? '+' : ''}
+            {w.wowPct.toFixed(0)}%
+          </b>
         </div>
       )}
     </div>
@@ -398,7 +429,10 @@ function WeekdayTip({ active, payload }: WeekdayTipProps) {
   return (
     <div className="chart-tip">
       <div className="tip-title">{d.wd}</div>
-      <div className="tip-row"><span>avg est cost</span><b>{fmtUSD(d.avg)}</b></div>
+      <div className="tip-row">
+        <span>avg est cost</span>
+        <b>{fmtUSD(d.avg)}</b>
+      </div>
     </div>
   );
 }
@@ -438,8 +472,9 @@ export function InsightsView() {
   const rates = useUsageStore((s) => s.currency);
   // the live balance is the one number here that isn't derived from the
   // transcripts — it's what the provider says is actually left
-  const dsBalanceUSD =
-    deepseek?.ok ? nativeToUSD(deepseek.primary.total, deepseek.primary.currency, rates) : null;
+  const dsBalanceUSD = deepseek?.ok
+    ? nativeToUSD(deepseek.primary.total, deepseek.primary.currency, rates)
+    : null;
   const dsRunway = useMemo(
     () => deriveRunway(deepseek, rates, snapshot?.days ?? []),
     [deepseek, rates, snapshot],
@@ -493,9 +528,7 @@ export function InsightsView() {
             }
             sub={
               ins.curMonth ? (
-                <span
-                  title={`weekday-adjusted ±1σ · spent ${fmtUSD(ins.curMonth.cost)} so far`}
-                >
+                <span title={`weekday-adjusted ±1σ · spent ${fmtUSD(ins.curMonth.cost)} so far`}>
                   {ins.projLow != null && ins.projHigh != null
                     ? `band ${fmtUSD(ins.projLow)}–${fmtUSD(ins.projHigh)} · ${ins.remainingDays}d left`
                     : `spent ${fmtUSD(ins.curMonth.cost)} · ${ins.remainingDays}d left`}
@@ -541,7 +574,16 @@ export function InsightsView() {
       {/* spend trend + weekly rhythm */}
       <div className="g8">
         <Panel
-          title={<>spend trend · {winLabel('30 days')} <Hint label="how to read this">Daily cost over the selected range. The line is a 7-day moving average. Spikes are identified using a robust statistical threshold to flag days that are significantly above your typical usage pattern.</Hint></>}
+          title={
+            <>
+              spend trend · {winLabel('30 days')}{' '}
+              <Hint label="how to read this">
+                Daily cost over the selected range. The line is a 7-day moving average. Spikes are
+                identified using a robust statistical threshold to flag days that are significantly
+                above your typical usage pattern.
+              </Hint>
+            </>
+          }
           right={
             <span className="panel-note">
               click a day for its breakdown · line 7-day average
@@ -553,7 +595,9 @@ export function InsightsView() {
             <ComposedChart
               data={ins.trend}
               margin={{ top: 6, right: 4, bottom: 0, left: 0 }}
-              onClick={(s: { activeLabel?: string }) => s?.activeLabel && setDrillDay(s.activeLabel)}
+              onClick={(s: { activeLabel?: string }) =>
+                s?.activeLabel && setDrillDay(s.activeLabel)
+              }
               style={{ cursor: 'pointer' }}
             >
               <defs>
@@ -606,7 +650,18 @@ export function InsightsView() {
         </Panel>
       </div>
       <div className="g4">
-        <Panel title={<>weekday rhythm <Hint label="what is this?">Averages your daily spend by day of the week over the last 35 days, revealing which days you are most active.</Hint></>} right={<span className="panel-note">avg est cost</span>}>
+        <Panel
+          title={
+            <>
+              weekday rhythm{' '}
+              <Hint label="what is this?">
+                Averages your daily spend by day of the week over the last 35 days, revealing which
+                days you are most active.
+              </Hint>
+            </>
+          }
+          right={<span className="panel-note">avg est cost</span>}
+        >
           <ResponsiveContainer width="100%" height={232}>
             <BarChart data={ins.weekdays} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
               <defs>
@@ -647,7 +702,18 @@ export function InsightsView() {
 
       {/* longer horizons */}
       <div className="g6">
-        <Panel title={<>week over week <Hint label="how to read this">Weekly spend totals for up to the last 12 weeks. The percentage shown in the tooltip is the change compared to the previous week.</Hint></>} right={<span className="panel-note">≤12 weeks</span>}>
+        <Panel
+          title={
+            <>
+              week over week{' '}
+              <Hint label="how to read this">
+                Weekly spend totals for up to the last 12 weeks. The percentage shown in the tooltip
+                is the change compared to the previous week.
+              </Hint>
+            </>
+          }
+          right={<span className="panel-note">≤12 weeks</span>}
+        >
           <ResponsiveContainer width="100%" height={208}>
             <BarChart data={ins.weekly} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
               <defs>
@@ -689,11 +755,26 @@ export function InsightsView() {
       </div>
       <div className="g6">
         <Panel
-          title={<>{(plan ? 'plan value' : apiKey ? 'billing' : 'plan value')} <Hint label="how it's computed">{plan ? "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded." : apiKey ? 'api-key billing — you pay per token at the provider\'s published rates. effective rates are blended (total cost ÷ output tokens) and include input + cache costs, so they read higher than the pure output rate. balance left, runway and the cost check come from your connected deepseek key (accounts view): runway is balance ÷ burn, measured from the balance actually falling once there are a few hours of polls and estimated from local transcripts before that. the cost check compares real balance consumption against ccmon\'s computed cost over the same span — a large gap usually means usage on the same key from another tool or machine.' :"api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."}</Hint></>}
+          title={
+            <>
+              {plan ? 'plan value' : apiKey ? 'billing' : 'plan value'}{' '}
+              <Hint label="how it's computed">
+                {plan
+                  ? "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."
+                  : apiKey
+                    ? "api-key billing — you pay per token at the provider's published rates. effective rates are blended (total cost ÷ output tokens) and include input + cache costs, so they read higher than the pure output rate. balance left, runway and the cost check come from your connected deepseek key (accounts view): runway is balance ÷ burn, measured from the balance actually falling once there are a few hours of polls and estimated from local transcripts before that. the cost check compares real balance consumption against ccmon's computed cost over the same span — a large gap usually means usage on the same key from another tool or machine."
+                    : "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."}
+              </Hint>
+            </>
+          }
           right={
             <span className="panel-note">
               {ins.curMonth ? `${monthLabel(ins.curMonth.month)} · ` : ''}
-              {plan ? 'api-equivalent vs subscription' : apiKey ? 'per-provider spend' : 'api-equivalent vs subscription'}
+              {plan
+                ? 'api-equivalent vs subscription'
+                : apiKey
+                  ? 'per-provider spend'
+                  : 'api-equivalent vs subscription'}
             </span>
           }
         >
@@ -787,7 +868,10 @@ export function InsightsView() {
                       {fmtUSD(p.cost)}
                       {p.share > 0 && (
                         <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
-                          {fmtPct(p.share * 100)} · {p.effectiveOutRate != null ? `${currencySymbol()}${fmtUSD(p.effectiveOutRate)}/mtok out` : '—'}
+                          {fmtPct(p.share * 100)} ·{' '}
+                          {p.effectiveOutRate != null
+                            ? `${currencySymbol()}${fmtUSD(p.effectiveOutRate)}/mtok out`
+                            : '—'}
                         </span>
                       )}
                     </b>
@@ -833,13 +917,25 @@ export function InsightsView() {
                 <path d="M3 10h18M7 15h4" />
               </Glyph>
               <span className="ins-empty-lead">no subscription detected</span>
-              <span className="ins-empty-sub">sign in from the accounts view to compare plan value</span>
+              <span className="ins-empty-sub">
+                sign in from the accounts view to compare plan value
+              </span>
             </div>
           )}
         </Panel>
       </div>
       <div className="g6">
-        <Panel title={<>cache economics <Hint label="what is this?">Compares your actual API spend to what it would have cost without prompt caching.</Hint></>} right={<span className="panel-note">all-time</span>}>
+        <Panel
+          title={
+            <>
+              cache economics{' '}
+              <Hint label="what is this?">
+                Compares your actual API spend to what it would have cost without prompt caching.
+              </Hint>
+            </>
+          }
+          right={<span className="panel-note">all-time</span>}
+        >
           <div className="ins-cache">
             <div className="ins-hero">
               <Glyph className="ins-hero-icon">
@@ -901,7 +997,17 @@ export function InsightsView() {
       </div>
       <div className="g6">
         <Panel
-          title={<>cache ttl · cost of walking away <Hint label="why?">stepping away past a cache tier's ttl (5 min / 1 h) expires the session's prompt cache, so the next turn re-writes it at write rates instead of reading it back. extra spent = those writes minus what reads would have cost. prompt edits can also invalidate caches, so treat this as an upper bound on idle cost.</Hint></>}
+          title={
+            <>
+              cache ttl · cost of walking away{' '}
+              <Hint label="why?">
+                stepping away past a cache tier's ttl (5 min / 1 h) expires the session's prompt
+                cache, so the next turn re-writes it at write rates instead of reading it back.
+                extra spent = those writes minus what reads would have cost. prompt edits can also
+                invalidate caches, so treat this as an upper bound on idle cost.
+              </Hint>
+            </>
+          }
           right={<span className="panel-note">all-time</span>}
         >
           <div className="ins-cache">
@@ -936,7 +1042,18 @@ export function InsightsView() {
 
       {/* economics table + records */}
       <div className="g7">
-        <Panel title={<>model economics <Hint label="how to read this">Breakdown of the top 8 models by all-time cost, showing what percentage of your spend goes to each, along with efficiency metrics like cost per message.</Hint></>} right={<span className="panel-note">{winLabel('all-time')} · top 8</span>}>
+        <Panel
+          title={
+            <>
+              model economics{' '}
+              <Hint label="how to read this">
+                Breakdown of the top 8 models by all-time cost, showing what percentage of your
+                spend goes to each, along with efficiency metrics like cost per message.
+              </Hint>
+            </>
+          }
+          right={<span className="panel-note">{winLabel('all-time')} · top 8</span>}
+        >
           <div className="tbl-wrap">
             <table className="tbl">
               <thead>
@@ -952,7 +1069,9 @@ export function InsightsView() {
               <tbody>
                 {ins.models.map((m) => (
                   <tr key={m.model}>
-                    <td className="t-name" title={m.model}>{shortModel(m.model)}</td>
+                    <td className="t-name" title={m.model}>
+                      {shortModel(m.model)}
+                    </td>
                     <td>
                       <span className="ins-share">
                         <i style={{ width: `${Math.max(2, m.share)}%` }} />
@@ -977,13 +1096,12 @@ export function InsightsView() {
               <>
                 cost reconciliation{' '}
                 <Hint label="what is this?">
-                  Compares the cost Claude Code recorded on each message against
-                  ccmon&apos;s own token-based calculation, always calculating fresh
-                  regardless of your cost mode (otherwise the two would be the same
-                  number by definition). Only messages that carry a recorded cost can
-                  be compared, and models with no known price are skipped rather than
-                  scored as a total mismatch — so treat this as a check on the
-                  overlap, not on your whole bill.
+                  Compares the cost Claude Code recorded on each message against ccmon&apos;s own
+                  token-based calculation, always calculating fresh regardless of your cost mode
+                  (otherwise the two would be the same number by definition). Only messages that
+                  carry a recorded cost can be compared, and models with no known price are skipped
+                  rather than scored as a total mismatch — so treat this as a check on the overlap,
+                  not on your whole bill.
                 </Hint>
               </>
             }
@@ -1027,7 +1145,17 @@ export function InsightsView() {
         </div>
       )}
       <div className="g5">
-        <Panel title={<>records <Hint label="what is this?">Your all-time highs and averages across all tracked sessions.</Hint></>} right={<span className="panel-note">all-time</span>}>
+        <Panel
+          title={
+            <>
+              records{' '}
+              <Hint label="what is this?">
+                Your all-time highs and averages across all tracked sessions.
+              </Hint>
+            </>
+          }
+          right={<span className="panel-note">all-time</span>}
+        >
           <ul className="ins-records">
             <li>
               <Glyph className="ins-records-icon">{RECORD_ICONS[0]}</Glyph>
@@ -1055,7 +1183,9 @@ export function InsightsView() {
             <li>
               <Glyph className="ins-records-icon">{RECORD_ICONS[3]}</Glyph>
               <span>streak</span>
-              <b>{records.streak.current}d now · {records.streak.longest}d best</b>
+              <b>
+                {records.streak.current}d now · {records.streak.longest}d best
+              </b>
             </li>
             <li>
               <Glyph className="ins-records-icon">{RECORD_ICONS[4]}</Glyph>
@@ -1119,9 +1249,7 @@ export function InsightsView() {
               <Glyph className="ins-records-icon">{RECORD_ICONS[11]}</Glyph>
               <span>costliest session</span>
               <b>
-                {costliest
-                  ? `${fmtUSD(costliest.cost)} · ${projectName(costliest.project)}`
-                  : '—'}
+                {costliest ? `${fmtUSD(costliest.cost)} · ${projectName(costliest.project)}` : '—'}
               </b>
             </li>
             <li title="entries still flagged sidechain after dedupe — a floor on true subagent spend">
@@ -1136,7 +1264,11 @@ export function InsightsView() {
             <li title="responses cut off by the output-token ceiling (stop_reason max_tokens)">
               <Glyph className="ins-records-icon">{RECORD_ICONS[13]}</Glyph>
               <span>truncated · max_tokens</span>
-              <b style={(snapshot.stopReasons.max_tokens || 0) > 0 ? { color: 'var(--warn)' } : undefined}>
+              <b
+                style={
+                  (snapshot.stopReasons.max_tokens || 0) > 0 ? { color: 'var(--warn)' } : undefined
+                }
+              >
                 {snapshot.stopReasons.max_tokens
                   ? `${fmtInt(snapshot.stopReasons.max_tokens)} turn${snapshot.stopReasons.max_tokens === 1 ? '' : 's'}`
                   : 'none'}
@@ -1202,10 +1334,10 @@ export function InsightsView() {
               })}
             </div>
             <Hint label="how to read this">
-              invocations count tool_use blocks in your transcripts; the cost is
-              the estimated cost of the turns where the tool appears. a turn that
-              uses several tools counts fully toward each, so the cost column
-              overlaps — it shows where tokens go, not an exact split.
+              invocations count tool_use blocks in your transcripts; the cost is the estimated cost
+              of the turns where the tool appears. a turn that uses several tools counts fully
+              toward each, so the cost column overlaps — it shows where tokens go, not an exact
+              split.
             </Hint>
           </Panel>
         </div>

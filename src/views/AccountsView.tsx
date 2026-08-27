@@ -1,6 +1,6 @@
 /**
  * @file AccountsView.tsx
- * @brief Per-account dashboard — identity, live limits, and cross-account headroom for every Claude Code login.
+ * @brief Per-account dashboard — identity, live limits, and cross-account headroom for every coding-CLI login.
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
@@ -29,6 +29,7 @@ import {
   WRAPPER_NAME_RE,
 } from '../lib/crossAccount';
 import { usesDeepseek } from '../../shared/providers';
+import { accountGroups, type ToolProfile } from '../../shared/tools';
 import type {
   AccountInfo,
   AccountSpend,
@@ -180,7 +181,13 @@ function WindowMeter({ label, win }: { label: string; win?: LimitWindow | null }
 }
 
 interface AccountCardProps {
+  /**
+   * The account's PRIMARY source dir — what `accounts`, `limits` and `spend`
+   * are keyed by. A Codex home has two (sessions, archived_sessions); the card
+   * carries the first and the group supplies the rest.
+   */
   dir: string;
+  tool: ToolProfile;
   acct: AccountInfo | undefined;
   limit: LimitsResult | undefined;
   spend: AccountSpend | undefined;
@@ -203,7 +210,17 @@ const avatarStyle = (label: string, accent: string) => {
 };
 
 /** One account: identity, login state, live limit windows, plan price. */
-function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }: AccountCardProps) {
+function AccountCard({
+  dir,
+  tool,
+  acct,
+  limit,
+  spend,
+  inScope,
+  canScope,
+  accent,
+  now,
+}: AccountCardProps) {
   const label = sourceLabel(dir);
   const price = planPriceUSD(acct?.plan ?? null, acct?.tier ?? null);
   const loggedIn = acct?.hasCredentials ?? false;
@@ -224,7 +241,13 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
 
   const root = accountRoot(dir);
   const isDefault = isDefaultAccountRoot(root);
-  const currentSuffix = root.split(/[\\/]/).pop()?.replace(/^\.claude-?/, '') ?? '';
+  // the rename control edits the suffix after `~/.<tool>-`, so the prefix it
+  // strips has to be the account's OWN tool, not a hardcoded `.claude-`
+  const currentSuffix =
+    root
+      .split(/[\\/]/)
+      .pop()
+      ?.replace(new RegExp(`^\\.${tool.id}-?`), '') ?? '';
   // the wrapper file must list EVERY account, hidden included — hiding is a
   // ccmon view preference and must never quietly rewrite the user's shell
   const allSourceDirs = useUsageStore((s) => s.allSourceDirs);
@@ -351,7 +374,7 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
       setRenameConfirmOpen(false);
       setShowRenameForm(false);
       setRenameDone(
-        `renamed to claude-${suffix} · ~/.claude-${suffix} — relaunch ccmon to resume live tracking, and open a new terminal (or re-source your shell) to pick up the new command`,
+        `renamed to ${tool.id}-${suffix} · ~/.${tool.id}-${suffix} — relaunch ccmon to resume live tracking, and open a new terminal (or re-source your shell) to pick up the new command`,
       );
     } finally {
       setRenameBusy(false);
@@ -368,6 +391,9 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
             {monogram(label)}
           </span>
           <span className="acc-name">{label}</span>
+          {/* a quiet identifier, not a call to action: it says which CLI the
+              row belongs to and must never outweigh the account name */}
+          <span className="acc-tool-badge">{tool.label}</span>
           {acct?.plan && (
             <span
               className="acc-plan"
@@ -397,6 +423,9 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
       <div className="acc-id">
         {acct?.email && <span className="acc-email">{acct.email}</span>}
         {acct?.organization && <span className="acc-org">{acct.organization}</span>}
+        {/* an API-key Codex login has no identity to show — say which kind of
+            credential it is rather than leaving the row bare */}
+        {acct?.authMode === 'apikey' && !acct.email && <span className="acc-org">API key</span>}
         <span className="acc-root">{tildify(root)}</span>
       </div>
 
@@ -502,8 +531,8 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
         body={
           <>
             This deletes the <code>{wrapperName}</code> command from{' '}
-            <code>~/.config/ccmon/claude-accounts.sh</code>. Your account&apos;s data and login at{' '}
-            <code>{tildify(root)}</code> are not touched — you can re-add it any time.
+            <code>~/.config/ccmon/{tool.managedFile.posix}</code>. Your account&apos;s data and
+            login at <code>{tildify(root)}</code> are not touched — you can re-add it any time.
           </>
         }
         confirmLabel="remove"
@@ -520,8 +549,8 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
           <>
             It disappears from this dashboard, the scope picker and the live limits poll, and its
             usage drops out of every total. <b>Nothing is deleted</b> — transcripts, login and the{' '}
-            <code>{wrapperName}</code> shell command at <code>{tildify(root)}</code> all stay exactly
-            as they are, and you can unhide it from the bar at the top of this view.
+            <code>{wrapperName}</code> shell command at <code>{tildify(root)}</code> all stay
+            exactly as they are, and you can unhide it from the bar at the top of this view.
             <br />
             <br />
             ccmon has no delete-account: that folder holds every transcript the app reads, so
@@ -542,10 +571,16 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
           body={
             <>
               Renames both together, so they never drift apart: the folder{' '}
-              <code>{tildify(root)}</code> → <code>~/.claude-{renameSuffix.trim()}</code>, and the
-              shell command <code>{wrapperName}</code> → <code>claude-{renameSuffix.trim()}</code>.
-              Transcripts and login move with the folder. Any terminal wrapper or tool pointed at
-              the old <code>CLAUDE_CONFIG_DIR</code> path will need updating, and ccmon needs a
+              <code>{tildify(root)}</code> →{' '}
+              <code>
+                ~/.{tool.id}-{renameSuffix.trim()}
+              </code>
+              , and the shell command <code>{wrapperName}</code> →{' '}
+              <code>
+                {tool.id}-{renameSuffix.trim()}
+              </code>
+              . Transcripts and login move with the folder. Any terminal wrapper or tool pointed at
+              the old <code>{tool.homeEnvVar}</code> path will need updating, and ccmon needs a
               relaunch to resume live tracking of the new location.
               {renameErr && (
                 <div className="acc-wrapper-err" style={{ marginTop: 8 }}>
@@ -580,13 +615,19 @@ function AccountCard({ dir, acct, limit, spend, inScope, canScope, accent, now }
             <path d="M12 15v2" />
           </Glyph>
           <span className="acc-nolimit-msg">
-            {!loggedIn
-              ? 'no stored login on this account'
-              : limit && !limit.ok
-                ? limit.error
-                : 'no live limits yet'}
+            {/* Codex first: it has no limits API at all, so "no stored login"
+                and a Log in button would both be wrong — the account IS
+                logged in, there is simply nothing to poll. An empty meter
+                would read as "at zero", the opposite of "unknown". */}
+            {tool.id !== 'claude'
+              ? `${tool.label} publishes no usage-limit API — spend below is measured from your local logs`
+              : !loggedIn
+                ? 'no stored login on this account'
+                : limit && !limit.ok
+                  ? limit.error
+                  : 'no live limits yet'}
           </span>
-          {(!loggedIn || (limit && !limit.ok)) && (
+          {tool.id === 'claude' && (!loggedIn || (limit && !limit.ok)) && (
             <LoginPrompt dir={dir} label={loggedIn ? 'log in' : 'sign in'} />
           )}
         </div>
@@ -770,20 +811,16 @@ function HeadroomBanner() {
       </div>
 
       <Hint label="how this works">
-        ccmon polls every account's real limits, so it can see one login nearing
-        a cap while another sits idle. The command copies the chosen session
-        into the other account's config dir and relaunches{' '}
-        <code>claude --resume</code> there — your billing switches to that
-        account from then on. It's always available, not just when a cap looms:
-        the highest-usage account is the source and every other logged-in
-        account is a target, so you can switch at any utilization (targets with
-        genuine headroom are flagged). It needs the{' '}
-        <code>claude-cross-resume</code> helper, which the setup panel below
-        installs to <code>~/.local/bin</code> — the command is spelled with that
-        path, so it works whether or not the directory is on your PATH (macOS
-        does not add it). Windows gets the same thing as a PowerShell script
-        under <code>~/.config/ccmon</code>. ccmon never moves or launches a
-        session itself.
+        ccmon polls every account's real limits, so it can see one login nearing a cap while another
+        sits idle. The command copies the chosen session into the other account's config dir and
+        relaunches <code>claude --resume</code> there — your billing switches to that account from
+        then on. It's always available, not just when a cap looms: the highest-usage account is the
+        source and every other logged-in account is a target, so you can switch at any utilization
+        (targets with genuine headroom are flagged). It needs the <code>claude-cross-resume</code>{' '}
+        helper, which the setup panel below installs to <code>~/.local/bin</code> — the command is
+        spelled with that path, so it works whether or not the directory is on your PATH (macOS does
+        not add it). Windows gets the same thing as a PowerShell script under{' '}
+        <code>~/.config/ccmon</code>. ccmon never moves or launches a session itself.
       </Hint>
     </Panel>
   );
@@ -801,20 +838,22 @@ export function AccountsView() {
   const scoped = useScopedDirs();
   const now = useNow(30000);
 
-  const hidden = allSourceDirs.filter((d) => !sourceDirs.includes(d));
-  const unhide = (dir: string) => {
-    const root = accountRoot(dir);
-    updateSettings({ accountWrapperPrefs: { ...prefs, [root]: { ...prefs[root], hidden: false } } });
+  // ACCOUNTS, not source dirs — a Codex home feeds two of the latter
+  const groups = accountGroups(sourceDirs);
+  const hiddenGroups = accountGroups(allSourceDirs.filter((d) => !sourceDirs.includes(d)));
+  const unhide = (root: string) => {
+    updateSettings({
+      accountWrapperPrefs: { ...prefs, [root]: { ...prefs[root], hidden: false } },
+    });
   };
 
   // DeepSeek isn't an account root — it's a key against a prepaid balance —
   // so the card only appears for users it means something to: those already
   // running DeepSeek models, or those who have connected a key.
-  const showDeepseek =
-    deepseekConnected || usesDeepseek((models ?? []).map((m) => m.model));
+  const showDeepseek = deepseekConnected || usesDeepseek((models ?? []).map((m) => m.model));
 
   const scopedSet = new Set(scoped);
-  const canScope = sourceDirs.length > 1;
+  const canScope = groups.length > 1;
   const allInView = canScope && scoped.length === sourceDirs.length;
 
   return (
@@ -826,7 +865,8 @@ export function AccountsView() {
       {canScope && (
         <div className="g12 acc-toolbar">
           <span className="acc-toolbar-label">
-            {sourceDirs.length} accounts · {scoped.length} in view
+            {groups.length} accounts ·{' '}
+            {groups.filter((g) => g.dirs.some((d) => scopedSet.has(d))).length} in view
           </span>
           <button
             type="button"
@@ -841,33 +881,44 @@ export function AccountsView() {
 
       {/* the only way back from "hide" — without this the account is gone
           from the UI with no affordance to restore it */}
-      {hidden.length > 0 && (
+      {hiddenGroups.length > 0 && (
         <div className="g12 acc-toolbar acc-hidden-bar">
           <span className="acc-toolbar-label">
-            {hidden.length} hidden {hidden.length === 1 ? 'account' : 'accounts'} · nothing was
-            deleted
+            {hiddenGroups.length} hidden {hiddenGroups.length === 1 ? 'account' : 'accounts'} ·
+            nothing was deleted
           </span>
-          {hidden.map((dir) => (
-            <button key={dir} type="button" className="acc-viewall" onClick={() => unhide(dir)}>
-              unhide {sourceLabel(dir)}
+          {hiddenGroups.map((g) => (
+            <button
+              key={g.root}
+              type="button"
+              className="acc-viewall"
+              onClick={() => unhide(g.root)}
+            >
+              unhide {sourceLabel(g.dirs[0])}
             </button>
           ))}
         </div>
       )}
 
       <div className="g12 acc-section-label">
-        <span className="acc-sec-title">connected claude code logins</span>
+        <span className="acc-sec-title">
+          connected {groups.some((g) => g.tool.id !== 'claude') ? 'coding-cli' : 'claude code'}{' '}
+          logins
+        </span>
         <span className="acc-sec-rule" />
       </div>
 
-      {sourceDirs.map((dir, i) => (
-        <div className={sourceDirs.length === 1 ? 'g12' : 'g6'} key={dir}>
+      {/* groups, not source dirs: a Codex home feeds two source dirs but is
+          ONE account, and rendering it twice would show a duplicate card */}
+      {groups.map((group, i) => (
+        <div className={groups.length === 1 ? 'g12' : 'g6'} key={group.root}>
           <AccountCard
-            dir={dir}
-            acct={accounts[dir]}
-            limit={limits[dir]}
-            spend={spend?.[dir]}
-            inScope={scopedSet.has(dir)}
+            dir={group.dirs[0]}
+            tool={group.tool}
+            acct={accounts[group.dirs[0]]}
+            limit={limits[group.dirs[0]]}
+            spend={spend?.[group.dirs[0]]}
+            inScope={group.dirs.some((d) => scopedSet.has(d))}
             canScope={canScope}
             accent={accentFor(i)}
             now={now}

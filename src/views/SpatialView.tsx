@@ -69,7 +69,8 @@ const LEGENDS: Record<Mode, string> = {
   blocks: 'oldest → newest 5h blocks · height = tokens · flat pads = idle gaps',
   sessions: 'newest → oldest · height = est cost · color = context fill · sage pulse = live',
   tools: 'columns = last 35 days · one peg row per tool · height = invocations',
-  whatif: 'front lane = actual mix · each lane = ALL traffic on that model · height = est cost / day',
+  whatif:
+    'front lane = actual mix · each lane = ALL traffic on that model · height = est cost / day',
 };
 
 /** decorative floor-grid pitch per mode (sections every 5 cells) */
@@ -426,7 +427,9 @@ function sessionCells(snapshot: Snapshot, p: Palette, now: number): Cell[] {
         ['messages', fmtInt(s.entries)],
         ['tokens in+out', fmtTok(s.tokens)],
         ...(ctxPct != null ? ([['context', fmtPct(ctxPct)]] as Array<[string, string]>) : []),
-        ...(s.compactions ? ([['compactions', String(s.compactions)]] as Array<[string, string]>) : []),
+        ...(s.compactions
+          ? ([['compactions', String(s.compactions)]] as Array<[string, string]>)
+          : []),
         ['last active', relTime(s.lastTs, now)],
       ],
     };
@@ -529,7 +532,11 @@ function stackedCells(snapshot: Snapshot, p: Palette): Cell[] {
     const isToday = d.date === todayKey;
     if (d.cost <= 0) {
       cells.push({
-        x, z, h: 0.03, sx: 0.78, sz: 0.78,
+        x,
+        z,
+        h: 0.03,
+        sx: 0.78,
+        sz: 0.78,
         color: p.base.clone().lerp(p.amber, 0.12),
         emissive: (isToday ? p.sage : p.amber).clone(),
         emissiveIntensity: isToday ? 0.3 : 0,
@@ -555,7 +562,12 @@ function stackedCells(snapshot: Snapshot, p: Palette): Cell[] {
     for (const g of segs) {
       const h = (g.cost / d.cost) * totalH;
       cells.push({
-        x, z, h, y0, sx: 0.94, sz: 0.94,
+        x,
+        z,
+        h,
+        y0,
+        sx: 0.94,
+        sz: 0.94,
         color: p.base.clone().lerp(g.accent, 0.75),
         emissive: g.accent.clone(),
         emissiveIntensity: 0.16,
@@ -644,8 +656,7 @@ function Bars({ cells, hover, setHover, motion, plot }: BarsProps) {
         // idle shimmer: a dim wave drifting diagonally across the field
         mat.emissiveIntensity =
           cell.emissiveIntensity +
-          0.05 *
-            (0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 1.5 - (cell.x + cell.z) * 0.7));
+          0.05 * (0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 1.5 - (cell.x + cell.z) * 0.7));
       }
     });
     if (!settled.current && t > RIPPLE_DELAY + 1 / GROW_SPEED + 0.1) settled.current = true;
@@ -885,7 +896,9 @@ function TrailField({ cells, palette, setHover, motion, joined }: TrailFieldProp
       : rowsOf(cells).filter((r) => r.idx.length >= 2);
     return rows.map(({ idx }) => ({
       idx,
-      points: idx.map((i) => [cells[i].x, cells[i].h + 0.02, cells[i].z] as [number, number, number]),
+      points: idx.map(
+        (i) => [cells[i].x, cells[i].h + 0.02, cells[i].z] as [number, number, number],
+      ),
       color: (cells[idx[0]]?.emissive ?? palette.amber).clone(),
     }));
   }, [cells, joined, palette]);
@@ -899,7 +912,14 @@ function TrailField({ cells, palette, setHover, motion, joined }: TrailFieldProp
   return (
     <group ref={group} scale={[1, motion ? 0.001 : 1, 1]}>
       {lines.map((l, r) => (
-        <Line key={r} points={l.points} color={l.color} lineWidth={1.6} transparent opacity={0.85} />
+        <Line
+          key={r}
+          points={l.points}
+          color={l.color}
+          lineWidth={1.6}
+          transparent
+          opacity={0.85}
+        />
       ))}
       {cells.map((c, i) => (
         <mesh
@@ -955,8 +975,6 @@ function FrameThrottle({ active, fps = 30 }: { active: boolean; fps?: number }) 
   return null;
 }
 
-
-
 function Scene({ palette, mode, plot, autoRotate, cells, hover, setHover, motion }: SceneProps) {
   const isDark = palette.isDark;
   return (
@@ -999,7 +1017,7 @@ function Scene({ palette, mode, plot, autoRotate, cells, hover, setHover, motion
           hover={hover}
           setHover={setHover}
           motion={motion}
-          plot={plot as 'bars' | 'scatter' | 'contour' | 'stacked'}
+          plot={plot}
         />
       )}
       <ContactShadows

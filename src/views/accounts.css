@@ -249,7 +249,9 @@
 }
 .acc-card.is-scoped {
   border-color: var(--amber);
-  box-shadow: 0 0 0 1px var(--amber), 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 0 0 1px var(--amber),
+    0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .acc-card.is-scoped::before {
   background: var(--amber);
@@ -300,6 +302,19 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--pc) 14%, var(--bg0));
   border: 1px solid color-mix(in srgb, var(--pc) 35%, var(--line-soft));
+}
+/* Which CLI a row belongs to. Deliberately the quietest badge on the card:
+   it disambiguates, it is not news — the account name and plan stay louder. */
+.acc-tool-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-dim) 10%, transparent);
+  border: 1px solid var(--line-soft);
 }
 .acc-scoped-badge {
   font-family: var(--mono);
@@ -776,6 +791,16 @@
   border-radius: 8px;
   transition: all 0.15s ease;
 }
+/* which CLI this wrapper launches — leads the row so the reader knows what
+   the command on its right actually runs */
+.wiz-acct-tool {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  white-space: nowrap;
+  min-width: 68px;
+}
 .wiz-acct:focus-within {
   border-color: var(--amber);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
@@ -797,6 +822,24 @@
 }
 .wiz-name:focus,
 .wiz-suffix:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
+}
+/* which CLI a new account belongs to — it decides the home name AND the subdir
+   that makes the home discoverable, so it sits ahead of the suffix input */
+.wiz-tool {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  transition: all 0.15s ease;
+}
+.wiz-tool:focus {
   outline: none;
   border-color: var(--amber);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
@@ -965,7 +1008,9 @@
   height: 12px;
   border-radius: 50%;
   background: var(--text-faint);
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 .wiz-toggle input:checked + .wiz-toggle-track {
   background: color-mix(in srgb, var(--amber) 20%, var(--bg0));
@@ -1079,10 +1124,14 @@
   box-shadow: var(--neu-raised-sm);
 }
 .wiz-report.is-ok {
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in oklab, var(--ok) 40%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in oklab, var(--ok) 40%, transparent);
 }
 .wiz-report.is-err {
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in oklab, var(--bad) 40%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in oklab, var(--bad) 40%, transparent);
 }
 .wiz-report-head {
   font-family: var(--mono);
@@ -1107,7 +1156,9 @@
   margin-bottom: 8px;
   border-radius: var(--radius-sm);
   background: color-mix(in oklab, var(--warn) 8%, var(--bg1));
-  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px color-mix(in oklab, var(--warn) 30%, transparent);
+  box-shadow:
+    var(--neu-raised-sm),
+    inset 0 0 0 1px color-mix(in oklab, var(--warn) 30%, transparent);
 }
 .wiz-conflicts {
   margin: 6px 0 4px;

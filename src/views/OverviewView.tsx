@@ -63,7 +63,11 @@ export function OverviewView() {
   // (cleanupPeriodDays, default 30) — the "all time" total can only ever
   // cover what's still on disk, so the Hint below names the real window.
   const retentionDays = Array.from(
-    new Set(scoped.map((d) => accounts[d]?.cleanupPeriodDays).filter((n): n is number => typeof n === 'number')),
+    new Set(
+      scoped
+        .map((d) => accounts[d]?.cleanupPeriodDays)
+        .filter((n): n is number => typeof n === 'number'),
+    ),
   );
   const retentionNote =
     retentionDays.length === 1
@@ -91,7 +95,9 @@ export function OverviewView() {
             <path d="M3 19h18" />
           </svg>
           <p className="ovr-empty-lead">Scanning your usage…</p>
-          <p className="ovr-empty-sub">Reading ~/.claude transcripts. This view fills in once the first scan finishes.</p>
+          <p className="ovr-empty-sub">
+            Reading ~/.claude transcripts. This view fills in once the first scan finishes.
+          </p>
         </div>
       </div>
     );
@@ -123,7 +129,8 @@ export function OverviewView() {
           sub={`${fmtTok(today.tokens)} tok · ${today.sessions} session${today.sessions === 1 ? '' : 's'}`}
           hint={
             <Hint label="how it's computed">
-              Cost is estimated locally by taking your token usage from the CLI and multiplying it by the bundled Anthropic pricing sheet.
+              Cost is estimated locally by taking your token usage from the CLI and multiplying it
+              by the bundled Anthropic pricing sheet.
             </Hint>
           }
         />

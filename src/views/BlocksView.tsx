@@ -26,12 +26,7 @@ import {
 } from '../lib/format';
 import { TOKEN_COLORS } from '../lib/palette';
 import { bindingSession, displayWindow } from '../lib/limits';
-import type {
-  ActiveBlock,
-  BlockRow,
-  BurnRate,
-  LimitWindow,
-} from '../../shared/types';
+import type { ActiveBlock, BlockRow, BurnRate, LimitWindow } from '../../shared/types';
 
 const BURN_COLOR = {
   normal: 'var(--ok)',
@@ -144,7 +139,11 @@ function LimitGauge({ block }: LimitGaugeProps) {
           <div className="blk-gauge-proj" style={{ left: `${cur}%`, width: `${proj - cur}%` }} />
         )}
         <i className="blk-gauge-tick" style={{ left: `${pos(80)}%` }} title="80%" />
-        <i className="blk-gauge-tick blk-gauge-tick-hard" style={{ left: `${pos(100)}%` }} title="100%" />
+        <i
+          className="blk-gauge-tick blk-gauge-tick-hard"
+          style={{ left: `${pos(100)}%` }}
+          title="100%"
+        />
       </div>
       <div className="blk-limit-foot">
         <span>current {fmtPct(limit.currentPct, pctDigits(limit.currentPct))}</span>
@@ -178,7 +177,19 @@ function ActiveHero({ block, now, hideLocalLimit, liveSession }: ActiveHeroProps
       }
     : block.projection;
   return (
-    <Panel className="blk-hero" title={<>active block · 5h window <Hint label="how blocks work">Anthropic enforces rate limits in rolling 5-hour windows. This shows your current window's utilization, estimated cost, and tokens consumed.</Hint></>} right={<BurnBadge burn={block.burn} />}>
+    <Panel
+      className="blk-hero"
+      title={
+        <>
+          active block · 5h window{' '}
+          <Hint label="how blocks work">
+            Anthropic enforces rate limits in rolling 5-hour windows. This shows your current
+            window's utilization, estimated cost, and tokens consumed.
+          </Hint>
+        </>
+      }
+      right={<BurnBadge burn={block.burn} />}
+    >
       <div className="blk-hero-top">
         <div className="blk-hero-cell">
           <div className="blk-sub-label">
@@ -205,7 +216,8 @@ function ActiveHero({ block, now, hideLocalLimit, liveSession }: ActiveHeroProps
             {clockTime(win.start)} – {clockTime(win.end)}
           </div>
           <div className="blk-meta-line">
-            {fmtInt(block.entries)} entries · {fmtTok(block.totalTokens)} tok · last {relTime(block.lastTs, now)}
+            {fmtInt(block.entries)} entries · {fmtTok(block.totalTokens)} tok · last{' '}
+            {relTime(block.lastTs, now)}
           </div>
           <ModelChips models={block.models} />
         </div>
@@ -235,8 +247,8 @@ function ActiveHero({ block, now, hideLocalLimit, liveSession }: ActiveHeroProps
             <path d="M3 17l5-5 4 3 8-8" />
             <path d="M16 7h4v4" />
           </Glyph>
-          projected {fmtTok(projection.totalTokens)} tok · {fmtUSD(projection.totalCost)} by
-          session end
+          projected {fmtTok(projection.totalTokens)} tok · {fmtUSD(projection.totalCost)} by session
+          end
         </div>
       )}
 
@@ -277,8 +289,8 @@ function IdleHero({ lastEnded, limitResetTs, now }: IdleHeroProps) {
       </div>
       {limited && (
         <div className="blk-reset">
-          usage limit reached — resets in {countdown(limitResetTs - now)} (
-          {clockTime(limitResetTs)})
+          usage limit reached — resets in {countdown(limitResetTs - now)} ({clockTime(limitResetTs)}
+          )
         </div>
       )}
     </Panel>
@@ -314,38 +326,54 @@ function UtilizationPanel({ usage, maxBlockTokens, rangeLabel }: UtilizationPane
   const medianTok = sorted[sorted.length >> 1].totalTokens;
   return (
     <div className="g12">
-    <Panel
-      title={<>block utilization · {rangeLabel} <Hint label="why?">each completed 5h window's tokens, measured against your biggest-ever block ({fmtTok(maxBlockTokens)} tok) — a local proxy for capacity, since anthropic doesn't publish block token limits. many light blocks means windows opened for a quick question; each still starts the 5h session clock.</Hint></>}
-      right={<span className="panel-note">fill vs your biggest block</span>}
-    >
-      <div className="blk-hist">
-        <div className="blk-hist-bars">
-          {FILL_BUCKETS.map((bk, i) => (
-            <div className="blk-hist-row" key={bk.label}>
-              <span className="blk-hist-label">{bk.label}</span>
-              <span className="blk-hist-track">
-                <i style={{ width: `${Math.max(counts[i] ? 3 : 0, (counts[i] / maxCount) * 100)}%` }} />
-              </span>
-              <b>{counts[i] || ''}</b>
-            </div>
-          ))}
+      <Panel
+        title={
+          <>
+            block utilization · {rangeLabel}{' '}
+            <Hint label="why?">
+              each completed 5h window's tokens, measured against your biggest-ever block (
+              {fmtTok(maxBlockTokens)} tok) — a local proxy for capacity, since anthropic doesn't
+              publish block token limits. many light blocks means windows opened for a quick
+              question; each still starts the 5h session clock.
+            </Hint>
+          </>
+        }
+        right={<span className="panel-note">fill vs your biggest block</span>}
+      >
+        <div className="blk-hist">
+          <div className="blk-hist-bars">
+            {FILL_BUCKETS.map((bk, i) => (
+              <div className="blk-hist-row" key={bk.label}>
+                <span className="blk-hist-label">{bk.label}</span>
+                <span className="blk-hist-track">
+                  <i
+                    style={{
+                      width: `${Math.max(counts[i] ? 3 : 0, (counts[i] / maxCount) * 100)}%`,
+                    }}
+                  />
+                </span>
+                <b>{counts[i] || ''}</b>
+              </div>
+            ))}
+          </div>
+          <ul className="blk-hist-facts">
+            <li>
+              <span>avg fill</span>
+              <b>{fmtPct(avgFill)}</b>
+            </li>
+            <li>
+              <span>median block</span>
+              <b>{fmtTok(medianTok)} tok</b>
+            </li>
+            <li>
+              <span>light blocks · ≤25%</span>
+              <b>
+                {counts[0]} of {done.length}
+              </b>
+            </li>
+          </ul>
         </div>
-        <ul className="blk-hist-facts">
-          <li>
-            <span>avg fill</span>
-            <b>{fmtPct(avgFill)}</b>
-          </li>
-          <li>
-            <span>median block</span>
-            <b>{fmtTok(medianTok)} tok</b>
-          </li>
-          <li>
-            <span>light blocks · ≤25%</span>
-            <b>{counts[0]} of {done.length}</b>
-          </li>
-        </ul>
-      </div>
-    </Panel>
+      </Panel>
     </div>
   );
 }
@@ -421,9 +449,7 @@ export function BlocksView() {
   const usage = blocks.filter((b) => !b.isGap);
   const gapCount = blocks.length - usage.length;
   const maxTokens = usage.reduce((m, b) => Math.max(m, b.totalTokens), 0);
-  const avgCost = usage.length
-    ? usage.reduce((s, b) => s + (b.cost || 0), 0) / usage.length
-    : 0;
+  const avgCost = usage.length ? usage.reduce((s, b) => s + (b.cost || 0), 0) / usage.length : 0;
   const maxBlockTokens = snapshot.records?.maxBlockTokens || 0;
 
   let lastEnded: number | null = null;
@@ -454,22 +480,26 @@ export function BlocksView() {
             liveSession={liveSession}
           />
         ) : (
-          <IdleHero
-            lastEnded={lastEnded}
-            limitResetTs={snapshot.usageLimitResetTs}
-            now={now}
-          />
+          <IdleHero lastEnded={lastEnded} limitResetTs={snapshot.usageLimitResetTs} now={now} />
         )}
       </div>
 
       <div className="g3">
-        <StatCard label={`blocks · ${blkShort}`} value={fmtInt(usage.length)} sub="5h billing windows" />
+        <StatCard
+          label={`blocks · ${blkShort}`}
+          value={fmtInt(usage.length)}
+          sub="5h billing windows"
+        />
       </div>
       <div className="g3">
         <StatCard label="idle gaps" value={fmtInt(gapCount)} sub="quiet stretches > 5h" />
       </div>
       <div className="g3">
-        <StatCard label="max block tokens" value={fmtTok(maxBlockTokens)} sub="single-window record" />
+        <StatCard
+          label="max block tokens"
+          value={fmtTok(maxBlockTokens)}
+          sub="single-window record"
+        />
       </div>
       <div className="g3">
         <StatCard label="avg cost / block" value={fmtUSD(avgCost)} sub={`non-gap · ${blkLong}`} />
@@ -479,7 +509,15 @@ export function BlocksView() {
 
       <div className="g12">
         <Panel
-          title={<>block history · {blkLong} <Hint label="what is this?">A chronological log of your past 5-hour billing windows and the quiet gaps between them.</Hint></>}
+          title={
+            <>
+              block history · {blkLong}{' '}
+              <Hint label="what is this?">
+                A chronological log of your past 5-hour billing windows and the quiet gaps between
+                them.
+              </Hint>
+            </>
+          }
           right={
             <span className="panel-note">
               {fmtInt(usage.length)} blocks · {fmtInt(gapCount)} gaps

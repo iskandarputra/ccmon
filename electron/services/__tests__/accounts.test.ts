@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { accountInfo, limitWindow } from '../accounts';
+import { accountLabel, accountInfo, capAlerts, fetchLiveLimits, limitWindow } from '../accounts';
+import type { LimitsResult } from '../../../shared/types';
 
 describe('limitWindow — utilization scale', () => {
   it('reads utilization as a 0–100 percent directly', () => {
@@ -57,11 +58,14 @@ describe('accountInfo — cleanupPeriodDays', () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-account-'));
     projectDir = path.join(root, 'projects');
     fs.mkdirSync(projectDir, { recursive: true });
-    fs.writeFileSync(path.join(root, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'x' } }));
+    fs.writeFileSync(
+      path.join(root, '.credentials.json'),
+      JSON.stringify({ claudeAiOauth: { accessToken: 'x' } }),
+    );
   });
   afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  it('falls back to Claude Code\'s default (30) when settings.json is absent', () => {
+  it("falls back to Claude Code's default (30) when settings.json is absent", () => {
     expect(accountInfo(projectDir)?.cleanupPeriodDays).toBe(30);
   });
 
@@ -72,8 +76,138 @@ describe('accountInfo — cleanupPeriodDays', () => {
 
   it('falls back to the default on an invalid value (0, negative, non-numeric)', () => {
     for (const bad of [0, -5, 'never']) {
-      fs.writeFileSync(path.join(root, 'settings.json'), JSON.stringify({ cleanupPeriodDays: bad }));
+      fs.writeFileSync(
+        path.join(root, 'settings.json'),
+        JSON.stringify({ cleanupPeriodDays: bad }),
+      );
       expect(accountInfo(projectDir)?.cleanupPeriodDays).toBe(30);
     }
+  });
+});
+
+describe('accountLabel', () => {
+  it('names the standard root "default"', () => {
+    expect(accountLabel('/home/u/.claude/projects')).toBe('default');
+  });
+
+  it('strips the .claude- prefix from a sibling root', () => {
+    expect(accountLabel('/home/u/.claude-work/projects')).toBe('work');
+    expect(accountLabel('/home/u/.claude-work-team/projects')).toBe('work-team');
+  });
+
+  it('falls back to the directory name for an unconventional root', () => {
+    expect(accountLabel('/opt/shared/projects')).toBe('shared');
+  });
+
+  it('never returns an empty label', () => {
+    expect(accountLabel('/home/u/.claude-/projects')).toBe('.claude-');
+  });
+
+  it('keeps the tool in a Codex label so tray rows stay unambiguous', () => {
+    // With both CLIs installed, a bare "work" would appear twice in the tray
+    // context menu — the only readable surface on Linux.
+    expect(accountLabel('/home/u/.codex/sessions')).toBe('codex');
+    expect(accountLabel('/home/u/.codex/archived_sessions')).toBe('codex');
+    expect(accountLabel('/home/u/.codex-work/sessions')).toBe('codex:work');
+  });
+});
+
+describe('fetchLiveLimits — reads the credentials from the ROOT, not the source dir', () => {
+  let home: string;
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-limits-'));
+  });
+  afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  it('finds <root>/.credentials.json given <root>/projects', async () => {
+    // The helpers take a ROOT and the public entry points take a SOURCE DIR,
+    // and both are `string` — the compiler cannot tell them apart, so passing
+    // the wrong one reads a path that never exists and reports "no stored
+    // login" for a perfectly good account. Pin it: an EXPIRED token proves the
+    // file was found, and costs no network call.
+    const root = path.join(home, '.claude');
+    fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, '.credentials.json'),
+      JSON.stringify({ claudeAiOauth: { accessToken: 'at', expiresAt: 1_000 } }),
+    );
+
+    const res = await fetchLiveLimits(path.join(root, 'projects'));
+    expect(res.ok).toBe(false);
+    expect(res.ok ? '' : res.error).toContain('login expired');
+  });
+
+  it('reports no stored login when the root genuinely has none', async () => {
+    const root = path.join(home, '.claude-empty');
+    fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+    const res = await fetchLiveLimits(path.join(root, 'projects'));
+    expect(res.ok ? '' : res.error).toContain('no stored login');
+  });
+});
+
+describe('capAlerts', () => {
+  const ok = (over: Partial<LimitsResult> = {}): LimitsResult =>
+    ({
+      ok: true,
+      session: { pct: 20, resetsAt: 1000 },
+      week: { pct: 20, resetsAt: 2000 },
+      ...over,
+    }) as LimitsResult;
+  const none = new Map<string, number>();
+
+  it('says nothing below the threshold', () => {
+    expect(capAlerts('/d', ok(), none)).toEqual([]);
+  });
+
+  it('alerts on a window at or above the threshold', () => {
+    const out = capAlerts('/d', ok({ session: { pct: 94, resetsAt: 1000 } }), none);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ window: 'session', pct: 94, key: '/d:session' });
+  });
+
+  it('alerts on both windows independently', () => {
+    const out = capAlerts(
+      '/d',
+      ok({ session: { pct: 91, resetsAt: 1000 }, week: { pct: 99, resetsAt: 2000 } }),
+      none,
+    );
+    expect(out.map((a) => a.window)).toEqual(['session', 'week']);
+  });
+
+  /**
+   * The whole point of the reset-keyed dedupe: an account sitting at 94% for
+   * three hours is polled ~180 times and must alert exactly once.
+   */
+  it('stays silent for the rest of the window once alerted', () => {
+    const r = ok({ session: { pct: 94, resetsAt: 1000 } });
+    const notified = new Map([['/d:session', 1000]]);
+    expect(capAlerts('/d', r, notified)).toEqual([]);
+  });
+
+  it('re-arms when the window rolls over to a new resetsAt', () => {
+    const notified = new Map([['/d:session', 1000]]);
+    const r = ok({ session: { pct: 94, resetsAt: 5000 } }); // new cycle
+    expect(capAlerts('/d', r, notified)).toHaveLength(1);
+  });
+
+  it('keys per account, so one account alerting does not mute another', () => {
+    const notified = new Map([['/a:session', 1000]]);
+    const r = ok({ session: { pct: 94, resetsAt: 1000 } });
+    expect(capAlerts('/a', r, notified)).toEqual([]);
+    expect(capAlerts('/b', r, notified)).toHaveLength(1);
+  });
+
+  it('says nothing for a failed limits fetch', () => {
+    expect(capAlerts('/d', { ok: false, error: 'token expired' }, none)).toEqual([]);
+  });
+
+  it('ignores a window with no percentage', () => {
+    expect(capAlerts('/d', ok({ session: null, week: null }), none)).toEqual([]);
+  });
+
+  it('honours a custom threshold', () => {
+    const r = ok({ session: { pct: 55, resetsAt: 1000 } });
+    expect(capAlerts('/d', r, none, 50)).toHaveLength(1);
+    expect(capAlerts('/d', r, none, 60)).toEqual([]);
   });
 });

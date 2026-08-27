@@ -1,6 +1,6 @@
 /**
  * @file account-setup.ts
- * @brief Shell-aware multi-account setup — detect the shell, generate the `claude-*` wrappers, link them idempotently.
+ * @brief Shell-aware multi-account setup — detect the shell, generate the per-tool wrappers, link them idempotently.
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
@@ -9,6 +9,8 @@ import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { SECRET_REF_RE } from '../../shared/providerPresets';
+import { TOOLS, toolById, toolForRoot, type ToolProfile } from '../../shared/tools';
+import { CODEX_HELPER_SCRIPT, CODEX_PS_HELPER_SCRIPT } from './tools/codex-resume';
 import type {
   AccountSpec,
   AccountWrapperPrefs,
@@ -18,21 +20,29 @@ import type {
   SetupReport,
   ShellDetection,
   ShellTarget,
+  ToolId,
 } from '../../shared/types';
 
 /**
- * The wizard writes ONE file it fully owns — `~/.config/ccmon/claude-accounts`
- * (`.sh` on Linux/macOS, `.ps1` on Windows) — and appends a single guarded
- * `source`/dot-source line to the chosen shell startup file. That keeps risky
- * edits to a tiny, idempotent, easy-to-remove block while the wrappers
- * themselves live in a file ccmon can rewrite freely.
+ * The wizard writes files it fully owns — one per tool, under
+ * `~/.config/ccmon/` (`<tool>-accounts.sh` on Linux/macOS, `.ps1` on Windows)
+ * — and maintains a single guarded block in the chosen shell startup file that
+ * sources all of them. That keeps risky edits to a tiny, idempotent,
+ * easy-to-remove block while the wrappers themselves live in files ccmon can
+ * rewrite freely.
+ *
+ * ONE FILE PER TOOL, not one shared file: a Claude-only user's
+ * `claude-accounts.sh` must not churn because a Codex account appeared, and
+ * removing your last account of a tool should delete that tool's file rather
+ * than leave a stale one behind.
  *
  * It is OS-aware. POSIX shells (zy/zsh/bash on Linux & macOS) get
- * `name() { ( export CLAUDE_CONFIG_DIR=…; claude "$@" ); }` in the rc the
- * shell loads (macOS bash → `~/.bash_profile`). Windows gets PowerShell
- * `function name { $env:CLAUDE_CONFIG_DIR = …; claude @args }` dot-sourced
- * from `$PROFILE`. The bash cross-resume helper is Unix-only. Nothing here
- * runs a shell or a session — it only writes scripts the user then sources.
+ * `name() { ( export <HOME_VAR>=…; <bin> "$@" ); }` in the rc the shell loads
+ * (macOS bash → `~/.bash_profile`). Windows gets PowerShell
+ * `function name { $env:<HOME_VAR> = …; <bin> @args }` dot-sourced from
+ * `$PROFILE`. Which variable and which binary come from the tool's profile in
+ * `shared/tools.ts`. Nothing here runs a shell or a session — it only writes
+ * scripts the user then sources.
  */
 
 type Family = 'posix' | 'powershell';
@@ -40,34 +50,33 @@ type Family = 'posix' | 'powershell';
 const MARK_BEGIN = '# >>> ccmon managed >>>';
 const MARK_END = '# <<< ccmon managed <<<';
 
-const MANAGED_FILE: Record<Family, string> = {
-  posix: 'claude-accounts.sh',
-  powershell: 'claude-accounts.ps1',
-};
-/** `$HOME`-relative reference to the managed file (forward slashes work in PS too). */
-const managedRef = (family: Family) => `$HOME/.config/ccmon/${MANAGED_FILE[family]}`;
+/** `$HOME`-relative reference to a tool's managed file (forward slashes work in PS too). */
+const managedRef = (tool: ToolProfile, family: Family) =>
+  `$HOME/.config/ccmon/${tool.managedFile[family]}`;
 
 const familyOf = (platform: string): Family => (platform === 'win32' ? 'powershell' : 'posix');
 
-/** The guarded block appended to the rc — sources the managed wrapper file. */
+/**
+ * The guarded block in the rc — sources EVERY tool's managed wrapper file.
+ *
+ * Every line is emitted unconditionally and guarded by an existence test, so
+ * the block's content does not depend on which accounts exist. That is
+ * deliberate: a block whose content varied would need rewriting whenever the
+ * account set changed, and a user who never re-ran the wizard would silently
+ * stop loading a tool.
+ */
 function rcSourceBlock(family: Family): string {
-  const ref = managedRef(family);
-  if (family === 'powershell') {
-    return [
-      MARK_BEGIN,
-      '# Claude Code multi-account wrappers, managed by ccmon. Remove this block',
-      `# (and ${ref}) to uninstall.`,
-      `if (Test-Path "${ref}") { . "${ref}" }`,
-      MARK_END,
-    ].join('\n');
-  }
-  return [
+  const refs = TOOLS.map((t) => managedRef(t, family));
+  const head = [
     MARK_BEGIN,
-    '# Claude Code multi-account wrappers, managed by ccmon. Remove this block',
-    `# (and ${ref}) to uninstall.`,
-    `[ -f "${ref}" ] && . "${ref}"`,
-    MARK_END,
-  ].join('\n');
+    '# Coding-CLI account wrappers, managed by ccmon. Remove this block (and',
+    '# the files it sources, under ~/.config/ccmon/) to uninstall.',
+  ];
+  const body =
+    family === 'powershell'
+      ? refs.map((ref) => `if (Test-Path "${ref}") { . "${ref}" }`)
+      : refs.map((ref) => `[ -f "${ref}" ] && . "${ref}"`);
+  return [...head, ...body, MARK_END].join('\n');
 }
 
 /**
@@ -478,8 +487,8 @@ function defaultEnv(): SetupEnv {
   };
 }
 
-const managedScriptPath = (home: string, family: Family) =>
-  path.join(home, '.config', 'ccmon', MANAGED_FILE[family]);
+const managedScriptPath = (tool: ToolProfile, home: string, family: Family) =>
+  path.join(home, '.config', 'ccmon', tool.managedFile[family]);
 
 /**
  * Where the cross-resume helper lands. POSIX keeps the Unix convention
@@ -487,15 +496,20 @@ const managedScriptPath = (home: string, family: Family) =>
  * it on PATH). Windows has no such convention and no executable bit, so the
  * `.ps1` sits next to the managed wrapper file that calls it.
  */
-const helperPath = (home: string, family: Family = 'posix'): string =>
+const helperPath = (tool: ToolProfile, home: string, family: Family = 'posix'): string =>
   family === 'powershell'
-    ? path.join(home, '.config', 'ccmon', 'claude-cross-resume.ps1')
-    : path.join(home, '.local', 'bin', 'claude-cross-resume');
+    ? path.join(home, '.config', 'ccmon', `${tool.helperName}.ps1`)
+    : path.join(home, '.local', 'bin', tool.helperName);
 
-/** `$HOME`-relative reference to the PowerShell helper, for the generated file. */
-const PS_HELPER_REF = '"$HOME/.config/ccmon/claude-cross-resume.ps1"';
+// The `$HOME`-relative PowerShell helper reference is now derived per tool
+// inside renderManagedScript, from `ToolProfile.helperName`.
 
-const helperScript = (family: Family) => (family === 'powershell' ? PS_HELPER_SCRIPT : HELPER_SCRIPT);
+const helperScript = (tool: ToolProfile, family: Family): string => {
+  if (tool.id === 'codex') {
+    return family === 'powershell' ? CODEX_PS_HELPER_SCRIPT : CODEX_HELPER_SCRIPT;
+  }
+  return family === 'powershell' ? PS_HELPER_SCRIPT : HELPER_SCRIPT;
+};
 
 function fileText(file: string): string | null {
   try {
@@ -534,7 +548,11 @@ function shConfigDir(root: string, home: string): string {
  */
 function psConfigDir(root: string, home: string): string {
   const rel =
-    root === home ? '$HOME' : root.startsWith(home + path.sep) ? `$HOME${root.slice(home.length)}` : root;
+    root === home
+      ? '$HOME'
+      : root.startsWith(home + path.sep)
+        ? `$HOME${root.slice(home.length)}`
+        : root;
   return `"${rel.replace(/[\\]/g, '/').replace(/(["`])/g, '`$1')}"`;
 }
 
@@ -587,31 +605,34 @@ function psScopedBody(sets: string[], body: string): string {
   ].join('\n');
 }
 
-/** A nice default wrapper name for a config root (~/.claude → claude-personal). */
-export function suggestLabel(root: string): string {
-  const base = path.basename(root);
-  if (base === '.claude') return 'claude-personal';
-  const suffix = base.replace(/^\.+/, '').replace(/^claude[-_]?/, '');
-  return suffix ? `claude-${suffix}` : 'claude-account';
-}
+/** A nice default wrapper name for a home (~/.claude → claude-personal). */
+export const suggestLabel = (root: string): string => toolForRoot(root).suggestWrapperName(root);
 
-/** Drop a leading `claude-` so cross-resume names read `claude-X-from-Y`. */
-const shortName = (name: string) => name.replace(/^claude-/, '');
+/** Drop the tool prefix so cross-resume names read `<tool>-X-from-Y`. */
+const shortName = (spec: AccountSpec) => spec.name.replace(new RegExp(`^${spec.tool}-`), '');
 
 /**
- * The ordered cross-resume pairs, shared by the generator and the scanner.
- * Both families: the helper ships as a bash script for POSIX and a PowerShell
- * script for Windows, so `claude-<to>-from-<from>` exists everywhere.
+ * The ordered cross-resume pairs, grouped BY TOOL and shared by the generator
+ * and the scanner. Both families: each tool's helper ships as a bash script
+ * for POSIX and a PowerShell script for Windows, so `<to>-from-<from>` exists
+ * everywhere.
+ *
+ * The partition is not cosmetic. A `claude-work-from-codex-personal` wrapper
+ * would copy a Claude transcript into a Codex home, which is nonsense — two
+ * accounts per tool yield 2 + 2 pairs, not 12.
  */
 function crossPairs(
   accounts: AccountSpec[],
-): Array<{ name: string; from: AccountSpec; to: AccountSpec }> {
-  const pairs: Array<{ name: string; from: AccountSpec; to: AccountSpec }> = [];
-  if (accounts.length < 2) return pairs;
-  for (const to of accounts) {
-    for (const from of accounts) {
-      if (to.name === from.name) continue;
-      pairs.push({ name: `${to.name}-from-${shortName(from.name)}`, from, to });
+): Array<{ name: string; tool: ToolId; from: AccountSpec; to: AccountSpec }> {
+  const pairs: Array<{ name: string; tool: ToolId; from: AccountSpec; to: AccountSpec }> = [];
+  for (const tool of TOOLS) {
+    const group = accounts.filter((a) => a.tool === tool.id);
+    if (group.length < 2) continue;
+    for (const to of group) {
+      for (const from of group) {
+        if (to.name === from.name) continue;
+        pairs.push({ name: `${to.name}-from-${shortName(from)}`, tool: tool.id, from, to });
+      }
     }
   }
   return pairs;
@@ -627,32 +648,39 @@ export function managedNames(accounts: AccountSpec[]): string[] {
 }
 
 /**
- * The full contents of the managed wrapper file for `family`: one launcher per
- * account, plus (POSIX only) a `claude-<to>-from-<from>` resume helper per
- * ordered pair. Regenerated wholesale on every apply, so it always matches the
- * chosen accounts.
+ * The full contents of ONE tool's managed wrapper file for `family`: a
+ * launcher per account of that tool, plus a `<to>-from-<from>` resume helper
+ * per ordered pair within it. Regenerated wholesale on every apply, so it
+ * always matches the chosen accounts.
+ *
+ * `accounts` is the WHOLE list and is filtered here, so a caller can render
+ * every file from one array without partitioning it first.
  */
 export function renderManagedScript(
   accounts: AccountSpec[],
   home: string,
   family: Family = 'posix',
+  toolId: ToolId = 'claude',
 ): string {
+  const tool = toolById(toolId);
+  const mine = accounts.filter((a) => a.tool === toolId);
   const lines: string[] = [
-    '# ccmon-managed — Claude Code account wrappers',
+    `# ccmon-managed — ${tool.label} account wrappers`,
     '# Generated by ccmon (Accounts → multi-account setup). This whole file is',
     '# owned by ccmon and rewritten on each apply; delete it (and the',
     '# `ccmon managed` block in your shell startup file) to uninstall.',
     '',
   ];
-  const pairs = crossPairs(accounts);
+  const pairs = crossPairs(accounts).filter((p) => p.tool === toolId);
+  const psHelperRef = `"$HOME/.config/ccmon/${tool.helperName}.ps1"`;
 
   if (family === 'powershell') {
-    for (const a of accounts) {
+    for (const a of mine) {
       const sets = [
-        `${psLiteral('CLAUDE_CONFIG_DIR')} = ${psConfigDir(a.root, home)}`,
+        `${psLiteral(tool.homeEnvVar)} = ${psConfigDir(a.root, home)}`,
         ...psEnvSets(a.env),
       ];
-      lines.push(`function ${a.name} {`, psScopedBody(sets, 'claude @args'), '}', '');
+      lines.push(`function ${a.name} {`, psScopedBody(sets, `${tool.bin} @args`), '}', '');
     }
     if (pairs.length) {
       lines.push('# Continue a session on another account when one hits its limit:');
@@ -660,7 +688,7 @@ export function renderManagedScript(
         // The destination's env is applied around the helper call, so the
         // relaunched session lands on the right account AND the right provider.
         const sets = [
-          `${psLiteral('CLAUDE_CONFIG_DIR')} = ${psConfigDir(p.to.root, home)}`,
+          `${psLiteral(tool.homeEnvVar)} = ${psConfigDir(p.to.root, home)}`,
           ...psEnvSets(p.to.env),
         ];
         // `$args[0]` is $null when called with no session id, and the helper's
@@ -668,17 +696,17 @@ export function renderManagedScript(
         // confusing hang. Say what is wrong and stop.
         const call =
           `if ($args.Count -lt 1) { Write-Error "usage: ${p.name} <session-id>"; return }; ` +
-          `& ${PS_HELPER_REF} ${psConfigDir(p.from.root, home)} ${psConfigDir(p.to.root, home)} $args[0]`;
+          `& ${psHelperRef} ${psConfigDir(p.from.root, home)} ${psConfigDir(p.to.root, home)} $args[0]`;
         lines.push(`function ${p.name} {`, psScopedBody(sets, call), '}', '');
       }
     }
     return lines.join('\n') + '\n';
   }
 
-  for (const a of accounts) {
-    const sets = [`CLAUDE_CONFIG_DIR=${shConfigDir(a.root, home)}`, ...shEnvSets(a.env)];
+  for (const a of mine) {
+    const sets = [`${tool.homeEnvVar}=${shConfigDir(a.root, home)}`, ...shEnvSets(a.env)];
     // the subshell ( … ) is what keeps every export local to the one command
-    lines.push(`${a.name}() { ( export ${sets.join(' ')}; claude "$@" ); }`);
+    lines.push(`${a.name}() { ( export ${sets.join(' ')}; ${tool.bin} "$@" ); }`);
   }
   if (pairs.length) {
     lines.push('', '# Continue a session on another account when one hits its limit:');
@@ -689,13 +717,13 @@ export function renderManagedScript(
       // keeps the generated file host-independent either way.
       //
       // The DESTINATION's extra env is exported around the call: the helper
-      // ends in `exec claude --resume`, which inherits it, so resuming into an
-      // alternate-provider account (DeepSeek) keeps that provider instead of
-      // silently falling back to Anthropic's endpoint.
+      // ends in an `exec` of the tool's resume command, which inherits it, so
+      // resuming into an alternate-provider account (DeepSeek) keeps that
+      // provider instead of silently falling back to Anthropic's endpoint.
       const sets = shEnvSets(p.to.env);
       const exports = sets.length ? `export ${sets.join(' ')}; ` : '';
       lines.push(
-        `${p.name}() { ( ${exports}"$HOME/.local/bin/claude-cross-resume" ${shConfigDir(p.from.root, home)} ${shConfigDir(p.to.root, home)} "$1" ); }`,
+        `${p.name}() { ( ${exports}"$HOME/.local/bin/${tool.helperName}" ${shConfigDir(p.from.root, home)} ${shConfigDir(p.to.root, home)} "$1" ); }`,
       );
     }
   }
@@ -727,6 +755,34 @@ function managedBlockRange(lines: string[]): [number, number] | null {
 }
 
 /**
+ * Swap ccmon's managed block for `block`, or append it when absent. Returns
+ * the text UNCHANGED when the block is already exactly right, so a caller can
+ * use identity to decide whether anything needs writing at all.
+ *
+ * Replacement — rather than the old append-only behaviour — is what lets the
+ * block's contents evolve. When Codex support added a second source line,
+ * every already-linked user would otherwise have kept a block that loads only
+ * the Claude wrappers: their Codex wrappers would be written and never
+ * sourced, with no error anywhere to point at.
+ *
+ * Only the marker-delimited region is touched. Everything outside it is
+ * preserved verbatim, in place — this is the one thing in the module that
+ * rewrites a file ccmon did not create, so it stays as narrow as possible and
+ * goes through `writeAtomic`.
+ */
+function upsertManagedBlock(text: string, block: string): string {
+  const lines = text.split('\n');
+  const range = managedBlockRange(lines);
+  if (!range) {
+    const lead = text && !text.endsWith('\n') ? '\n' : '';
+    return `${text}${lead}\n${block}\n`;
+  }
+  const [start, end] = range;
+  if (lines.slice(start, end).join('\n') === block) return text;
+  return [...lines.slice(0, start), ...block.split('\n'), ...lines.slice(end)].join('\n');
+}
+
+/**
  * Pre-existing hand-written definitions of any managed wrapper found in `rc`,
  * OUTSIDE ccmon's own managed block. These would be shadowed by the managed
  * file (identical → harmless, but redundant); the UI surfaces them and the
@@ -747,7 +803,12 @@ export function scanRcForWrappers(
     if (inBlock(i) || lines[i].startsWith(TIDY_PREFIX)) continue;
     for (const name of names) {
       if (defStartRe(name, family).test(lines[i])) {
-        out.push({ name, line: i + 1, text: lines[i].trim(), canTidy: singleLineRe(name, family).test(lines[i]) });
+        out.push({
+          name,
+          line: i + 1,
+          text: lines[i].trim(),
+          canTidy: singleLineRe(name, family).test(lines[i]),
+        });
         break; // one match per line is enough
       }
     }
@@ -790,7 +851,10 @@ function writeAtomic(file: string, content: string): void {
     // (a crash mid-write could truncate) but the alternative is a setup that
     // just refuses to apply. POSIX errors still propagate untouched.
     const code = (e as NodeJS.ErrnoException).code;
-    if (process.platform !== 'win32' || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) {
+    if (
+      process.platform !== 'win32' ||
+      (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')
+    ) {
       try {
         fs.unlinkSync(tmp);
       } catch {
@@ -833,7 +897,11 @@ export function detectShells(env: SetupEnv = defaultEnv()): ShellDetection {
           exists,
           detected: true,
           linked,
-          note: linked ? 'already linked' : exists ? 'your PowerShell profile' : 'profile would be created',
+          note: linked
+            ? 'already linked'
+            : exists
+              ? 'your PowerShell profile'
+              : 'profile would be created',
         },
       ],
     };
@@ -863,7 +931,8 @@ export function detectShells(env: SetupEnv = defaultEnv()): ShellDetection {
         : exists
           ? 'rc present'
           : `~/${d.alsoRc} present · creates ~/${d.rc}`;
-    const inPlay = detected || exists || (d.alsoRc ? fileExists(path.join(env.home, d.alsoRc)) : false);
+    const inPlay =
+      detected || exists || (d.alsoRc ? fileExists(path.join(env.home, d.alsoRc)) : false);
     return { shell: d.shell, family: 'posix', rcPath, exists, detected, linked, note, inPlay };
   });
   // Only surface shells the user actually uses: the login shell, or any with
@@ -879,7 +948,9 @@ export function detectShells(env: SetupEnv = defaultEnv()): ShellDetection {
   if (!shells.length) {
     const fallback = all.find((s) => s.shell === (mac ? 'zsh' : 'bash'))!;
     const { inPlay: _inPlay, ...target } = fallback;
-    shells = [{ ...target, note: `no login shell detected · creates ~/${path.basename(target.rcPath)}` }];
+    shells = [
+      { ...target, note: `no login shell detected · creates ~/${path.basename(target.rcPath)}` },
+    ];
   }
   return { platform: env.platform, shells };
 }
@@ -913,11 +984,12 @@ const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 /** A portable environment-variable name — the only shape both shells accept. */
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /**
- * `CLAUDE_CONFIG_DIR` is derived from the account's root, never taken from the
- * env map: two sources for one variable is a silent-mismatch bug waiting to
- * happen, and the root is what every other part of ccmon keys on.
+ * A tool's home env var (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) is derived from the
+ * account's root, never taken from the env map: two sources for one variable
+ * is a silent-mismatch bug waiting to happen, and the root is what every other
+ * part of ccmon keys on.
  */
-const RESERVED_ENV = new Set(['CLAUDE_CONFIG_DIR']);
+const RESERVED_ENV = new Set(TOOLS.map((t) => t.homeEnvVar));
 
 /**
  * Validation problems with the account list itself (name format, dupes,
@@ -928,13 +1000,16 @@ function validateAccounts(accounts: AccountSpec[]): string[] {
   const problems: string[] = [];
   const seen = new Set<string>();
   for (const a of accounts) {
+    if (!TOOLS.some((t) => t.id === a.tool)) problems.push(`"${a.name}" has an unknown tool`);
     if (!NAME_RE.test(a.name)) problems.push(`invalid wrapper name "${a.name}"`);
     if (seen.has(a.name)) problems.push(`duplicate wrapper name "${a.name}"`);
     seen.add(a.name);
     if (!a.root || !path.isAbsolute(a.root)) problems.push(`"${a.name}" has no config dir`);
     for (const [k, v] of Object.entries(a.env ?? {})) {
-      if (!ENV_NAME_RE.test(k)) problems.push(`"${a.name}": invalid environment variable name "${k}"`);
-      else if (RESERVED_ENV.has(k)) problems.push(`"${a.name}": ${k} comes from the config dir — remove it`);
+      if (!ENV_NAME_RE.test(k))
+        problems.push(`"${a.name}": invalid environment variable name "${k}"`);
+      else if (RESERVED_ENV.has(k))
+        problems.push(`"${a.name}": ${k} comes from the config dir — remove it`);
       // Both generators emit fully-literal quoting, so a value can hold
       // anything printable; a newline is the one thing that would break out of
       // the single line it is written on.
@@ -965,7 +1040,12 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
   const { home } = env;
   const family = familyOf(env.platform);
   const block = rcSourceBlock(family);
-  const helperDest = helperPath(home, family);
+  // one helper per tool that has accounts — a Claude-only setup never installs
+  // codex-cross-resume, and vice versa
+  const helpers = TOOLS.filter((t) => opts.accounts.some((a) => a.tool === t.id)).map((t) => {
+    const dest = helperPath(t, home, family);
+    return { tool: t.id, dest, installed: fileEquals(dest, helperScript(t, family)) };
+  });
   const names = managedNames(opts.accounts);
   const warnings: string[] = [];
 
@@ -980,11 +1060,23 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
         `${display} already defines ${existing.map((e) => e.name).join(', ')} by hand — ` +
           (opts.tidyExisting
             ? `tidy will comment out ${tidyable} single-line def${tidyable === 1 ? '' : 's'}` +
-              (manual ? `; ${manual} multi-line def${manual === 1 ? '' : 's'} need manual removal` : '')
+              (manual
+                ? `; ${manual} multi-line def${manual === 1 ? '' : 's'} need manual removal`
+                : '')
             : `they'd be shadowed by the managed file (identical → harmless). Enable tidy to comment them out`),
       );
     }
-    return { rcPath, alreadyLinked, blockToAdd: alreadyLinked ? '' : block, existing };
+    // A STALE block still needs writing, so the preview must show it rather
+    // than reporting "already linked" while apply quietly rewrites the file.
+    const current = fileText(rcPath) ?? '';
+    const changes = upsertManagedBlock(current, block) !== current;
+    return {
+      rcPath,
+      alreadyLinked,
+      blockToAdd: changes ? block : '',
+      blockReplaces: alreadyLinked && changes,
+      existing,
+    };
   });
 
   if (family === 'powershell' && opts.installHelper) {
@@ -996,12 +1088,17 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
     );
   }
 
+  // one file per tool that actually has accounts; the rest are removed on apply
+  const managed = TOOLS.filter((t) => opts.accounts.some((a) => a.tool === t.id)).map((t) => ({
+    tool: t.id,
+    path: managedScriptPath(t, home, family),
+    script: renderManagedScript(opts.accounts, home, family, t.id),
+  }));
+
   return {
-    managedPath: managedScriptPath(home, family),
-    managedScript: renderManagedScript(opts.accounts, home, family),
+    managed,
     rcEdits,
-    helperDest,
-    helperInstalled: fileEquals(helperDest, helperScript(family)),
+    helpers,
     problems: validate(opts),
     warnings,
   };
@@ -1017,23 +1114,42 @@ export function planSetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Set
 export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): SetupReport {
   const problems = validate(opts);
   if (problems.length) {
-    return { ok: false, wroteManaged: false, linkedRc: [], tidiedRc: [], helperInstalled: false, reloadHint: '', errors: problems };
+    return {
+      ok: false,
+      wroteManaged: false,
+      linkedRc: [],
+      tidiedRc: [],
+      helperInstalled: false,
+      reloadHint: '',
+      errors: problems,
+    };
   }
   const { home } = env;
   const family = familyOf(env.platform);
   const errors: string[] = [];
 
   let wroteManaged = false;
-  const managedPath = managedScriptPath(home, family);
-  try {
-    fs.mkdirSync(path.dirname(managedPath), { recursive: true });
-    // 0600: an account's env may carry a provider API token, and this file is
-    // only ever read by the user's own shell.
-    fs.writeFileSync(managedPath, renderManagedScript(opts.accounts, home, family), { mode: 0o600 });
-    if (process.platform !== 'win32') fs.chmodSync(managedPath, 0o600); // umask cannot loosen it
-    wroteManaged = true;
-  } catch (e) {
-    errors.push(`managed file: ${msg(e)}`);
+  for (const tool of TOOLS) {
+    const dest = managedScriptPath(tool, home, family);
+    const inUse = opts.accounts.some((a) => a.tool === tool.id);
+    try {
+      if (!inUse) {
+        // deleting your last account of a tool cleans up after itself, rather
+        // than leaving a stale file the rc block keeps sourcing
+        fs.rmSync(dest, { force: true });
+        continue;
+      }
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      // 0600: an account's env may carry a provider API token, and this file is
+      // only ever read by the user's own shell.
+      fs.writeFileSync(dest, renderManagedScript(opts.accounts, home, family, tool.id), {
+        mode: 0o600,
+      });
+      if (process.platform !== 'win32') fs.chmodSync(dest, 0o600); // umask cannot loosen it
+      wroteManaged = true;
+    } catch (e) {
+      errors.push(`managed file (${tool.id}): ${msg(e)}`);
+    }
   }
 
   const names = managedNames(opts.accounts);
@@ -1058,9 +1174,10 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
         }
       }
 
-      if (!body.includes(MARK_BEGIN)) {
-        const lead = body && !body.endsWith('\n') ? '\n' : '';
-        body = `${body}${lead}\n${block}\n`;
+      // append when absent, replace when stale, no-op when already current
+      const withBlock = upsertManagedBlock(body, block);
+      if (withBlock !== body) {
+        body = withBlock;
         mutated = true;
         linkedRc.push(rcPath);
       }
@@ -1071,25 +1188,29 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
     }
   }
 
-  // the cross-resume helper ships per family: a bash script for POSIX, a
-  // PowerShell script for Windows. Both are idempotent (content-compared).
+  // A cross-resume helper per TOOL, each shipping per family: a bash script
+  // for POSIX, a PowerShell script for Windows. All idempotent
+  // (content-compared), and only installed for a tool that has accounts.
   let helperInstalled = false;
   if (opts.installHelper) {
-    const dest = helperPath(home, family);
-    const script = helperScript(family);
-    try {
-      if (!fileEquals(dest, script)) {
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        if (family === 'powershell') {
-          fs.writeFileSync(dest, script);
-        } else {
-          fs.writeFileSync(dest, script, { mode: 0o755 });
-          fs.chmodSync(dest, 0o755); // writeFileSync mode is masked by umask — force it
+    for (const tool of TOOLS) {
+      if (!opts.accounts.some((a) => a.tool === tool.id)) continue;
+      const dest = helperPath(tool, home, family);
+      const script = helperScript(tool, family);
+      try {
+        if (!fileEquals(dest, script)) {
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          if (family === 'powershell') {
+            fs.writeFileSync(dest, script);
+          } else {
+            fs.writeFileSync(dest, script, { mode: 0o755 });
+            fs.chmodSync(dest, 0o755); // writeFileSync mode is masked by umask — force it
+          }
         }
+        helperInstalled = true;
+      } catch (e) {
+        errors.push(`helper (${tool.id}): ${msg(e)}`);
       }
-      helperInstalled = true;
-    } catch (e) {
-      errors.push(`helper: ${msg(e)}`);
     }
   }
 
@@ -1100,7 +1221,15 @@ export function applySetup(opts: SetupOptions, env: SetupEnv = defaultEnv()): Se
     ? `run: ${reloadTargets.map((t) => `${sourceVerb} ${t}`).join('   ')}  (or open a new terminal)`
     : 'open a new terminal to load the wrappers';
 
-  return { ok: errors.length === 0, wroteManaged, linkedRc, tidiedRc, helperInstalled, reloadHint, errors };
+  return {
+    ok: errors.length === 0,
+    wroteManaged,
+    linkedRc,
+    tidiedRc,
+    helperInstalled,
+    reloadHint,
+    errors,
+  };
 }
 
 /**
@@ -1117,15 +1246,22 @@ export function writeWrapperAccounts(
   if (problems.length) return { ok: false, errors: problems };
   const { home } = env;
   const family = familyOf(env.platform);
-  const managedPath = managedScriptPath(home, family);
-  try {
-    fs.mkdirSync(path.dirname(managedPath), { recursive: true });
-    fs.writeFileSync(managedPath, renderManagedScript(accounts, home, family), { mode: 0o600 });
-    if (process.platform !== 'win32') fs.chmodSync(managedPath, 0o600);
-    return { ok: true, errors: [] };
-  } catch (e) {
-    return { ok: false, errors: [`managed file: ${msg(e)}`] };
+  const errors: string[] = [];
+  for (const tool of TOOLS) {
+    const dest = managedScriptPath(tool, home, family);
+    try {
+      if (!accounts.some((a) => a.tool === tool.id)) {
+        fs.rmSync(dest, { force: true });
+        continue;
+      }
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, renderManagedScript(accounts, home, family, tool.id), { mode: 0o600 });
+      if (process.platform !== 'win32') fs.chmodSync(dest, 0o600);
+    } catch (e) {
+      errors.push(`managed file (${tool.id}): ${msg(e)}`);
+    }
   }
+  return { ok: errors.length === 0, errors };
 }
 
 /**
@@ -1156,24 +1292,32 @@ export function visibleAccountDirs(
 const SUFFIX_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
 /**
- * Create a sibling config dir `~/.claude-<suffix>` (with its projects/ subdir)
- * so it shows up as a new account. The user still logs in there once via the
+ * Create a sibling home `~/.<tool>-<suffix>`, seeded with the subdir that
+ * makes it discoverable (`projects/` for Claude, `sessions/` for Codex), so it
+ * shows up as a new account. The user still logs in there once via the
  * generated wrapper. Returns the new root or a validation/error reason.
+ *
+ * Seeding the WRONG subdir would create a directory the watcher never looks
+ * at, so the seed comes from the tool profile rather than being hardcoded.
  */
 export function createAccountDir(
   suffix: string,
+  tool: ToolId = 'claude',
   env: SetupEnv = defaultEnv(),
 ): { ok: boolean; root: string; error?: string } {
+  const profile = toolById(tool);
   const clean = suffix.trim().replace(/^[.\s]+/, '');
   if (!SUFFIX_RE.test(clean)) {
     return { ok: false, root: '', error: 'use letters, digits, dash or underscore' };
   }
-  const root = path.join(env.home, `.claude-${clean}`);
-  if (fileExists(path.join(root, 'projects'))) {
+  const root = path.join(env.home, `.${profile.id}-${clean}`);
+  // dirExists, not fileExists: the latter READS the path and so answers false
+  // for a directory, which meant this branch never fired.
+  if (dirExists(path.join(root, profile.seedDir))) {
     return { ok: true, root }; // already there — treat as success
   }
   try {
-    fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+    fs.mkdirSync(path.join(root, profile.seedDir), { recursive: true });
     return { ok: true, root };
   } catch (e) {
     return { ok: false, root, error: msg(e) };
@@ -1181,12 +1325,15 @@ export function createAccountDir(
 }
 
 /**
- * Rename a sibling account's config dir on disk: `~/.claude-<old>` →
- * `~/.claude-<suffix>`. The default `~/.claude` root is refused — Claude
- * Code's CLI (and anything else that doesn't go through a ccmon wrapper)
- * falls back to that literal path when `CLAUDE_CONFIG_DIR` isn't set, so
- * moving it would break tools outside ccmon's control. Live file-watching
- * of the new path needs an app relaunch, same as `createAccountDir`.
+ * Rename a sibling account's home on disk: `~/.<tool>-<old>` →
+ * `~/.<tool>-<suffix>`. The tool is INFERRED from the root — a home cannot
+ * change tools, so making it an argument would only add a way to get it wrong.
+ *
+ * Each tool's DEFAULT home is refused: its bare CLI (and anything else that
+ * doesn't go through a ccmon wrapper) falls back to that literal path when the
+ * home env var isn't set, so moving it would break tools outside ccmon's
+ * control. Live file-watching of the new path needs an app relaunch, same as
+ * `createAccountDir`.
  */
 export function renameAccountDir(
   root: string,
@@ -1194,18 +1341,19 @@ export function renameAccountDir(
   env: SetupEnv = defaultEnv(),
 ): { ok: boolean; root: string; error?: string } {
   const { home } = env;
-  if (root === path.join(home, '.claude')) {
-    return { ok: false, root, error: "can't rename the default ~/.claude account" };
+  const profile = toolForRoot(root);
+  if (profile.isDefaultRoot(root)) {
+    return { ok: false, root, error: `can't rename the default ~/.${profile.id} account` };
   }
   const clean = suffix.trim().replace(/^[.\s]+/, '');
   if (!SUFFIX_RE.test(clean)) {
     return { ok: false, root, error: 'use letters, digits, dash or underscore' };
   }
-  const newRoot = path.join(home, `.claude-${clean}`);
+  const newRoot = path.join(home, `.${profile.id}-${clean}`);
   if (newRoot === root) return { ok: true, root };
   if (!fs.existsSync(root)) return { ok: false, root, error: 'account folder not found' };
   if (fs.existsSync(newRoot)) {
-    return { ok: false, root, error: `~/.claude-${clean} already exists` };
+    return { ok: false, root, error: `~/.${profile.id}-${clean} already exists` };
   }
   try {
     fs.renameSync(root, newRoot);
