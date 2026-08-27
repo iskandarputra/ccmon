@@ -1,15 +1,17 @@
 # ccmon — project guide
 
-Electron + React + **TypeScript (strict)** realtime monitor for Claude Code
-usage. Reads `~/.claude/projects/**/*.jsonl` locally; local-first with
-six network paths (see Gotchas) — four background, two user-initiated.
+Electron + React + **TypeScript (strict)** realtime monitor for coding-CLI
+usage. Reads `~/.claude/projects/**/*.jsonl` and
+`${CODEX_HOME:-~/.codex}/{sessions,archived_sessions}/**/*.jsonl` locally;
+local-first with six network paths (see Gotchas) — four background, two
+user-initiated. Codex adds none: it has no limits endpoint ccmon can read.
 
 ## Commands
 
 | Command | What | When to run |
 |---|---|---|
 | `npm run dev` | esbuild + Vite + Electron, hot reload | developing |
-| `npm test` | vitest, 516 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
+| `npm test` | vitest, 732 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
 | `npm run lint` | eslint (correctness rules only; Prettier owns formatting) | before every commit |
 | `npm run format` | prettier over everything but Markdown and fixtures | before every commit |
 | `npm run smoke` | full pipeline against real `~/.claude` data, no Electron | after touching `electron/services/` |
@@ -20,6 +22,7 @@ six network paths (see Gotchas) — four background, two user-initiated.
 | `npm run parity -- --fixture` | same check against the committed corpus in `scripts/fixtures/parity/` — no local history needed, so CI runs it | every push (CI); locally when you have no `~/.claude` |
 | `npm run pricing:update -- --prune` | as below, but drops entries the upstreams retired | only to correct a bad committed entry |
 | `npm run typecheck` | strict `tsc --noEmit`, node + web projects | before every commit |
+| `npx tsx scripts/dump-helpers.ts <dir>` | writes the embedded cross-resume scripts out for `bash -n` / the PowerShell parser | after touching `tools/codex-resume.ts` |
 | `npm run build` | Vite renderer + esbuild main/preload bundles | packaging |
 | `npm run icon` | regenerates `build/icon.png` (1024px, gitignored) | dist scripts run it automatically |
 | `npm run pricing:update` | refresh committed pricing snapshots | when LiteLLM/models.dev move |
@@ -55,13 +58,27 @@ exercised only against mocks on Linux. `build.yml` cuts releases on tags.
   amount of designing against one format would have surfaced that. Adapters are
   shared singletons, so state MUST live in the watcher, never in the adapter:
   the app and the CLI each run their own watcher over the same `ADAPTERS`.
+- `shared/tools.ts` + `electron/services/tools/` — the ACCOUNT-layer twin of the
+  adapter seam, joined on id (`adapter.id === profile.id`). An adapter owns what
+  is FORMAT-specific; a `ToolProfile` owns what is INSTALL-specific: where the
+  home is (`CLAUDE_CONFIG_DIR` vs `CODEX_HOME`), which binary a wrapper runs,
+  what that wrapper is called, which subdir seeds a new home, where the
+  credentials live. They stay SEPARATE interfaces on purpose — adapters are
+  stateless singletons the CLI imports under plain node, while account setup
+  writes shell rc files and reads credential stores, which the CLI never does;
+  folding one into the other would make every CLI invocation import code it can
+  never call. `shared/tools.ts` is the pure half (the renderer imports it too,
+  which is what retired the hand-copied naming helpers in
+  `src/lib/crossAccount.ts`); `tools/identity.ts` is the fs half, and
+  `tools/codex-resume.ts` holds the embedded helper scripts.
 - `electron/services/` — pure Node, **never** import Electron here (this is
   what keeps smoke and the unit tests possible; type-only electron imports
-  erase, so they're fine). Twenty-three services: paths, config, settings,
-  watcher, parser, aggregate, blocks, pricing, pricing-archive, accounts,
-  auth, keychain, advisor, export, cross-account, account-setup,
-  limits-history, currency, deepseek, deepseek-history, deepseek-key,
-  window-state. A service needing an Electron API takes it INJECTED rather
+  erase, so they're fine). Twenty-five services: paths, config, settings,
+  watcher, parser, aggregate, recompute, scope, blocks, pricing,
+  pricing-archive, accounts, auth, keychain, advisor, export, cross-account,
+  account-setup, limits-history, currency, status-text, deepseek,
+  deepseek-history, deepseek-key, window-state, plus `tools/`. A service
+  needing an Electron API takes it INJECTED rather
   than importing it — `deepseek-key.ts` receives a `KeyCrypto` that main backs
   with `safeStorage`. `keychain.ts` shells out to macOS `security(1)` for the
   same reason: a native keychain module would need node-gyp and break the
@@ -297,6 +314,46 @@ exercised only against mocks on Linux. `build.yml` cuts releases on tags.
   for a second root would report one login's limits under another account's
   name. `auth.ts` writes rotations back to whichever store it read from;
   writing the file on a Mac would desync Claude Code silently.
+- **An account is a HOME, not a source dir.** A Codex home contributes TWO
+  source dirs (`sessions`, `archived_sessions`) and is one account, so anything
+  rendering or scoping one row per account iterates
+  `shared/tools.ts#accountGroups` rather than `sourceDirs` — a duplicate card,
+  or a scope that takes `sessions` without `archived_sessions`, is what you get
+  otherwise. Root derivation goes through `accountRootFor`: the renderer used to
+  strip a trailing `/projects` (a no-op on a Codex dir) while
+  `visibleAccountDirs` used `path.dirname`, so the hide-prefs and the wizard
+  targeted different roots for the same account.
+- **Codex identity is read offline from `<home>/auth.json`.** `auth_mode` gives
+  the mode (`chatgpt` | `apikey`); the `tokens.id_token` JWT payload gives
+  email, plan (`chatgpt_plan_type`) and org. The signature is NOT verified and
+  must not be — ccmon has no key, makes no request, and never presents this
+  token to anything; it is display metadata from a 0600 file in the user's own
+  home, at the same trust level as reading `.claude.json`. There is NO Codex
+  limits endpoint, so the poller skips Codex homes entirely and the card says
+  "publishes no usage-limit API" — never an empty gauge, which reads as zero.
+- **Codex accounts must stay out of Anthropic-only paths.** They have
+  credentials, but OpenAI ones. `AdvisorView` filters on `tool === 'claude'`
+  BEFORE `hasCredentials`; without that the advisor spends a request on a token
+  the Messages API will reject. The compiler cannot catch this one — it is a
+  filter, not a type error. Same trap in reverse for the internals: `accounts.ts`
+  helpers take a ROOT while the public entry points take a SOURCE DIR, and both
+  are `string`, so passing the wrong one reads a path that never exists and
+  reports "no stored login" for a perfectly good account. `accounts.test.ts`
+  pins it with an expired-token fixture.
+- **The rc block is REPLACED, not appended.** It sources one file per tool,
+  every line existence-guarded, so its content never depends on which accounts
+  exist. `upsertManagedBlock` swaps the marker-delimited region and is a no-op
+  when it already matches; it also repairs a truncated block, which the old "any
+  `MARK_BEGIN` means linked" rule left broken forever. Without replacement,
+  every already-linked user would have kept a block loading only the Claude
+  wrappers — their Codex wrappers written and never sourced, with no error to
+  point at. This is the one place ccmon rewrites a file it did not create, so it
+  stays marker-narrow and goes through `writeAtomic`.
+- **The embedded helper scripts are template literals holding shell source**, so
+  an escaping slip yields a silently broken script that no unit test reads as
+  code. `npx tsx scripts/dump-helpers.ts <dir>` writes them out for `bash -n`
+  and the PowerShell parser. The scripts use `$( )` and avoid backticks
+  entirely, so `\${` is the only escape in play.
 - ccmon NEVER deletes an account: that root holds the credentials and every
   transcript the app reads. "Remove" is `AccountWrapperPrefs.hidden`, a view
   preference. Main keeps `allSourceDirs` (detected) vs `sourceDirs` (visible);

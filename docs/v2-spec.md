@@ -424,15 +424,46 @@ has no path-rename awareness of its own.
 
 ### 5.2 Accounts and live limits — `electron/services/accounts.ts`
 
-Each source root's identity (plan / tier / email / org) is read from
-`<root>/.claude.json` (or the sibling `~/.claude.json` for the default
-root) plus `<root>/.credentials.json`'s `rateLimitTier`
-(`default_claude_max_5x` → tier `'5x'`, distinguishing Max 5x from Max 20x;
-the same value exists server-side at `/api/oauth/profile`
-`organization.rate_limit_tier`). Exposed as `accounts` (dir-keyed) in
-`app:getState`.
+**An account is a tool HOME, not a source dir.** A Claude home contributes one
+source dir (`projects`); a Codex home contributes two (`sessions`,
+`archived_sessions`) and is still one account. `AccountsMap` stays keyed by
+source dir — `accounts[dir]` is read across five renderer components and
+re-keying it would be a wide change for no gain — so both Codex dirs map to
+the SAME `AccountInfo`, and anything rendering or scoping one row per account
+iterates `shared/tools.ts#accountGroups` instead. Root derivation has exactly
+one definition, `accountRootFor`; two disagreeing ones (a `/projects` regex in
+the renderer vs `path.dirname` in the service) meant the hide-prefs and the
+wizard targeted different roots for the same Codex account.
 
-`AccountInfo.cleanupPeriodDays` reads `<root>/settings.json`'s
+Identity is read per tool, dispatched by `tools/identity.ts#identityFor`:
+
+- **claude** — plan / tier / email / org from `<root>/.claude.json` (or the
+  sibling `~/.claude.json` for the default root) plus
+  `<root>/.credentials.json`'s `rateLimitTier` (`default_claude_max_5x` → tier
+  `'5x'`, distinguishing Max 5x from Max 20x; the same value exists
+  server-side at `/api/oauth/profile` `organization.rate_limit_tier`).
+- **codex** — `<root>/auth.json`: `auth_mode` gives `AccountInfo.authMode`
+  (`'chatgpt' | 'apikey'`), and the `tokens.id_token` JWT payload gives email,
+  plan (`…/auth.chatgpt_plan_type`) and org. The payload is base64url-decoded
+  with NO signature verification and no network call — ccmon has no key, never
+  presents the token to anything, and is reading display metadata from a 0600
+  file in the user's own home, the same trust level as `.claude.json`.
+  `tier` is always null (no multiplier concept) and so is `cleanupPeriodDays`.
+
+**There are no Codex limits.** OpenAI publishes no usage endpoint reachable
+with these credentials, so `refreshLimits` skips Codex homes entirely rather
+than reporting a Claude-shaped "no stored login", and the card says the tool
+publishes no limits API — an empty gauge would read as "at zero", the opposite
+of "unknown". A Codex account is also excluded from the advisor's login picker
+(`tool === 'claude'` before `hasCredentials`): it HAS credentials, but they are
+an OpenAI token the Anthropic Messages API will reject.
+
+Exposed as `accounts` (dir-keyed) in `app:getState`.
+
+`AccountInfo.cleanupPeriodDays` is `number | null` — NULL for Codex, which has
+no retention setting. Never coerce that null to 0: it would report "deletes
+everything immediately" instead of "no policy". For Claude it reads
+`<root>/settings.json`'s
 `cleanupPeriodDays` (Claude Code's own transcript-retention window — it
 deletes session transcripts older than this, at CLI startup) via
 `cleanupPeriodDays()` in `accounts.ts`, falling back to Claude Code's
@@ -769,11 +800,12 @@ Keep changes scoped to one area per PR where possible:
 | analytics | `electron/services/parser.ts`, `blocks.ts`, `aggregate.ts` | `npm test` + `npm run smoke`; `npm run parity` when parsing/dedupe changes |
 | themes | `src/theme/themes.ts` | `npm run typecheck` (the `Theme` type enforces every token) |
 | views | one `src/views/<X>View.tsx` + its co-located css | `npm run typecheck` |
-| accounts | `electron/services/accounts.ts`, `keychain.ts`, `auth.ts`, `cross-account.ts`, `account-setup.ts`, `shared/providerPresets.ts`, `src/lib/crossAccount.ts`, `src/views/AccountsView.tsx`, `src/components/accounts/` | `npm test` + `npm run smoke` |
+| accounts | `electron/services/accounts.ts`, `keychain.ts`, `auth.ts`, `cross-account.ts`, `account-setup.ts`, `tools/`, `shared/tools.ts`, `shared/providerPresets.ts`, `src/lib/crossAccount.ts`, `src/views/AccountsView.tsx`, `src/components/accounts/` | `npm test` + `npm run smoke`; `npx tsx scripts/dump-helpers.ts <dir>` + `bash -n` when a cross-resume script changes |
 | deepseek | `electron/services/deepseek.ts`, `deepseek-history.ts`, `deepseek-key.ts`, `src/lib/deepseek.ts`, `src/components/deepseek/` | `npm test` |
 | cli | `cli/` (`args.ts`, `statusline.ts`, `userdata.ts`, `index.ts`) | `npm test` + `npm run build:cli` then run `dist-cli/index.cjs` |
 | ambient text | `electron/services/status-text.ts` (tray + CLI statusline strings) | `npm test` |
 | adapters | `electron/services/adapters/` (seam + registry) | `npm test` + `npm run parity` (the Claude path must stay at 0.000%) |
+| tool registry | `shared/tools.ts` (pure) + `electron/services/tools/` (fs) | `npm test` — the drift test asserts every `ADAPTERS` id has a `TOOLS` entry |
 | wiring | `main.ts`, `preload.ts`, `watcher.ts`, store, bootstrap, `shared/` | all of the above |
 
 Cross-boundary changes (snapshot fields, IPC, settings) start in this spec
@@ -822,23 +854,45 @@ generation, detection, and linking — one family per run.
   `detected`. On Windows it's a single PowerShell `$PROFILE` target.
   Injectable `env {home, loginShell, platform, psProfile}` for tests, so every
   OS path is unit-tested on one host.
-- `renderManagedScript(accounts, home, family)` builds the contents of the
-  ONE ccmon-owned file — `~/.config/ccmon/claude-accounts.{sh,ps1}`, written
-  **0600** because an account's `env` may carry a provider API token. POSIX:
-  a `claude-<name>() { ( export CLAUDE_CONFIG_DIR=… …; claude "$@" ); }`
-  launcher (`$HOME`-relative) per account plus a `claude-<to>-from-<from>`
-  resume helper per ordered pair, calling the helper by its install path
-  (`$HOME/.local/bin/…`, since macOS does not put it on PATH). PowerShell: a
-  `function claude-<name> { … }` per account and the same `-from-` set.
-  Regenerated wholesale on every apply.
-- **`AccountSpec.env`** — extra variables the wrapper exports beside
-  `CLAUDE_CONFIG_DIR`. This is what makes an alternate-provider account
+- `renderManagedScript(accounts, home, family, tool)` builds the contents of
+  ONE TOOL's ccmon-owned file — `~/.config/ccmon/<tool>-accounts.{sh,ps1}`,
+  written **0600** because an account's `env` may carry a provider API token.
+  POSIX: a `<tool>-<name>() { ( export <HOME_VAR>=… …; <bin> "$@" ); }`
+  launcher (`$HOME`-relative) per account of that tool, plus a
+  `<tool>-<to>-from-<from>` resume helper per ordered pair, calling the helper
+  by its install path (`$HOME/.local/bin/…`, since macOS does not put it on
+  PATH). PowerShell: a `function <tool>-<name> { … }` per account and the same
+  `-from-` set. `<HOME_VAR>`, `<bin>` and the helper name all come from the
+  tool's profile in `shared/tools.ts`. Regenerated wholesale on every apply.
+- **One managed file per tool**, not one shared file. `SetupPlan.managed` is
+  an array with an entry per tool that HAS accounts; a tool with none is
+  removed on apply. Two reasons: a Claude-only user's `claude-accounts.sh`
+  must not churn because a Codex account appeared, and deleting your last
+  account of a tool should clean up rather than leave a file the rc keeps
+  sourcing. `SetupPlan.helpers` mirrors this for the cross-resume helpers.
+- **Cross-resume pairs partition by tool.** `crossPairs` groups by
+  `AccountSpec.tool` and pairs only within a group — a
+  `claude-work-from-codex-personal` wrapper would copy a Claude transcript
+  into a Codex home. Two accounts per tool yield 2 + 2 pairs, not 12.
+- **The rc block is replaced, not only appended.** It carries one guarded
+  source line per tool, emitted unconditionally, so its content never depends
+  on which accounts exist. `upsertManagedBlock` swaps the marker-delimited
+  region and returns the text unchanged when it already matches, keeping apply
+  idempotent; `SetupPlan.rcEdits[].blockReplaces` distinguishes replace from
+  append so the preview can say which. Without replacement the block could
+  never gain a line: every already-linked user would keep the old one-line
+  version, and their Codex wrappers would be written and never sourced. This
+  is the ONLY place ccmon rewrites a file it did not create, so it stays
+  marker-narrow and goes through `writeAtomic`.
+- **`AccountSpec.env`** — extra variables the wrapper exports beside the
+  tool's home variable. This is what makes an alternate-provider account
   expressible: Claude Code pointed at DeepSeek is `ANTHROPIC_BASE_URL` +
   `ANTHROPIC_AUTH_TOKEN` + a model mapping, none of which is a config dir.
   Values are emitted as fully-literal single-quoted strings in both families
-  (nothing expands), names must match `[A-Za-z_][A-Za-z0-9_]*`,
-  `CLAUDE_CONFIG_DIR` is rejected (it comes from the root — two sources for
-  one variable is a silent-mismatch bug), and a newline in a value is rejected
+  (nothing expands), names must match `[A-Za-z_][A-Za-z0-9_]*`, EVERY tool's
+  home variable is rejected (`CLAUDE_CONFIG_DIR`, `CODEX_HOME` — they come
+  from the root, and two sources for one variable is a silent-mismatch bug),
+  and a newline in a value is rejected
   because it would break out of its line. The POSIX subshell already scopes
   the exports; PowerShell's `$env:` writes the PROCESS environment, so the
   generated function saves every variable it touches and restores it in a
