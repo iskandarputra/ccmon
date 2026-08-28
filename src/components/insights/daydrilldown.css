@@ -8,9 +8,9 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: color-mix(in srgb, var(--bg0) 72%, transparent);
-  backdrop-filter: blur(3px);
-  animation: dd-fade var(--dur-1) var(--ease-out);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  animation: dd-fade 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes dd-fade {
@@ -27,20 +27,18 @@
   max-height: 84vh;
   overflow: auto;
   background: var(--bg1);
-  border-radius: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
   box-shadow:
-    calc(var(--neu-dist) * 1.4) calc(var(--neu-dist) * 1.4) calc(var(--neu-blur) * 1.6)
-      var(--neu-dark),
-    calc(var(--neu-dist) * -1.4) calc(var(--neu-dist) * -1.4) calc(var(--neu-blur) * 1.6)
-      var(--neu-light),
-    0 0 0 1px var(--neu-edge);
-  padding: 20px 22px;
-  animation: dd-rise var(--dur-2) var(--ease-out);
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 24px 64px rgba(0, 0, 0, 0.6);
+  padding: 20px 24px;
+  animation: dd-rise 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes dd-rise {
   from {
-    transform: translateY(10px) scale(0.99);
+    transform: translateY(10px) scale(0.98);
     opacity: 0;
   }
   to {
@@ -57,7 +55,7 @@
 }
 .dd-title {
   font-family: var(--sans);
-  font-size: 16px;
+  font-size: 15px;
   color: var(--text-dim);
 }
 .dd-title b {
@@ -66,16 +64,18 @@
 }
 .dd-close {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-faint);
   padding: 4px 8px;
-  border-radius: 6px;
-  transition: all var(--dur-1) ease;
+  border-radius: 4px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  cursor: pointer;
+  transition: all 0.12s ease;
 }
 .dd-close:hover {
   color: var(--text);
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  border-color: var(--text-dim);
 }
 
 .dd-empty {
@@ -92,8 +92,8 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px 24px;
-  margin: 18px 0 6px;
-  padding-bottom: 16px;
+  margin: 16px 0 6px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--line-soft);
 }
 .dd-summary-cost {
@@ -103,11 +103,12 @@
 }
 .dd-cost {
   font-family: var(--sans);
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
   color: var(--text);
-  line-height: 1;
+  line-height: 1.1;
 }
 .dd-vs {
   font-family: var(--mono);
@@ -127,14 +128,14 @@
 }
 .dd-stats {
   display: flex;
-  gap: 18px;
+  gap: 16px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-faint);
 }
 .dd-stats b {
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-dim);
   margin-right: 4px;
@@ -143,7 +144,7 @@
 .dd-cols {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 18px 24px;
+  gap: 16px 20px;
   margin: 16px 0;
 }
 .dd-col h4 {
@@ -153,14 +154,14 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
-  margin: 0 0 9px;
+  margin: 0 0 8px;
 }
 .dd-row {
   display: grid;
   grid-template-columns: 1fr 46px auto;
   align-items: center;
   gap: 8px;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 .dd-row-name {
   font-family: var(--mono);
@@ -172,15 +173,15 @@
 }
 .dd-row-bar {
   height: 5px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
   border-radius: 3px;
   overflow: hidden;
 }
 .dd-row-bar i {
   display: block;
   height: 100%;
-  border-radius: 3px;
+  border-radius: 2px;
   background: var(--chart-2);
 }
 .dd-row-val {
@@ -194,7 +195,7 @@
 .dd-foot {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   padding-top: 14px;
   border-top: 1px solid var(--line-soft);
 }
@@ -202,14 +203,13 @@
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-dim);
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
 }
 .dd-chip-new {
   color: var(--amber);
-  box-shadow:
-    var(--neu-raised-sm),
-    inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  border-color: color-mix(in srgb, var(--amber) 40%, transparent);
+  background: color-mix(in srgb, var(--amber) 10%, var(--bg0));
 }

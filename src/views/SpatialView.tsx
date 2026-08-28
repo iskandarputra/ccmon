@@ -6,10 +6,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, Grid, ContactShadows, Line } from '@react-three/drei';
+import { OrbitControls, ContactShadows, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import './spatial.css';
-import { Panel } from '../components/ui/Panel';
 import { useUsageStore } from '../store/useUsageStore';
 import { tokenColor } from '../lib/themeColors';
 import { getTheme } from '../theme/themes';
@@ -71,19 +70,6 @@ const LEGENDS: Record<Mode, string> = {
   tools: 'columns = last 35 days · one peg row per tool · height = invocations',
   whatif:
     'front lane = actual mix · each lane = ALL traffic on that model · height = est cost / day',
-};
-
-/** decorative floor-grid pitch per mode (sections every 5 cells) */
-const GRID_CELL: Record<Mode, number> = {
-  terrain: 1.14,
-  rhythm: 0.6,
-  spend: 0.6,
-  models: 0.42,
-  projects: 0.82,
-  blocks: 0.72,
-  sessions: 1.05,
-  tools: 0.42,
-  whatif: 0.42,
 };
 
 /** 'mcp__server__tool' → 'server · tool' (raw name stays in the HUD title). */
@@ -769,13 +755,10 @@ function SurfaceField({ cells, palette, setHover, motion }: SurfaceFieldProps) {
       <mesh geometry={surf.geo} onPointerMove={onMove} onPointerOut={() => setHover(() => null)}>
         <meshStandardMaterial
           vertexColors
-          roughness={0.5}
-          metalness={0.1}
+          roughness={0.4}
+          metalness={0.05}
           side={THREE.DoubleSide}
         />
-      </mesh>
-      <mesh geometry={surf.geo} position={[0, 0.012, 0]}>
-        <meshBasicMaterial wireframe color={palette.gridSection} transparent opacity={0.16} />
       </mesh>
     </group>
   );
@@ -1022,25 +1005,12 @@ function Scene({ palette, mode, plot, autoRotate, cells, hover, setHover, motion
       )}
       <ContactShadows
         position={[0, 0, 0]}
-        opacity={isDark ? 0.3 : 0.15}
-        scale={26}
-        blur={2.6}
-        far={4.5}
+        opacity={isDark ? 0.35 : 0.18}
+        scale={30}
+        blur={2.8}
+        far={5}
         resolution={512}
-        color={isDark ? '#000000' : '#475569'}
-      />
-      <Grid
-        position={[0, -0.01, 0]}
-        args={[34, 34]}
-        cellSize={GRID_CELL[mode]}
-        cellThickness={0.6}
-        cellColor={palette.grid}
-        sectionSize={GRID_CELL[mode] * 5}
-        sectionThickness={1}
-        sectionColor={palette.gridSection}
-        fadeDistance={55}
-        fadeStrength={1}
-        infiniteGrid
+        color={isDark ? '#000000' : '#334155'}
       />
       <OrbitControls
         makeDefault
@@ -1061,12 +1031,13 @@ export function SpatialView() {
   const themeId = useUsageStore((s) => s.settings?.theme);
   const [mode, setMode] = useState<Mode>('terrain');
   const [plot, setPlot] = useState<Plot>('bars');
+  const [cameraKey, setCameraKey] = useState(0);
   const [hover, setHoverState] = useState<Hover | null>(null);
   const setHover = (updater: (h: Hover | null) => Hover | null) => setHoverState(updater);
 
   // Materials can't read var(--token) — resolve concrete colors per theme.
   const theme = useMemo(() => getTheme(themeId), [themeId]);
-  const palette = useMemo(() => resolvePalette(theme.dark), [themeId, theme.dark]);
+  const palette = useMemo(() => resolvePalette(theme.dark), [theme.dark]);
 
   // orbit, ripple entrance, shimmer, pulses — all decoration; drop them all
   // for reduced-motion users (the data itself never moves)
@@ -1167,109 +1138,116 @@ export function SpatialView() {
   if (!snapshot) return null;
 
   return (
-    <div className="grid">
-      <div className="g12">
-        <Panel title="usage in 3d" right={<span className="panel-note">{headline}</span>}>
-          <div className="spa-stage">
-            {/* Continuous 60fps only while it visibly matters: auto-rotate
-                (orbiting) or a hover scale lerp need every frame. Otherwise drop
-                to on-demand — r3f still renders on data/theme/view changes
-                (prop-driven scene-graph updates) and OrbitControls damping. The
-                idle shimmer is then paced to ~30fps by FrameThrottle (half the
-                cost), and a settled reduced-motion field renders zero frames. */}
-            <Canvas
-              dpr={[1, 1.75]}
-              frameloop={orbiting || hover ? 'always' : 'demand'}
-              camera={{ position: [7.5, 6.5, 9], fov: 38 }}
+    <div className="spa-studio">
+      {/* Top Floating Control Bar */}
+      <div className="spa-control-bar">
+        <div className="spa-mode-group">
+          {MODES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`spa-mode-btn ${mode === m ? 'is-active' : ''}`}
+              onClick={() => {
+                setMode(m);
+                if (m !== 'terrain' && plot === 'stacked') setPlot('bars');
+                setHoverState(null);
+              }}
             >
-              <FrameThrottle active={motionOk && !orbiting && !hover} fps={30} />
-              <Scene
-                palette={palette}
-                mode={mode}
-                plot={plot}
-                autoRotate={orbiting}
-                cells={plotCells}
-                hover={hover}
-                setHover={setHover}
-                motion={motionOk}
-              />
-            </Canvas>
+              {MODE_LABELS[m] ?? m}
+            </button>
+          ))}
+        </div>
 
-            {/* Top Floating Control Bar */}
-            <div className="spa-control-bar">
-              <div className="spa-mode-group">
-                {MODES.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={`spa-mode-btn ${mode === m ? 'is-active' : ''}`}
-                    onClick={() => {
-                      setMode(m);
-                      if (m !== 'terrain' && plot === 'stacked') setPlot('bars');
-                      setHoverState(null);
-                    }}
-                  >
-                    {MODE_LABELS[m] ?? m}
-                  </button>
-                ))}
-              </div>
-
-              <div className="spa-view-group">
-                <div className="spa-plot-pills">
-                  {PLOTS.filter((pl) => pl !== 'stacked' || mode === 'terrain').map((pl) => (
-                    <button
-                      key={pl}
-                      type="button"
-                      className={`spa-plot-btn ${plot === pl ? 'is-active' : ''}`}
-                      onClick={() => {
-                        setPlot(pl);
-                        setHoverState(null);
-                      }}
-                    >
-                      {pl}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  className="spa-orbit-btn"
-                  onClick={() => setOrbiting((o) => !o)}
-                  title="Toggle 3D camera auto-orbit"
-                >
-                  <i className={`spa-orbit-dot ${orbiting ? 'is-on' : ''}`} aria-hidden />
-                  <span>orbit</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Hover Telemetry Card */}
-            <div className={`spa-hud ${hover ? 'is-on' : ''}`}>
-              {hover ? (
-                <>
-                  <div className="spa-hud-title">{hover.cell.title}</div>
-                  {hover.cell.lines.map(([k, v]) => (
-                    <div className="spa-hud-row" key={k}>
-                      <span>{k}</span>
-                      <b>{v}</b>
-                    </div>
-                  ))}
-                </>
-              ) : (
-                <div className="spa-hud-hint">Hover over 3D nodes to inspect telemetry</div>
-              )}
-            </div>
+        <div className="spa-view-group">
+          <div className="spa-plot-pills">
+            {PLOTS.filter((pl) => pl !== 'stacked' || mode === 'terrain').map((pl) => (
+              <button
+                key={pl}
+                type="button"
+                className={`spa-plot-btn ${plot === pl ? 'is-active' : ''}`}
+                onClick={() => {
+                  setPlot(pl);
+                  setHoverState(null);
+                }}
+              >
+                {pl}
+              </button>
+            ))}
           </div>
-          <div className="spa-legend">
-            <span>
-              {LEGENDS[mode]}
-              {plot === 'contour' ? ' · contour: value = color bands, not height' : ''}
-              {plot === 'trail' && mode === 'terrain' ? ' · trail: height = cumulative spend' : ''}
-              {plot === 'stacked' ? ' · stacked: segments = model split per day' : ''}
-            </span>
-            <span className="spa-hint">drag to rotate · scroll to zoom · right-click to pan</span>
-          </div>
-        </Panel>
+
+          <button
+            type="button"
+            className="spa-orbit-btn"
+            onClick={() => setOrbiting((o) => !o)}
+            title="Toggle 3D camera auto-orbit"
+          >
+            <i className={`spa-orbit-dot ${orbiting ? 'is-on' : ''}`} aria-hidden />
+            <span>orbit</span>
+          </button>
+
+          <button
+            type="button"
+            className="spa-plot-btn"
+            onClick={() => setCameraKey((k) => k + 1)}
+            title="Reset 3D camera to default angle"
+          >
+            reset
+          </button>
+        </div>
+      </div>
+
+      {/* Continuous 60fps only while it visibly matters: auto-rotate
+          (orbiting) or a hover scale lerp need every frame. Otherwise drop
+          to on-demand — r3f still renders on data/theme/view changes
+          (prop-driven scene-graph updates) and OrbitControls damping. The
+          idle shimmer is then paced to ~30fps by FrameThrottle (half the
+          cost), and a settled reduced-motion field renders zero frames. */}
+      <Canvas
+        key={cameraKey}
+        dpr={[1, 1.75]}
+        frameloop={orbiting || hover ? 'always' : 'demand'}
+        camera={{ position: [7.5, 6.5, 9], fov: 38 }}
+      >
+        <FrameThrottle active={motionOk && !orbiting && !hover} fps={30} />
+        <Scene
+          palette={palette}
+          mode={mode}
+          plot={plot}
+          autoRotate={orbiting}
+          cells={plotCells}
+          hover={hover}
+          setHover={setHover}
+          motion={motionOk}
+        />
+      </Canvas>
+
+      {/* Hover Telemetry Card */}
+      <div className={`spa-hud ${hover ? 'is-on' : ''}`}>
+        {hover ? (
+          <>
+            <div className="spa-hud-title">{hover.cell.title}</div>
+            {hover.cell.lines.map(([k, v]) => (
+              <div className="spa-hud-row" key={k}>
+                <span>{k}</span>
+                <b>{v}</b>
+              </div>
+            ))}
+          </>
+        ) : (
+          <div className="spa-hud-hint">Hover over 3D nodes to inspect telemetry</div>
+        )}
+      </div>
+
+      {/* Floating Legend & Controls Tip */}
+      <div className="spa-legend">
+        {headline && <span style={{ color: 'var(--amber)', fontWeight: 600 }}>{headline}</span>}
+        <span>
+          {LEGENDS[mode]}
+          {plot === 'contour' ? ' · contour: value = color bands, not height' : ''}
+          {plot === 'trail' && mode === 'terrain' ? ' · trail: height = cumulative spend' : ''}
+          {plot === 'stacked' ? ' · stacked: segments = model split per day' : ''}
+        </span>
+        <span className="spa-hint">drag to rotate · scroll to zoom · right-click to pan</span>
       </div>
     </div>
   );

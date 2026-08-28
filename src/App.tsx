@@ -4,7 +4,7 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import { lazy, Suspense, useEffect, useRef, type ComponentType } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
 import { useBootstrap, updateSettings } from './bootstrap';
 import { useUsageStore, type ViewId } from './store/useUsageStore';
 import { TitleBar } from './components/layout/TitleBar';
@@ -97,11 +97,34 @@ function usePrivacyHotkey(): void {
   }, []);
 }
 
+import { AdvisorDrawer } from './components/advisor/AdvisorDrawer';
+
+function useAdvisorHotkey(onToggle: () => void): void {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        onToggle();
+      }
+    };
+    const onOpen = () => onToggle();
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('open-advisor', onOpen);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('open-advisor', onOpen);
+    };
+  }, [onToggle]);
+}
+
 export default function App() {
   useBootstrap();
   useViewHotkeys();
   usePrivacyHotkey();
   useSpotlight();
+  const [advisorOpen, setAdvisorOpen] = useState(false);
+  useAdvisorHotkey(() => setAdvisorOpen((o) => !o));
+
   const status = useUsageStore((s) => s.status);
   const hasData = useUsageStore((s) => (s.snapshot?.entryCount ?? 0) > 0);
   const view = useUsageStore((s) => s.view);
@@ -113,21 +136,23 @@ export default function App() {
   }, [view]);
 
   const ViewComponent = VIEW_COMPONENTS[view] || OverviewView;
-  // Settings stays reachable even while scanning / with no data.
-  const body =
-    view === 'settings' ? (
-      <ViewComponent />
-    ) : status !== 'ready' ? (
-      <ScanOverlay />
-    ) : hasData ? (
-      <ViewComponent />
-    ) : (
-      <EmptyState />
-    );
+  // Settings and active dashboard stay visible with low opacity ScanOverlay floating on top during startup/indexing
+  const body = (
+    <>
+      {hasData || view === 'settings' ? (
+        <ViewComponent />
+      ) : status === 'ready' ? (
+        <EmptyState />
+      ) : (
+        <ViewComponent />
+      )}
+      {status !== 'ready' && <ScanOverlay />}
+    </>
+  );
 
   return (
     <div className="app">
-      <TitleBar />
+      <TitleBar onToggleAdvisor={() => setAdvisorOpen((o) => !o)} />
       <div className="body">
         <Sidebar />
         <main className="content" ref={contentRef}>
@@ -142,6 +167,7 @@ export default function App() {
       <StatusBar />
       <div className="grain" aria-hidden="true" />
       <CommandPalette />
+      <AdvisorDrawer open={advisorOpen} onClose={() => setAdvisorOpen(false)} />
     </div>
   );
 }

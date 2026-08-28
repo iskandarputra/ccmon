@@ -5,7 +5,7 @@
  */
 
 import './planlimits.css';
-import { useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Panel } from '../ui/Panel';
 import { Hint } from '../ui/Hint';
 import { LoginPrompt } from '../auth/LoginPrompt';
@@ -17,6 +17,32 @@ import { limitColor, windowLabel } from '../../lib/limits';
 import { accountGroups, toolFor } from '../../../shared/tools';
 import { planBadgeColor, planLabel } from '../../lib/plans';
 import type { LimitSample, LimitWindow, WindowForecast } from '../../../shared/types';
+
+function Glyph({
+  children,
+  className,
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <svg
+      className={className}
+      style={style}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
 
 /** A failure that re-authenticating would fix — show the in-app Log in control. */
 function isAuthIssue(err: string | undefined): boolean {
@@ -98,7 +124,7 @@ function WindowTile({ label, win, forecast, now }: WindowTileProps) {
       )}
       {fc &&
         (capsBeforeReset ? (
-          <div className="plim-win-eta is-warn">caps ~{resetLabel(fc.etaTs!)} at this pace</div>
+          <div className="plim-win-eta is-warn">⚠ caps ~{resetLabel(fc.etaTs!)} at this pace</div>
         ) : (
           <div className="plim-win-eta">+{fc.pctPerHour.toFixed(1)}%/h · clears reset</div>
         ))}
@@ -107,9 +133,7 @@ function WindowTile({ label, win, forecast, now }: WindowTileProps) {
 }
 
 /**
- * Tiny trail of the weekly utilization from the persisted polls — pure
- * texture, no label; the tooltip explains it. Hidden until the history
- * spans long enough to have a meaningful shape.
+ * Tiny trail of the weekly utilization from the persisted polls.
  */
 function HistorySpark({ samples }: { samples: LimitSample[] }) {
   const pts = samples.filter((s) => s.week != null);
@@ -120,7 +144,7 @@ function HistorySpark({ samples }: { samples: LimitSample[] }) {
   const d = pts
     .map((s, i) => {
       const x = ((s.ts - t0) / span) * 100;
-      const y = 17 - (Math.min(100, Math.max(0, s.week as number)) / 100) * 16;
+      const y = 16 - (Math.min(100, Math.max(0, s.week as number)) / 100) * 15;
       return `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(' ');
@@ -129,9 +153,9 @@ function HistorySpark({ samples }: { samples: LimitSample[] }) {
       className="plim-spark-wrap"
       title={`weekly utilization over the last ${Math.round(span / 3600e3)}h of polls`}
     >
-      <span className="plim-spark-label">7d utilization trend</span>
+      <span className="plim-spark-label">7d trend</span>
       <div className="plim-spark">
-        <svg viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden>
+        <svg viewBox="0 0 100 16" preserveAspectRatio="none" aria-hidden>
           <path d={d} />
         </svg>
       </div>
@@ -140,11 +164,7 @@ function HistorySpark({ samples }: { samples: LimitSample[] }) {
 }
 
 /**
- * Live plan limits for every scoped account — the real numbers from
- * Anthropic's usage endpoint, with plan + tier (max 5x / 20x) chips and
- * verbose failure/stale states. Lives only in the Overview view — the
- * Blocks view used to duplicate this card but only ever needs
- * `haveLiveLimits` (whether to hide its own local estimate), not the card.
+ * Live plan limits for every scoped account.
  */
 export function PlanLimits() {
   const limits = useUsageStore((s) => s.limits);
@@ -154,19 +174,12 @@ export function PlanLimits() {
   const now = useNow(30000);
   const [refreshing, setRefreshing] = useState(false);
 
-  // limits are polled for every account; this overview card stays aligned to
-  // the data scope. The accounts view is where ALL logins show side by side.
   const dirs = scoped.filter((d) => limits[d]);
-  // Codex records its limits in the transcript rather than serving them from
-  // an endpoint, so it never appears in `limits` and used to be missing from
-  // this panel entirely — the one place a multi-tool user looks to compare
-  // accounts. One dir per account: a Codex home feeds two.
   const recordedDirs = accountGroups(scoped)
     .map((g) => g.dirs.find((d) => toolLimits[d]))
     .filter((d): d is string => !!d);
   if (!dirs.length && !recordedDirs.length) return null;
 
-  // manual refresh bypasses the failure backoff in main — the user asked
   async function refresh() {
     if (refreshing) return;
     setRefreshing(true);
@@ -179,16 +192,34 @@ export function PlanLimits() {
 
   return (
     <Panel
-      title="plan limits · live"
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="dot is-live" style={{ background: 'var(--ok)' }} />
+          <span>plan limits · live</span>
+        </div>
+      }
       right={
-        <div className="dc-head">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span className="panel-note">
             {recordedDirs.length
               ? 'polled from anthropic · read from codex logs'
-              : 'your real anthropic limits · 60s refresh'}
+              : 'real anthropic limits · 60s refresh'}
           </span>
-          <button type="button" className="plim-refresh" onClick={refresh} disabled={refreshing}>
-            {refreshing ? 'refreshing…' : 'refresh now'}
+          <button
+            type="button"
+            className="plim-refresh"
+            onClick={refresh}
+            disabled={refreshing}
+            title="Force immediate poll of Anthropic rate limits"
+          >
+            <Glyph
+              className={`sb-action-glyph ${refreshing ? 'is-spin' : ''}`}
+              style={{ width: 12, height: 12 }}
+            >
+              <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+              <path d="M20 5v6h-6" />
+            </Glyph>
+            <span>{refreshing ? 'refreshing…' : 'refresh now'}</span>
           </button>
         </div>
       }
@@ -204,26 +235,32 @@ export function PlanLimits() {
           return (
             <div className="plim-account" key={dir}>
               <div className="plim-head">
-                <span className="plim-name">{sourceLabel(dir)}</span>
-                <span className="plim-tool">{toolFor(dir).label}</span>
-                {acct?.plan && (
-                  <span
-                    className="plim-plan"
-                    style={cssVars({
-                      '--pc': planBadgeColor(acct.plan, acct.tier) ?? 'var(--amber)',
-                    })}
-                  >
-                    {planLabel(acct.plan, acct.tier, toolFor(dir).id)}
-                  </span>
-                )}
-                {!r?.ok && (
-                  <span className="plim-err" title={r?.error}>
-                    {fmtErr(r?.error) || 'unavailable'}
-                    {r ? ` · ${retryNote}` : ''}
-                  </span>
-                )}
+                <div className="plim-head-left">
+                  <span className="plim-name">{sourceLabel(dir)}</span>
+                  <span className="plim-tool">{toolFor(dir).label}</span>
+                  {acct?.plan && (
+                    <span
+                      className="plim-plan"
+                      style={cssVars({
+                        '--pc': planBadgeColor(acct.plan, acct.tier) ?? 'var(--amber)',
+                      })}
+                    >
+                      {planLabel(acct.plan, acct.tier, toolFor(dir).id)}
+                    </span>
+                  )}
+                </div>
+                <div className="plim-head-right">
+                  {!r?.ok && (
+                    <span className="plim-err" title={r?.error}>
+                      {fmtErr(r?.error) || 'unavailable'}
+                      {r ? ` · ${retryNote}` : ''}
+                    </span>
+                  )}
+                </div>
               </div>
+
               {!r?.ok && isAuthIssue(r?.error) && <LoginPrompt dir={dir} />}
+
               {r?.ok && (
                 <>
                   <div className="plim-wins">
@@ -239,15 +276,18 @@ export function PlanLimits() {
                       forecast={r.forecast?.week}
                       now={now}
                     />
-                    <WindowTile label="week · opus" win={r.weekOpus} now={now} />
-                    <WindowTile label="week · sonnet" win={r.weekSonnet} now={now} />
+                    {r.weekOpus && <WindowTile label="week · opus" win={r.weekOpus} now={now} />}
+                    {r.weekSonnet && (
+                      <WindowTile label="week · sonnet" win={r.weekSonnet} now={now} />
+                    )}
                   </div>
+
                   <div className="plim-foot">
                     <HistorySpark samples={r.history ?? []} />
                     {r.caps && r.caps.session.resets + r.caps.week.resets > 0 && (
                       <div
                         className="plim-caps"
-                        title="resets observed in the retained poll history (7 days); capped = the window was ≥95% when it reset"
+                        title="Resets observed in the retained 7-day poll history; capped = window reached ≥95% when it reset"
                       >
                         7d resets — session {r.caps.session.capped} of {r.caps.session.resets}{' '}
                         capped
@@ -257,10 +297,16 @@ export function PlanLimits() {
                       </div>
                     )}
                   </div>
+
                   {r.stale && (
                     <div className="plim-stale" title={r.lastError?.error}>
-                      showing data from {relTime(r.fetchedAt, now)} —{' '}
-                      {fmtErr(r.lastError?.error) || 'latest refresh failed'} · {retryNote}
+                      <Glyph className="plim-stale-icon">
+                        <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      </Glyph>
+                      <span>
+                        Showing data from {relTime(r.fetchedAt, now)} —{' '}
+                        {fmtErr(r.lastError?.error) || 'latest refresh failed'} · {retryNote}
+                      </span>
                     </div>
                   )}
                 </>
@@ -268,29 +314,33 @@ export function PlanLimits() {
             </div>
           );
         })}
+
         {recordedDirs.map((dir) => {
           const m = toolLimits[dir];
           const acct = accounts[dir];
           return (
             <div className="plim-account" key={dir}>
               <div className="plim-head">
-                <span className="plim-name">{sourceLabel(dir)}</span>
-                <span className="plim-tool">{toolFor(dir).label}</span>
-                {(m.planType || acct?.plan) && (
-                  <span
-                    className="plim-plan"
-                    style={cssVars({ '--pc': 'var(--text-dim)' })}
-                    title="reported by the tool itself, per turn"
-                  >
-                    {planLabel(m.planType || acct?.plan || null, null, toolFor(dir).id)}
+                <div className="plim-head-left">
+                  <span className="plim-name">{sourceLabel(dir)}</span>
+                  <span className="plim-tool">{toolFor(dir).label}</span>
+                  {(m.planType || acct?.plan) && (
+                    <span
+                      className="plim-plan"
+                      style={cssVars({ '--pc': 'var(--text-dim)' })}
+                      title="Reported by tool per turn"
+                    >
+                      {planLabel(m.planType || acct?.plan || null, null, toolFor(dir).id)}
+                    </span>
+                  )}
+                </div>
+                <div className="plim-head-right">
+                  <span className="plim-recorded" title="Read from local session log, not polled">
+                    as of {relTime(m.observedAt, now)}
                   </span>
-                )}
-                {/* NOT the live dot: read from a rollout, so only as fresh as
-                    the last real turn — /status and /usage write nothing. */}
-                <span className="plim-recorded" title="read from the session log, not polled">
-                  as of {relTime(m.observedAt, now)}
-                </span>
+                </div>
               </div>
+
               <div className="plim-wins">
                 {(
                   [
@@ -312,6 +362,7 @@ export function PlanLimits() {
           );
         })}
       </div>
+
       <Hint label="about these numbers">
         utilization comes live from anthropic's usage endpoint via your stored Claude Code login —
         read-only, tokens are never refreshed. "caps ~…" is a linear fit over the recent polls,

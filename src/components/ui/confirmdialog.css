@@ -7,9 +7,9 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background: color-mix(in srgb, var(--bg0) 60%, transparent);
-  backdrop-filter: blur(3px);
-  animation: cfd-fade var(--dur-1) var(--ease-out);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  animation: cfd-fade 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes cfd-fade {
   from {
@@ -23,19 +23,17 @@
 .cfd {
   width: min(420px, 92%);
   background: var(--bg1);
-  border-radius: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
   box-shadow:
-    calc(var(--neu-dist) * 1.4) calc(var(--neu-dist) * 1.4) calc(var(--neu-blur) * 1.6)
-      var(--neu-dark),
-    calc(var(--neu-dist) * -1.4) calc(var(--neu-dist) * -1.4) calc(var(--neu-blur) * 1.6)
-      var(--neu-light),
-    0 0 0 1px var(--neu-edge);
-  padding: 20px;
-  animation: cfd-rise var(--dur-2) var(--ease-out);
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 24px 64px rgba(0, 0, 0, 0.6);
+  padding: 20px 22px;
+  animation: cfd-rise 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes cfd-rise {
   from {
-    transform: translateY(-8px);
+    transform: translateY(-8px) scale(0.98);
     opacity: 0;
   }
   to {
@@ -49,7 +47,7 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .cfd-body {
@@ -62,58 +60,59 @@
   font-family: var(--mono);
   font-size: 12px;
   color: var(--text);
+  background: var(--bg0);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--line-soft);
 }
 
 .cfd-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 18px;
+  margin-top: 20px;
 }
 
 .cfd-cancel,
 .cfd-confirm {
   font-family: var(--sans);
-  font-size: 13px;
-  padding: 7px 14px;
-  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: box-shadow var(--dur-1) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .cfd-cancel {
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line);
   color: var(--text-dim);
 }
 .cfd-cancel:hover {
-  box-shadow: var(--neu-inset);
+  background: var(--bg2);
+  color: var(--text);
+  border-color: var(--text-dim);
 }
 
 .cfd-confirm {
-  background: color-mix(in srgb, var(--amber) 16%, var(--bg1));
-  color: var(--text);
-  box-shadow:
-    var(--neu-raised-sm),
-    inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  background: var(--amber);
+  color: #000000;
+  font-weight: 600;
+  border: 1px solid var(--amber);
 }
 .cfd-confirm:hover {
-  box-shadow:
-    var(--neu-inset),
-    inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  filter: brightness(1.08);
 }
 .cfd-confirm.is-danger {
-  background: color-mix(in srgb, var(--rose) 16%, var(--bg1));
-  box-shadow:
-    var(--neu-raised-sm),
-    inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent);
+  background: var(--rose);
+  color: #ffffff;
+  border-color: var(--rose);
 }
 .cfd-confirm.is-danger:hover {
-  box-shadow:
-    var(--neu-inset),
-    inset 0 0 0 1px color-mix(in srgb, var(--rose) 45%, transparent);
+  filter: brightness(1.1);
 }
 .cfd-confirm:disabled,
 .cfd-cancel:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: default;
 }

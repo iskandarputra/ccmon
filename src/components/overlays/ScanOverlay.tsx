@@ -1,23 +1,29 @@
 /**
  * @file ScanOverlay.tsx
- * @brief Clean, minimalist, executive indexing status overlay.
+ * @brief Clean, minimalist, executive indexing status overlay with transparent frosted glass HUD.
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
 import { useUsageStore } from '../../store/useUsageStore';
-import { fmtInt } from '../../lib/format';
+import { fmtInt, tildify } from '../../lib/format';
+import './scanoverlay.css';
 
 export function ScanOverlay() {
   const progress = useUsageStore((s) => s.progress);
   const status = useUsageStore((s) => s.status);
+  const sourceDirs = useUsageStore((s) => s.sourceDirs);
 
   const pct =
     progress.total > 0
       ? Math.min(100, Math.round((progress.scanned / progress.total) * 100))
       : null;
 
+  const sourceLabel = sourceDirs?.length
+    ? sourceDirs.map(tildify).join(', ')
+    : '~/.claude/transcripts';
+
   return (
-    <div className="overlay">
+    <div className="scan-overlay-backdrop">
       <div className="ov-hud">
         <div className="ov-hud-head">
           <div className="ov-brand">
@@ -64,7 +70,9 @@ export function ScanOverlay() {
           </div>
           <div className="ov-cell">
             <span className="ov-k">Source</span>
-            <span className="ov-v ov-path">~/.claude/transcripts</span>
+            <span className="ov-v" title={sourceLabel}>
+              {sourceLabel}
+            </span>
           </div>
         </div>
       </div>

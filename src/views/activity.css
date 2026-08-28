@@ -1,6 +1,120 @@
-/* ── ActivityView · usage-over-time analytics ────────────────────────────── */
+/* ───────────────────────────────────────────────────────────────────────────
+   ActivityView (.act- prefix) · Usage Analytics & Burn Horizons
+   ─────────────────────────────────────────────────────────────────────────── */
 
-/* legend under the stacked daily chart */
+/* ===== Records & Streak KPI Strip ========================================= */
+
+.act-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.act-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  background: linear-gradient(
+    180deg,
+    var(--bg1) 0%,
+    color-mix(in srgb, var(--bg1) 85%, var(--bg0)) 100%
+  );
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 4px 16px rgba(0, 0, 0, 0.2);
+  transition:
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.act-stat:hover {
+  border-color: color-mix(in srgb, var(--text-dim) 35%, var(--line));
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.act-stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.act-stat-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.act-stat-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, var(--bg0));
+  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
+}
+.act-stat-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.act-stat-value {
+  font-family: var(--sans);
+  font-feature-settings:
+    'tnum' 1,
+    'cv02' 1,
+    'cv03' 1;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+.act-dim {
+  color: var(--text-faint);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.act-stat-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1200px) {
+  .act-strip {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .act-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Model Legend ======================================================= */
+
 .act-legend {
   display: flex;
   flex-wrap: wrap;
@@ -14,6 +128,7 @@
 .act-legend-cap {
   font-family: var(--mono);
   font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-faint);
@@ -26,9 +141,9 @@
   gap: 7px;
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: var(--text-dim);
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 6px;
   background: var(--bg0);
   border: 1px solid var(--line-soft);
@@ -42,123 +157,44 @@
 }
 
 .act-swatch {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
   flex: none;
 }
 
-/* modern empty state — dim icon, lead line, faint sub line */
+/* ===== Modern Empty State ================================================= */
+
 .act-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
   gap: 8px;
-  padding: 40px 0;
+  padding: 48px 24px;
 }
 
 .act-empty-icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   color: var(--text-faint);
-  opacity: 0.7;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .act-empty-lead {
   font-family: var(--sans);
   font-size: 14px;
-  font-weight: 500;
-  color: var(--text-dim);
+  font-weight: 600;
+  color: var(--text);
   margin: 0;
 }
 
 .act-empty-sub {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.04em;
   color: var(--text-faint);
   margin: 0;
-}
-
-/* records strip — one tile per record, wraps cleanly at any width */
-.act-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-}
-
-.act-stat {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto auto;
-  align-items: center;
-  column-gap: 12px;
-  row-gap: 4px;
-  padding: 16px 18px;
-  background: var(--bg1);
-  border: 1px solid var(--line);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  border-radius: 12px;
-  min-width: 0;
-  transition: all 0.2s ease;
-}
-.act-stat:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
-}
-
-.act-stat-icon {
-  grid-row: 1 / span 2;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 12%, var(--bg1));
-  box-shadow: var(--neu-inset);
-}
-.act-stat-icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.act-stat-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-faint);
-  align-self: end;
-}
-
-.act-stat-value {
-  font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: 'tnum' 1;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.15;
-  color: var(--text);
-  align-self: start;
-}
-
-.act-dim {
-  color: var(--text-faint);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.act-stat-sub {
-  grid-column: 1 / -1;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  margin-top: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -44,6 +44,8 @@ export interface UsageEntry {
   costUSD: number | null;
   /** tool_use block names in order (may repeat); omitted when none */
   tools?: string[];
+  /** file paths touched by tool operations in this turn */
+  files?: string[];
   /** message.stop_reason ('tool_use' | 'end_turn' | 'max_tokens' | …) or null */
   stop?: string | null;
   /** owning data root (source scoping), stamped by the watcher */
@@ -568,6 +570,10 @@ export interface ProjectRow {
   /** est cost of this project's sidechain (subagent) entries */
   sidechainCost: number;
   daily: Array<{ date: string; cost: number }>;
+  /** Architecture layer breakdown for this project */
+  layers?: LayerSpend[];
+  /** Top hotspot files in this project */
+  hotspots?: FileHotspot[];
 }
 
 export interface SessionContext {
@@ -803,11 +809,67 @@ export interface Snapshot {
   reconcile: CostReconciliation;
   records: UsageRecords;
   recentEvents: FeedEvent[];
+  /** Codebase architecture layer spend and file hotspot analytics */
+  knowledge: KnowledgeGraphData;
   /**
    * Lifetime + recent spend per account root, scope-INDEPENDENT (every
    * discovered login, like live limits) — powers the accounts dashboard.
    */
   accountSpend: AccountSpendMap;
+}
+
+export type ArchLayerKey =
+  | 'core'
+  | 'proto'
+  | 'tui'
+  | 'embedded'
+  | 'backend'
+  | 'frontend'
+  | 'ml'
+  | 'mobile'
+  | 'contracts'
+  | 'testing'
+  | 'docs'
+  | 'devops'
+  | 'skills'
+  | 'config'
+  | 'other';
+
+export interface LayerSpend {
+  key: ArchLayerKey;
+  label: string;
+  cost: number;
+  pct: number;
+  tokens: number;
+  touches: number;
+  color: string;
+}
+
+export interface FileHotspot {
+  file: string;
+  shortPath: string;
+  layer: ArchLayerKey;
+  touches: number;
+  cost: number;
+  tokens: number;
+  sessions: number;
+  lastTs: number;
+}
+
+export interface ModuleSpend {
+  name: string;
+  cost: number;
+  tokens: number;
+  touches: number;
+  filesCount: number;
+  layer: ArchLayerKey;
+}
+
+export interface KnowledgeGraphData {
+  layers: LayerSpend[];
+  hotspots: FileHotspot[];
+  modules: ModuleSpend[];
+  totalFileTouches: number;
 }
 
 /** Lifetime + recent spend for one account root (scope-independent). */

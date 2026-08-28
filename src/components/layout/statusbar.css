@@ -1,0 +1,282 @@
+/* ── StatusBar (.statusbar & .sb- prefix) ─────────────────────────────────── */
+
+.statusbar {
+  position: relative;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--bg0) 94%, var(--bg1) 6%);
+  border-top: 1px solid var(--line);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  user-select: none;
+  z-index: 40;
+  box-shadow: 0 -1px 0 0 rgba(255, 255, 255, 0.02) inset;
+}
+
+.sb-left,
+.sb-center,
+.sb-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sb-left {
+  flex: 1 1 auto;
+}
+
+.sb-center {
+  flex: 0 0 auto;
+}
+
+.sb-right {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+/* ── Scope Switcher ──────────────────────────────────────────────────────── */
+
+.sb-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg1);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.sb-scope-pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-faint);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+
+.sb-scope-pill:hover {
+  color: var(--text);
+  background: var(--bg0);
+}
+
+.sb-scope-pill.is-active {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, var(--bg0));
+  border-color: color-mix(in srgb, var(--amber) 30%, transparent);
+}
+
+/* ── Single Data Directory Link ─────────────────────────────────────────── */
+
+.sb-dir-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--bg1);
+  border: 1px solid var(--line-soft);
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.sb-dir-link:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+  background: var(--bg2);
+}
+
+.sb-dir-glyph {
+  width: 12px;
+  height: 12px;
+  color: var(--text-faint);
+  flex: none;
+}
+
+/* ── Telemetry Chips ─────────────────────────────────────────────────────── */
+
+.sb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.sb-chip-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg1);
+  border: 1px solid var(--line-soft);
+  color: var(--text-faint);
+}
+
+.sb-chip-badge.is-live {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, var(--bg1));
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+}
+
+.sb-warn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--rose);
+  background: color-mix(in srgb, var(--rose) 12%, var(--bg0));
+  border: 1px solid color-mix(in srgb, var(--rose) 35%, transparent);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* ── Live Sync Status Dot ────────────────────────────────────────────────── */
+
+.sb-sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.sb-sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 60%, transparent);
+}
+
+.sb-sync-dot.is-scanning {
+  background: var(--amber);
+  animation: sb-pulse 1.2s infinite;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 60%, transparent);
+}
+
+.sb-sync-dot.is-error {
+  background: var(--rose);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--rose) 60%, transparent);
+}
+
+@keyframes sb-pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+}
+
+/* ── Rescan & Action Buttons ─────────────────────────────────────────────── */
+
+.sb-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--bg1);
+  border: 1px solid var(--line-soft);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.sb-action-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--text-dim);
+  background: var(--bg2);
+}
+
+.sb-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sb-action-glyph {
+  width: 11px;
+  height: 11px;
+  color: var(--amber);
+}
+
+.sb-action-glyph.is-spin {
+  animation: sb-spin 0.8s linear infinite;
+}
+
+@keyframes sb-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── App Version Pill ────────────────────────────────────────────────────── */
+
+.sb-ver {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-faint);
+  background: var(--bg1);
+  border: 1px solid var(--line-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ── Responsive Collapse ─────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .sb-center {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .statusbar {
+    height: auto;
+    padding: 6px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

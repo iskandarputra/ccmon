@@ -15,7 +15,7 @@
 .login-hint {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: var(--text-faint);
 }
 
@@ -29,24 +29,23 @@
 .login-btn {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: var(--amber);
-  padding: 3px 12px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--amber) 8%, var(--bg1));
-  box-shadow:
-    var(--neu-raised-sm),
-    inset 0 0 0 1px color-mix(in srgb, var(--amber) 50%, transparent);
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--amber) 10%, var(--bg0));
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
   white-space: nowrap;
-  transition: all var(--dur-1) ease;
+  transition: all 0.12s ease;
+  cursor: pointer;
 }
 .login-btn:hover:not(:disabled) {
-  color: var(--bg0);
   background: var(--amber);
-  box-shadow: var(--neu-raised-sm);
+  color: #000000;
+  border-color: var(--amber);
 }
 .login-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
 
@@ -56,30 +55,29 @@
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text);
-  padding: 4px 9px;
-  border-radius: 6px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
 }
 .login-code:focus {
   outline: none;
-  box-shadow:
-    var(--neu-inset),
-    inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent);
+  border-color: var(--amber);
 }
 
 .login-link {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-dim);
-  padding: 3px 4px;
-  transition: color var(--dur-1) ease;
+  padding: 2px 4px;
+  transition: color 0.12s ease;
+  cursor: pointer;
 }
 .login-link:hover:not(:disabled) {
   color: var(--text);
 }
 .login-link:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
 

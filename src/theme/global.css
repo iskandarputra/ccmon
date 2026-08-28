@@ -5,34 +5,35 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --bg0: #0f1117;
-  --bg1: #161822;
-  --bg2: #1e2130;
-  --line: #2b3044;
-  --line-soft: #212536;
+  --bg0: #090a0f;
+  --bg1: #12151e;
+  --bg2: #1b202c;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-soft: rgba(255, 255, 255, 0.05);
 
-  --text: #f3f4f6;
-  --text-dim: #9ca3af;
-  --text-faint: #6b7280;
+  --text: #ffffff;
+  --text-dim: #cbd5e1;
+  --text-faint: #94a3b8;
 
   --sage: #10b981;
   --amber: #f59e0b;
-  --rose: #ef4444;
-  --blue: #3b82f6;
+  --rose: #f43f5e;
+  --blue: #38bdf8;
 
   --chart-1: #f59e0b;
   --chart-2: #10b981;
-  --chart-3: #3b82f6;
-  --chart-4: #ef4444;
-  --chart-5: #8b5cf6;
-  --chart-6: #6b7280;
-  --ok: var(--sage);
-  --warn: var(--amber);
-  --bad: var(--rose);
+  --chart-3: #38bdf8;
+  --chart-4: #a78bfa;
+  --chart-5: #06b6d4;
+  --chart-6: #f43f5e;
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --bad: #f43f5e;
   --grain-opacity: 0;
 
-  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
-  --sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, 'SF Mono', monospace;
+  --sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
 
   --radius: 10px;
   --radius-sm: 6px;
@@ -76,6 +77,12 @@ body {
   line-height: 1.5;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings:
+    'cv02' 1,
+    'cv03' 1,
+    'cv04' 1;
   font-variant-numeric: tabular-nums;
 }
 
@@ -133,12 +140,12 @@ button {
 
 .sidebar {
   position: relative;
-  width: 200px;
+  width: 212px;
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 12px;
+  gap: 18px;
+  padding: 18px 12px;
   background: var(--bg0);
   border-right: 1px solid var(--line);
   user-select: none;
@@ -148,13 +155,13 @@ button {
 .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .nav-group-title {
   font-family: var(--sans);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-faint);
@@ -170,7 +177,7 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 10px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   font-family: var(--sans);
   font-size: 13px;
@@ -178,14 +185,15 @@ button {
   color: var(--text-dim);
   text-align: left;
   transition:
-    color 0.15s ease,
-    background-color 0.15s ease,
-    border-color 0.15s ease;
+    color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   border: 1px solid transparent;
 }
 
 .nav-item:hover {
-  background: var(--bg1);
+  background: color-mix(in srgb, var(--bg1) 80%, transparent);
   color: var(--text);
   border-color: var(--line-soft);
 }
@@ -195,19 +203,9 @@ button {
   color: var(--text);
   font-weight: 600;
   border-color: var(--line);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-.nav-item.is-active::before {
-  content: '';
-  position: absolute;
-  left: -2px;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--amber);
-  box-shadow: 0 0 8px var(--amber);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
 }
 
 .nav-icon {
@@ -246,13 +244,20 @@ button {
   min-width: 0;
   overflow-y: auto;
   scroll-behavior: smooth;
-  padding: 18px clamp(16px, 2.2vw, 26px) 26px;
+  padding: 14px 18px 20px;
+  background:
+    radial-gradient(
+      1000px circle at 50% 0px,
+      color-mix(in srgb, var(--amber) 2%, transparent),
+      transparent 75%
+    ),
+    var(--bg0);
 }
 
 .grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: 14px;
+  gap: 12px;
   max-width: 1560px;
   margin: 0 auto;
 }
@@ -510,30 +515,30 @@ button {
   color: #ffffff;
 }
 
-/* ── panel cards (Shadcn UI Card style) ──────────────────────────────────── */
+/* ── panel cards (Executive Linear / Raycast style) ─────────────────────── */
 
 .panel {
   position: relative;
-  background: var(--bg1);
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg1) 90%, var(--bg0) 10%);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   min-width: 0;
   border: 1px solid var(--line);
   box-shadow:
-    0 1px 3px 0 rgba(0, 0, 0, 0.15),
-    0 1px 2px -1px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.03);
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 4px 16px -2px rgba(0, 0, 0, 0.35);
   transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .panel:hover {
-  border-color: color-mix(in srgb, var(--text-dim) 40%, var(--line));
+  border-color: color-mix(in srgb, var(--text-dim) 35%, var(--line));
   box-shadow:
-    0 4px 12px -2px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 8px 24px -4px rgba(0, 0, 0, 0.45);
 }
 
 .panel-head {
@@ -542,7 +547,7 @@ button {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
-  padding: 16px 20px 12px;
+  padding: 16px 20px 14px;
   border-bottom: 1px solid var(--line-soft);
 }
 
@@ -552,6 +557,9 @@ button {
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .panel-note {
@@ -559,8 +567,8 @@ button {
   font-size: 11px;
   font-weight: 500;
   color: var(--text-faint);
-  padding: 2px 8px;
-  border-radius: 5px;
+  padding: 3px 9px;
+  border-radius: 6px;
   background: var(--bg0);
   border: 1px solid var(--line-soft);
 }
@@ -582,36 +590,45 @@ button {
 }
 
 .panel-body {
-  padding: 16px 20px 20px;
+  padding: 18px 20px 22px;
   min-height: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-/* ── stat cards (Shadcn Metric Card) ────────────────────────────────────── */
+/* ── stat cards (Executive Metric Card) ─────────────────────────────────── */
 
 .stat-card {
   height: 100%;
   padding: 18px 20px;
   gap: 8px;
+  background: linear-gradient(
+    180deg,
+    var(--bg1) 0%,
+    color-mix(in srgb, var(--bg1) 85%, var(--bg0)) 100%
+  );
 }
 
 .stat-label {
   font-family: var(--mono);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-faint);
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
 }
 
 .stat-value {
   font-family: var(--sans);
-  font-feature-settings: 'tnum' 1;
-  font-size: 32px;
+  font-feature-settings:
+    'tnum' 1,
+    'cv02' 1,
+    'cv03' 1,
+    'cv04' 1;
+  font-size: 28px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.025em;
   line-height: 1.15;
   color: var(--text);
 }
@@ -630,13 +647,13 @@ button {
 
 .stat-sub {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-dim);
 }
 
 .stat-delta {
   font-family: var(--mono);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 11px;
   color: var(--text-dim);
   white-space: nowrap;
@@ -668,14 +685,15 @@ button {
   height: 100%;
   border-radius: 3px;
   background: var(--amber);
-  transition: width 0.6s ease;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ── pills & controls (Shadcn Tabs style) ───────────────────────────────── */
+/* ── pills & controls (Segmented Controls) ──────────────────────────────── */
 
 .pills {
-  display: flex;
-  gap: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   background: var(--bg0);
   border-radius: 8px;
   padding: 3px;
@@ -688,12 +706,12 @@ button {
   color: var(--text-dim);
   padding: 4px 12px;
   border-radius: 6px;
-  transition: all 0.15s ease;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   border: 1px solid transparent;
 }
 .pill:hover {
   color: var(--text);
-  background: var(--bg1);
+  background: color-mix(in srgb, var(--bg1) 60%, transparent);
 }
 .pill.is-active {
   background: var(--bg1);
@@ -701,8 +719,8 @@ button {
   font-weight: 600;
   border-color: var(--line);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
 }
 
 /* ── charts ──────────────────────────────────────────────────────────────── */
@@ -979,18 +997,19 @@ button {
 
 .tbl {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-family: var(--mono);
   font-size: 12px;
 }
 .tbl th {
   text-align: right;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
-  padding: 9px 12px;
+  padding: 10px 14px;
   position: sticky;
   top: 0;
   background: var(--bg1);
@@ -1003,27 +1022,28 @@ button {
 }
 .tbl td {
   text-align: right;
-  padding: 9px 12px;
+  padding: 10px 14px;
   color: var(--text-dim);
   white-space: nowrap;
   border-bottom: 1px solid var(--line-soft);
   transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+    background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .tbl td.t-name {
   color: var(--text);
   font-weight: 500;
-  max-width: 220px;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .tbl td.t-cost {
   color: var(--text);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .tbl tr:hover td {
-  background: var(--bg2);
+  background: color-mix(in srgb, var(--bg2) 80%, transparent);
   color: var(--text);
 }
 

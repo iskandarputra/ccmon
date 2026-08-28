@@ -1,18 +1,16 @@
 /**
- * @file AdvisorView.tsx
- * @brief AI usage advisor — high-energy, real-time interactive chat over your usage
- *        AGGREGATES, powered by the Claude Messages API using your Claude Code login.
+ * @file AdvisorDrawer.tsx
+ * @brief Slide-over AI Advisor drawer with animated typing and live telemetry.
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
-import './advisor.css';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Panel } from '../components/ui/Panel';
-import { Hint } from '../components/ui/Hint';
-import { Markdown } from '../components/ui/Markdown';
-import { useUsageStore } from '../store/useUsageStore';
-import { fmtUSD, sourceLabel } from '../lib/format';
-import type { AdvisorMessage } from '../../shared/types';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import './advisordrawer.css';
+import '../../views/advisor.css';
+import { Markdown } from '../ui/Markdown';
+import { useUsageStore } from '../../store/useUsageStore';
+import { fmtUSD } from '../../lib/format';
+import type { AdvisorMessage } from '../../../shared/types';
 
 interface Suggestion {
   title: string;
@@ -73,13 +71,6 @@ const SUGGESTIONS: Suggestion[] = [
   },
 ];
 
-const FOLLOW_UPS = [
-  { label: '📊 Cache vs Idle Waste', prompt: 'Break down my prompt cache savings against idle TTL waste penalties' },
-  { label: '⚡ Subagent Overhead', prompt: 'Analyze my subagent sidechain cost and recursion depth' },
-  { label: '💰 Model Arbitrage', prompt: 'Show counterfactual what-if re-pricing across model tiers' },
-  { label: '🎯 Rate-Limit Forecast', prompt: 'Forecast limit exhaustion across my active accounts' },
-];
-
 const PROMPT_HINTS = [
   'Where did my spend go this week?',
   'How can I cut cost without losing reasoning quality?',
@@ -90,15 +81,22 @@ const PROMPT_HINTS = [
 ];
 
 interface ChatTurn extends AdvisorMessage {
-  /** marks an assistant turn that is actually an error notice */
   error?: boolean;
 }
 
-/** small inline SVG wrapper so all glyphs share stroke styling */
-function Glyph({ children, className }: { children: ReactNode; className?: string }) {
+function Glyph({
+  children,
+  className,
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <svg
       className={className}
+      style={style}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -112,7 +110,6 @@ function Glyph({ children, className }: { children: ReactNode; className?: strin
   );
 }
 
-/** Assistant spark avatar with animated aura */
 const AVATAR = (
   <span className="adv-avatar" aria-hidden>
     <Glyph className="adv-avatar-icon">
@@ -133,7 +130,7 @@ function CopyButton({ text }: { text: string }) {
       type="button"
       className={`adv-copy-btn ${copied ? 'is-copied' : ''}`}
       onClick={copy}
-      title="Copy markdown answer"
+      title="Copy answer"
     >
       {copied ? (
         <>
@@ -155,7 +152,12 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export function AdvisorView() {
+interface AdvisorDrawerProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function AdvisorDrawer({ open, onClose }: AdvisorDrawerProps) {
   const snapshot = useUsageStore((s) => s.snapshot);
   const model = useUsageStore((s) => s.settings?.aiModel) ?? 'claude-sonnet-4-6';
   const accounts = useUsageStore((s) => s.accounts);
@@ -199,7 +201,6 @@ export function AdvisorView() {
     return () => clearTimeout(timer);
   }, [draft, placeholderText, isDeleting, hintIdx]);
 
-  // Animated thinking stages cycle
   useEffect(() => {
     if (!busy) {
       setThinkingStage(0);
@@ -216,12 +217,10 @@ export function AdvisorView() {
       const r = limits[d];
       return r?.ok ? (r.session?.pct ?? null) : null;
     };
-    return (
-      sourceDirs
-        .filter((d) => accounts[d]?.tool === 'claude' && accounts[d]?.hasCredentials)
-        .map((dir) => ({ dir, pct: sessionPct(dir) }))
-        .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999))
-    );
+    return sourceDirs
+      .filter((d) => accounts[d]?.tool === 'claude' && accounts[d]?.hasCredentials)
+      .map((dir) => ({ dir, pct: sessionPct(dir) }))
+      .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999));
   }, [sourceDirs, accounts, limits]);
 
   useEffect(() => {
@@ -235,11 +234,23 @@ export function AdvisorView() {
   }, [turns, busy]);
 
   useEffect(() => {
-    const ta = inputRef.current;
-    if (!ta) return;
-    ta.style.height = 'auto';
-    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
-  }, [draft]);
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 150);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
 
   async function ask(question: string) {
     const q = question.trim();
@@ -270,81 +281,47 @@ export function AdvisorView() {
   ];
 
   return (
-    <div className="grid adv-grid">
-      <div className="g12 adv-col">
-        <Panel
-          className="adv-panel"
-          title={
-            <>
-              usage advisor{' '}
-              <Hint label="how this works">
-                Asks a Claude model about a privacy-preserving summary of your usage — totals,
-                per-model and per-project spend, cache stats, tool counts, and live plan limits.
-                Your transcripts, prompts, and code never leave your machine. It reuses your Claude
-                Code login; if it's expired, sign in from the accounts view.
-              </Hint>
-            </>
-          }
-          right={
-            <span className="adv-meta">
-              {turns.length > 0 && (
-                <button
-                  type="button"
-                  className="adv-newchat"
-                  onClick={() => setTurns([])}
-                  disabled={busy}
-                  title="start a new conversation"
-                >
-                  <Glyph className="adv-newchat-icon">
-                    <path d="M12 5v14M5 12h14" />
-                  </Glyph>
-                  new chat
-                </button>
-              )}
-              {candidates.length > 1 && (
-                <label
-                  className="adv-account"
-                  title="which account's Claude Code login spends this request — pick one with headroom to avoid rate limits"
-                >
-                  <span className="adv-account-cap" aria-hidden>
-                    acct
-                  </span>
-                  <select
-                    value={account ?? ''}
-                    disabled={busy}
-                    onChange={(e) => setAccount(e.target.value)}
-                  >
-                    {candidates.map((c) => (
-                      <option key={c.dir} value={c.dir}>
-                        {sourceLabel(c.dir)}
-                        {c.pct != null ? ` · ${Math.round(c.pct)}%` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <span className="adv-live-tag">
-                <span className="adv-live-radar" />
-                {model}
-              </span>
+    <div className="adv-drawer-overlay" onClick={onClose}>
+      <div className="adv-drawer" onClick={(e) => e.stopPropagation()}>
+        <header className="adv-drawer-head">
+          <div className="adv-drawer-title">
+            <Glyph
+              className="adv-avatar-icon"
+              style={{ width: 16, height: 16, color: 'var(--amber)' }}
+            >
+              <path d="M12 4l1.3 3.9L17.2 9 13.3 10.3 12 14.2 10.7 10.3 6.8 9l3.9-1.1z" />
+            </Glyph>
+            <h3>AI Usage Advisor</h3>
+            <span className="adv-live-tag">
+              <span className="adv-live-radar" />
+              {model}
             </span>
-          }
-        >
+          </div>
+          <button
+            type="button"
+            className="adv-drawer-close"
+            onClick={onClose}
+            aria-label="Close advisor"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div className="adv-drawer-body">
           {!snapshot ? (
             <div className="adv-wait">
               <span className="adv-wait-dot" />
-              waiting for the first scan to finish…
+              waiting for usage scan…
             </div>
           ) : (
-            <div className="adv-shell">
-              <div className="adv-scroll" ref={scrollRef}>
+            <div className="adv-shell" style={{ height: '100%' }}>
+              <div className="adv-scroll" ref={scrollRef} style={{ maxHeight: 'none', flex: 1 }}>
                 {turns.length === 0 ? (
                   <div className="adv-intro">
-                    {/* Live Telemetry Ribbon */}
                     <div className="adv-live-ribbon">
                       <div className="adv-ribbon-pill is-glow" title="Prompt Cache Efficiency">
                         <span className="adv-ribbon-dot is-green" />
-                        <span className="adv-ribbon-key">cache hit</span>
+                        <span className="adv-ribbon-key">cache</span>
                         <span className="adv-ribbon-val">
                           {((snapshot.cache?.hitRate ?? 0) * 100).toFixed(0)}%
                         </span>
@@ -356,20 +333,8 @@ export function AdvisorView() {
                       </div>
                       <div className="adv-ribbon-pill" title="7-Day Spend Velocity">
                         <span className="adv-ribbon-dot is-amber" />
-                        <span className="adv-ribbon-key">7d spend</span>
+                        <span className="adv-ribbon-key">7d</span>
                         <span className="adv-ribbon-val">{fmtUSD(snapshot.week?.cost ?? 0)}</span>
-                      </div>
-                      <div className="adv-ribbon-pill" title="Blended Unit Cost">
-                        <span className="adv-ribbon-dot is-blue" />
-                        <span className="adv-ribbon-key">unit cost</span>
-                        <span className="adv-ribbon-val">
-                          $
-                          {(snapshot.totals?.tokens
-                            ? (snapshot.totals.cost / snapshot.totals.tokens) * 1_000_000
-                            : 0
-                          ).toFixed(1)}
-                          /M
-                        </span>
                       </div>
                     </div>
 
@@ -382,10 +347,11 @@ export function AdvisorView() {
                           <circle cx="6.5" cy="16" r="1" />
                         </Glyph>
                       </div>
-                      <h2 className="adv-hero-title">Quantitative Usage Intelligence</h2>
+                      <h2 className="adv-hero-title" style={{ fontSize: '18px' }}>
+                        Usage Intelligence
+                      </h2>
                       <p className="adv-hero-sub">
-                        First-principles analysis over token economics, prompt cache dynamics, plan
-                        headroom, and zero-loss cost optimizations.
+                        Privacy-preserving queries over token economics and plan limits.
                       </p>
                     </div>
 
@@ -452,25 +418,6 @@ export function AdvisorView() {
                 )}
               </div>
 
-              {/* Quick follow-ups when thread is active */}
-              {turns.length > 0 && !busy && (
-                <div className="adv-followup-tray">
-                  <span className="adv-followup-cap">Suggested follow-ups:</span>
-                  <div className="adv-followup-pills">
-                    {FOLLOW_UPS.map((f) => (
-                      <button
-                        key={f.label}
-                        type="button"
-                        className="adv-followup-chip"
-                        onClick={() => ask(f.prompt)}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <form
                 className={`adv-composer ${busy ? 'is-busy' : ''}`}
                 onSubmit={(e) => {
@@ -498,9 +445,7 @@ export function AdvisorView() {
                     }}
                   />
                   <div className="adv-composer-footer">
-                    <span className="adv-composer-privacy">
-                      🔒 100% local aggregates · no transcripts
-                    </span>
+                    <span className="adv-composer-privacy">🔒 100% local aggregates</span>
                     <button
                       type="submit"
                       className="adv-send"
@@ -516,7 +461,7 @@ export function AdvisorView() {
               </form>
             </div>
           )}
-        </Panel>
+        </div>
       </div>
     </div>
   );

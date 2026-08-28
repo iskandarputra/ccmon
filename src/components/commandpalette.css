@@ -8,9 +8,9 @@
   justify-content: center;
   align-items: flex-start;
   padding-top: 14vh;
-  background: color-mix(in srgb, var(--bg0) 60%, transparent);
-  backdrop-filter: blur(3px);
-  animation: cmdk-fade var(--dur-1) var(--ease-out);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  animation: cmdk-fade 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes cmdk-fade {
   from {
@@ -24,19 +24,17 @@
 .cmdk {
   width: min(560px, 92%);
   background: var(--bg1);
-  border-radius: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
   box-shadow:
-    calc(var(--neu-dist) * 1.4) calc(var(--neu-dist) * 1.4) calc(var(--neu-blur) * 1.6)
-      var(--neu-dark),
-    calc(var(--neu-dist) * -1.4) calc(var(--neu-dist) * -1.4) calc(var(--neu-blur) * 1.6)
-      var(--neu-light),
-    0 0 0 1px var(--neu-edge);
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 24px 64px rgba(0, 0, 0, 0.6);
   overflow: hidden;
-  animation: cmdk-rise var(--dur-2) var(--ease-out);
+  animation: cmdk-rise 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes cmdk-rise {
   from {
-    transform: translateY(-8px);
+    transform: translateY(-8px) scale(0.98);
     opacity: 0;
   }
   to {
@@ -48,12 +46,12 @@
 .cmdk-input {
   width: 100%;
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 14px;
   color: var(--text);
-  padding: 16px 18px;
-  background: transparent;
+  padding: 14px 18px;
+  background: var(--bg0);
   border: 0;
-  border-bottom: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line);
 }
 .cmdk-input:focus {
   outline: none;
@@ -70,7 +68,7 @@
   font-family: var(--mono);
   font-size: 12px;
   color: var(--text-faint);
-  padding: 18px;
+  padding: 24px;
   text-align: center;
 }
 .cmdk-item {
@@ -78,23 +76,35 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 9px 12px;
-  border-radius: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
   cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.12s ease;
+}
+.cmdk-item:hover {
+  background: var(--bg0);
+  color: var(--text);
 }
 .cmdk-item.is-active {
-  background: color-mix(in srgb, var(--amber) 10%, var(--bg1));
-  box-shadow: var(--neu-inset);
+  background: var(--bg2);
+  border-color: var(--line);
+  color: var(--text);
 }
 .cmdk-title {
   font-family: var(--sans);
   font-size: 13px;
   color: var(--text);
+  font-weight: 500;
 }
 .cmdk-hint {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-faint);
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
 }

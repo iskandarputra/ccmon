@@ -50,7 +50,8 @@ async function main(): Promise<void> {
   });
   console.log('pricing  :', JSON.stringify(pricing.meta()));
 
-  const watcher = new UsageWatcher({ dirs: roots, watch: false });
+  const cachePath = path.join(os.tmpdir(), 'ccmon-smoke-transcripts.json');
+  const watcher = new UsageWatcher({ dirs: roots, watch: false, cachePath });
   watcher.on('progress', (p) => {
     if (p.scanned % 200 === 0 || p.scanned === p.total) {
       console.log(`  scanned ${p.scanned}/${p.total} files, ${p.entries} entries`);

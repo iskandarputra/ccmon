@@ -43,17 +43,20 @@ const OAUTH_BETA = 'oauth-2025-04-20';
 const API_VERSION = '2023-06-01';
 // Required verbatim for OAuth-token inference to be accepted by the API.
 const CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude.";
-const MAX_TOKENS = 1024;
+const MAX_TOKENS = 2048;
 const FETCH_TIMEOUT_MS = 60_000;
 
 const ADVISOR_PREAMBLE = [
-  'You are acting as a usage & cost advisor inside "ccmon", a local monitor for',
-  "Claude Code usage. Below is a privacy-preserving SUMMARY of the user's usage",
-  '(aggregates only — no transcripts). Answer their questions about spend, cost',
-  'drivers, cache efficiency, plan-limit headroom, and how to use Claude Code',
-  'more cost-effectively. Be concrete and cite the numbers from the summary.',
-  'Keep answers tight (a few short paragraphs or bullets). All money is USD.',
-].join(' ');
+  'You are the Principal AI Infrastructure Economist & Systems Research Scientist inside "ccmon", an observability and intelligence platform for Claude Code and LLM engineering workloads.',
+  'Below is a privacy-preserving, mathematically structured telemetry matrix of the user\'s local usage (aggregates only — no transcripts, code, or prompts).',
+  '',
+  '# Analytical Directives & Persona:',
+  '1. First-Principles Quantitative Rigor: Decompose queries using precise formulas, unit economics ($/MTok), cache leverage ratios, and marginal cost derivatives. Quote concrete figures from the telemetry matrix.',
+  '2. Root-Cause Systems Thinking: Differentiate symptoms from foundational architectural drivers (e.g. context window quadratic growth in long sessions, cache TTL thrashing across 5m pauses, subagent recursion depth compounding, model tier over-allocation).',
+  '3. Zero-Loss Cost Reduction: Formulate strategic interventions that slash dollar burn while preserving or enhancing engineering velocity and reasoning fidelity.',
+  '4. Multi-Account & Subscription Arbitrage: Optimize workload routing across subscription tiers to avoid 5-hour limit cliffs, maximize subscription value multiplier, and sustain high availability.',
+  '5. Structured Synthesis: Structure responses with executive clarity — use Markdown headers, bold highlights, concise metrics, and prioritized action tiers. All money is in USD.',
+].join('\n');
 
 /** Compact, aggregates-only usage summary for the model (no raw transcript data). */
 export function buildUsageContext(
@@ -65,65 +68,135 @@ export function buildUsageContext(
   const lines: string[] = [];
   const pj = (p: string) => p.split('/').filter(Boolean).pop() || p;
 
-  lines.push(`# Usage summary (generated ${new Date(s.generatedAt).toISOString()})`);
-  lines.push(
-    `Lifetime: ${fmtUsd(s.totals.cost)} over ${fmtTokShort(s.totals.tokens)} tokens, ` +
-      `${s.totals.entries} entries, ${s.totals.sessions} sessions.`,
-  );
-  lines.push(
-    `Today ${fmtUsd(s.today.cost)}; last 7 days ${fmtUsd(s.week.cost)}; ` +
-      `avg active day ${fmtUsd(s.records.avgDailyCost)}; ` +
-      `busiest day ${s.records.maxDay ? `${s.records.maxDay.date} (${fmtUsd(s.records.maxDay.cost)})` : 'n/a'}.`,
-  );
-  lines.push(
-    `Cache hit rate ${(s.cache.hitRate * 100).toFixed(0)}%, saved ${fmtUsd(s.cache.savedUSD)} ` +
-      `(idle re-writes cost ${fmtUsd(s.cache.idle.extraUSD)}). Compactions: ${s.compactions}.`,
-  );
+  lines.push(`# Quantitative Usage & Telemetry Matrix (Timestamp: ${new Date(s.generatedAt).toISOString()})`);
 
+  // 1. Macro Economics & Cadence
+  const avgSessionCost = s.totals.sessions > 0 ? s.totals.cost / s.totals.sessions : 0;
+  const blendedPerMTok = s.totals.tokens > 0 ? (s.totals.cost / s.totals.tokens) * 1_000_000 : 0;
+  lines.push('\n## Macroeconomic Overview:');
+  lines.push(
+    `- Lifetime Spend: ${fmtUsd(s.totals.cost)} across ${fmtTokShort(s.totals.tokens)} tokens (${fmtTokShort(s.totals.in)} in / ${fmtTokShort(s.totals.out)} out).`,
+  );
+  lines.push(
+    `- Session Dynamics: ${s.totals.sessions} sessions, ${s.totals.entries} turns · Blended Unit Cost: $${blendedPerMTok.toFixed(2)}/MTok · Avg Session: ${fmtUsd(avgSessionCost)}.`,
+  );
+  lines.push(
+    `- Temporal Velocity: Today ${fmtUsd(s.today.cost)} · Last 7d ${fmtUsd(s.week.cost)} · Active Day Mean ${fmtUsd(s.records.avgDailyCost)}.`,
+  );
+  if (s.records.maxDay) {
+    lines.push(`- Record Outlier: Peak Day ${s.records.maxDay.date} (${fmtUsd(s.records.maxDay.cost)}).`);
+  }
+  if (s.records.streak) {
+    lines.push(
+      `- Engineering Cadence: ${s.records.activeDays} active days · Current Streak ${s.records.streak.current}d · Longest Streak ${s.records.streak.longest}d.`,
+    );
+  }
+
+  // 2. Prompt Cache Economics & TTL Dynamics
+  const unCachedSpend = (s.cache.savedUSD || 0) + (s.totals.cost || 0);
+  const cacheDiscountPct = unCachedSpend > 0 ? ((s.cache.savedUSD || 0) / unCachedSpend) * 100 : 0;
+  lines.push('\n## Prompt Cache Microeconomics & TTL Telemetry:');
+  lines.push(
+    `- Cache hit rate ${(s.cache.hitRate * 100).toFixed(0)}%, saved ${fmtUsd(s.cache.savedUSD)} (${cacheDiscountPct.toFixed(1)}% effective discount vs ${fmtUsd(unCachedSpend)} raw API baseline).`,
+  );
+  lines.push(
+    `- Cache Token Volume: ${fmtTokShort(s.cache.readTokens)} read tok · ${fmtTokShort(s.cache.writeTokens)} write tok.`,
+  );
+  if (s.cache.idle?.extraUSD > 0 || (s.cache.idle?.events ?? 0) > 0) {
+    lines.push(
+      `- Cache Thrashing Penalty: ${fmtUsd(s.cache.idle.extraUSD)} wasted across ${s.cache.idle.events ?? 0} re-writes (${fmtTokShort(s.cache.idle.tokens ?? 0)} tok) due to inter-turn idle times exceeding the 5-minute TTL.`,
+    );
+  }
+
+  // 3. Subagent & Sidechain Recursion Overhead
+  if (s.sidechain?.cost > 0 || s.sidechain?.entries > 0) {
+    const sidePct = s.totals.cost > 0 ? (s.sidechain.cost / s.totals.cost) * 100 : 0;
+    lines.push('\n## Autonomous Subagents & Sidechains:');
+    lines.push(
+      `- Sidechain Spend: ${fmtUsd(s.sidechain.cost)} (${sidePct.toFixed(1)}% of total) across ${s.sidechain.entries} subagent turns.`,
+    );
+  }
+
+  // 4. Context Window Saturation & Compactions
+  lines.push('\n## Context Window Saturation & Compaction:');
+  lines.push(
+    `- Compactions: ${s.compactions} observed · Post-Compaction Context Re-read Cost: ${fmtUsd(s.compactionReread?.costUSD || 0)} across ${s.compactionReread?.turns || 0} turns.`,
+  );
+  if (s.toolResults?.count > 0) {
+    lines.push(
+      `- Tool Result Ingestion Volume: ~${fmtTokShort(s.toolResults.estTokens)} tok re-injected as context across ${s.toolResults.count} tool executions.`,
+    );
+  }
+
+  // 5. Model Portfolio & Unit Economics
   if (s.models.length) {
-    lines.push('\nTop models by cost:');
+    lines.push('\n## Model Tier Portfolio:');
     for (const m of s.models.slice(0, 6)) {
-      const share = s.totals.cost > 0 ? ((m.cost / s.totals.cost) * 100).toFixed(0) : '0';
-      lines.push(`- ${m.model}: ${fmtUsd(m.cost)} (${share}%), ${fmtTokShort(m.in + m.out)} tok`);
+      const share = s.totals.cost > 0 ? ((m.cost / s.totals.cost) * 100).toFixed(1) : '0';
+      const mtokRate = m.in + m.out > 0 ? (m.cost / (m.in + m.out)) * 1_000_000 : 0;
+      lines.push(
+        `- ${m.model}: ${fmtUsd(m.cost)} (${share}% share) · ${fmtTokShort(m.in + m.out)} tok · $${mtokRate.toFixed(2)}/MTok.`,
+      );
     }
   }
+
+  // 6. Codebase Architecture & Domain Allocation
+  if (s.knowledge?.layers?.length) {
+    const activeLayers = s.knowledge.layers.filter((l) => l.cost > 0 || l.touches > 0);
+    if (activeLayers.length) {
+      lines.push('\n## Architectural Domain Spend:');
+      for (const l of activeLayers.slice(0, 8)) {
+        lines.push(
+          `- ${l.label} (${l.key}): ${fmtUsd(l.cost)} (${l.pct.toFixed(1)}%) · ${l.touches} ops · ${fmtTokShort(l.tokens)} tok.`,
+        );
+      }
+    }
+  }
+
+  // 7. Top Workspace Projects
   if (s.projects.length) {
-    lines.push('\nTop projects by cost:');
+    lines.push('\n## Top Projects by Allocation:');
     for (const p of s.projects.slice(0, 6)) {
-      lines.push(`- ${pj(p.path)}: ${fmtUsd(p.cost)} (7d ${fmtUsd(p.weekCost)})`);
+      const pSidePct = p.cost > 0 && p.sidechainCost > 0 ? (p.sidechainCost / p.cost) * 100 : 0;
+      lines.push(
+        `- ${pj(p.path)}: ${fmtUsd(p.cost)} total (7d ${fmtUsd(p.weekCost)}) · ${p.sessions ?? 0} sessions${pSidePct > 0 ? ` · subagents ${pSidePct.toFixed(0)}%` : ''}.`,
+      );
     }
   }
+
+  // 8. Tool Invocations
   if (s.toolUse.rows.length) {
     const tools = s.toolUse.rows
       .slice(0, 6)
       .map((t) => `${t.name}×${t.invocations}`)
       .join(', ');
-    lines.push(
-      `\nTool use: ${s.toolUse.invocations} calls over ${s.toolUse.turns} turns — ${tools}.`,
-    );
+    lines.push(`\n## Tool Invocation Frequency: ${s.toolUse.invocations} calls across ${s.toolUse.turns} turns — ${tools}.`);
   }
+
+  // 9. Counterfactual What-If Arbitrage Matrix
   if (s.whatIf.length) {
-    lines.push('\nWhat-if (all traffic re-priced onto one model):');
+    lines.push('\n## Counterfactual Model Re-Pricing Arbitrage:');
     for (const w of s.whatIf.slice(0, 4)) {
       lines.push(
-        `- ${w.model}: ${fmtUsd(w.totalCost)} (${w.delta >= 0 ? '+' : ''}${fmtUsd(w.delta)} vs actual)`,
+        `- ${w.model}: ${fmtUsd(w.totalCost)} (${w.delta >= 0 ? '+' : ''}${fmtUsd(w.delta)} delta vs actual spend).`,
       );
     }
   }
 
+  // 10. Multi-Account Live Limits & Rate-Limit Risk
   const limitLines: string[] = [];
   for (const [dir, r] of Object.entries(limits)) {
     if (!r.ok) continue;
     const label = accounts[dir]?.email || pj(dir.replace(/\/projects$/, ''));
     const parts: string[] = [];
-    if (r.session?.pct != null) parts.push(`session ${r.session.pct.toFixed(0)}%`);
-    if (r.week?.pct != null) parts.push(`week ${r.week.pct.toFixed(0)}%`);
+    if (r.session?.pct != null) parts.push(`5h-session ${r.session.pct.toFixed(0)}%`);
+    if (r.week?.pct != null) parts.push(`weekly-cap ${r.week.pct.toFixed(0)}%`);
     if (r.forecast?.week?.etaTs)
-      parts.push(`week caps ~${new Date(r.forecast.week.etaTs).toISOString()}`);
+      parts.push(`estimated exhaustion: ${new Date(r.forecast.week.etaTs).toLocaleDateString()} ${new Date(r.forecast.week.etaTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
     if (parts.length) limitLines.push(`- ${label}: ${parts.join(', ')}`);
   }
   if (limitLines.length) {
-    lines.push('\nLive plan limits:');
+    lines.push('\n## Live Multi-Account Headroom & Risk Vectors:');
     lines.push(...limitLines);
   }
 

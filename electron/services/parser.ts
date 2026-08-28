@@ -7,6 +7,7 @@
 import path from 'path';
 import { dayKeyFor, type Zone } from '../../shared/daykey';
 import type { ParsedLine } from '../../shared/types';
+import { resolveProjectRoot } from './paths';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -144,7 +145,7 @@ interface TranscriptLine {
     id?: string;
     model?: string;
     stop_reason?: string | null;
-    content?: Array<{ type?: string; name?: string; content?: unknown }>;
+    content?: Array<{ type?: string; name?: string; content?: unknown; input?: unknown }>;
     usage?: {
       input_tokens?: number;
       output_tokens?: number;
@@ -269,11 +270,28 @@ export function parseLineChecked(
   let w5m = cc ? cc.ephemeral_5m_input_tokens || 0 : cw;
   if (cc && w5m + w1h < cw) w5m = cw - w1h; // incomplete breakdown — bill remainder at 5m
 
-  // tool_use block names, in order (may repeat) — powers tool analytics
+  // tool_use block names and touched files — powers tool & knowledge analytics
   let tools: string[] | undefined;
+  let files: string[] | undefined;
   if (Array.isArray(j.message.content)) {
     for (const b of j.message.content) {
-      if (b && b.type === 'tool_use' && typeof b.name === 'string') (tools ??= []).push(b.name);
+      if (b && b.type === 'tool_use') {
+        if (typeof b.name === 'string') (tools ??= []).push(b.name);
+        if (b.input && typeof b.input === 'object') {
+          const inp = b.input as Record<string, unknown>;
+          const rawF =
+            inp.path ||
+            inp.file_path ||
+            inp.target_file ||
+            inp.TargetFile ||
+            inp.targetFile ||
+            inp.filePath ||
+            inp.file;
+          if (typeof rawF === 'string' && rawF.trim()) {
+            (files ??= []).push(rawF.trim());
+          }
+        }
+      }
     }
   }
 
@@ -291,7 +309,9 @@ export function parseLineChecked(
     dateKey: intern(dayKeyFor(ts, zone)),
     model: intern(model),
     fast,
-    project: intern(j.cwd || decodeProjectDir(path.basename(path.dirname(file)))),
+    project: intern(
+      resolveProjectRoot(j.cwd || decodeProjectDir(path.basename(path.dirname(file)))),
+    ),
     sessionId: intern(j.sessionId || path.basename(file, '.jsonl')),
     sidechain: !!j.isSidechain,
     in: u.input_tokens || 0,
@@ -301,6 +321,7 @@ export function parseLineChecked(
     w1h,
     costUSD: typeof j.costUSD === 'number' ? j.costUSD : null,
     tools,
+    files,
     stop: typeof j.message.stop_reason === 'string' ? j.message.stop_reason : null,
   };
 }
