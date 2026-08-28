@@ -47,6 +47,12 @@ export function CommandPalette() {
     const privacy = useUsageStore.getState().settings?.privacyMode;
     const actions: Command[] = [
       {
+        id: 'advisor-ask',
+        title: 'Ask AI Usage Advisor (⌘J)',
+        hint: 'ai',
+        run: () => window.dispatchEvent(new CustomEvent('open-advisor')),
+      },
+      {
         id: 'privacy',
         title: privacy
           ? 'Disable Privacy Mode (show dollars)'

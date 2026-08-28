@@ -85,19 +85,23 @@ const ICONS: Record<ViewId, ReactNode> = {
 export interface ViewDef {
   id: ViewId;
   label: string;
+  badge?: string;
 }
 
+export const CORE_VIEWS: ViewDef[] = [
+  { id: 'overview', label: 'pulse' },
+  { id: 'insights', label: 'analytics' },
+  { id: 'projects', label: 'projects' },
+  { id: 'accounts', label: 'accounts' },
+];
+
 export const VIEWS: ViewDef[] = [
-  { id: 'overview', label: 'overview' },
-  { id: 'activity', label: 'activity' },
-  { id: 'insights', label: 'insights' },
+  ...CORE_VIEWS,
   { id: 'spatial', label: '3d canvas' },
+  { id: 'advisor', label: 'ai advisor' },
   { id: 'sessions', label: 'sessions' },
   { id: 'blocks', label: 'blocks' },
   { id: 'models', label: 'models' },
-  { id: 'projects', label: 'projects' },
-  { id: 'accounts', label: 'accounts' },
-  { id: 'advisor', label: 'ai advisor' },
   { id: 'links', label: 'resources' },
   { id: 'settings', label: 'settings' },
 ];
@@ -145,36 +149,41 @@ export function Sidebar() {
   const view = useUsageStore((s) => s.view);
   const setView = useUsageStore((s) => s.setView);
 
-  const groups: NavGroup[] = [
-    { name: 'Dashboard', items: VIEWS.slice(0, 4) },
-    { name: 'Analytics', items: VIEWS.slice(4, 8) },
-    { name: 'Account & AI', items: VIEWS.slice(8, 11) },
-  ];
-
-  const systemView = VIEWS[11];
+  const groups: NavGroup[] = [{ name: 'Workspace', items: CORE_VIEWS }];
 
   return (
     <nav className="sidebar">
       {groups.map((group) => (
         <div key={group.name} className="nav-group">
           <div className="nav-group-title">{group.name}</div>
-          {group.items.map((v) => {
-            const index = VIEWS.findIndex((item) => item.id === v.id);
-            return (
-              <NavItem
-                key={v.id}
-                view={v}
-                index={index}
-                active={view === v.id}
-                onSelect={setView}
-              />
-            );
-          })}
+          {group.items.map((v, i) => (
+            <NavItem key={v.id} view={v} index={i} active={view === v.id} onSelect={setView} />
+          ))}
         </div>
       ))}
       <div className="nav-spacer" />
+      <div className="nav-group nav-group-secondary">
+        <div className="nav-group-title">Tools</div>
+        <NavItem
+          view={{ id: 'spatial', label: '3d canvas' }}
+          index={5}
+          active={view === 'spatial'}
+          onSelect={setView}
+        />
+        <NavItem
+          view={{ id: 'advisor', label: 'ai advisor' }}
+          index={6}
+          active={view === 'advisor'}
+          onSelect={setView}
+        />
+      </div>
       <div className="nav-group nav-group-system">
-        <NavItem view={systemView} index={11} active={view === systemView.id} onSelect={setView} />
+        <NavItem
+          view={{ id: 'settings', label: 'settings' }}
+          index={11}
+          active={view === 'settings'}
+          onSelect={setView}
+        />
       </div>
     </nav>
   );

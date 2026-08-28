@@ -724,6 +724,7 @@ function startWatcher(): void {
     // adapter, and guessing wrong reads a whole format with the wrong parser.
     dirs: state.allSourceRoots,
     timezone: state.settings?.get().timezone || null,
+    cachePath: path.join(app.getPath('userData'), 'transcript-index.json'),
   });
   state.watcher = watcher;
 

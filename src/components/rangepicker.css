@@ -11,23 +11,20 @@
   gap: 6px;
   height: 26px;
   padding: 0 9px;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  border: 1px solid var(--line);
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
-  transition:
-    box-shadow var(--dur-2) var(--ease-out),
-    color var(--dur-2) var(--ease-out);
+  transition: all 0.15s ease;
 }
 .rp-trigger:hover,
 .rp-trigger.is-open {
   color: var(--text);
-}
-.rp-trigger.is-open {
-  box-shadow: var(--neu-inset);
+  border-color: var(--text-dim);
+  background: var(--bg2);
 }
 .rp-cal {
   color: var(--amber);
@@ -44,15 +41,18 @@
 
 .rp-pop {
   position: absolute;
-  top: calc(100% + 7px);
+  top: calc(100% + 6px);
   right: 0;
   z-index: 60;
-  min-width: 210px;
+  min-width: 220px;
   padding: 6px;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   background: var(--bg1);
-  box-shadow: var(--neu-raised);
-  animation: rp-in var(--dur-2) var(--ease-out);
+  border: 1px solid var(--line);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 16px 36px rgba(0, 0, 0, 0.5);
+  animation: rp-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes rp-in {
   from {
@@ -73,37 +73,37 @@
 .rp-presets {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 .rp-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 9px;
-  border: none;
-  border-radius: 6px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
   background: transparent;
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   text-align: left;
   cursor: pointer;
-  transition:
-    background var(--dur-2) var(--ease-out),
-    color var(--dur-2) var(--ease-out);
+  transition: all 0.12s ease;
 }
 .rp-item:hover {
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  background: var(--bg0);
+  border-color: var(--line-soft);
   color: var(--text);
 }
 .rp-item.is-active {
-  color: var(--amber);
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  color: var(--text);
+  background: var(--bg2);
+  border-color: var(--line);
+  font-weight: 600;
 }
 .rp-item.is-active::after {
   content: '✓';
+  color: var(--amber);
   font-size: 11px;
 }
 
@@ -113,7 +113,7 @@
   border-top: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 .rp-custom-head {
   font-family: var(--mono);
@@ -121,7 +121,7 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-faint);
-  padding: 0 3px;
+  padding: 0 4px;
 }
 .rp-dates {
   display: flex;
@@ -131,10 +131,10 @@
 .rp-dates input {
   flex: 1;
   min-width: 0;
-  padding: 4px 6px;
-  border-radius: 6px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
   color: var(--text);
   font-family: var(--mono);
   font-size: 11px;
@@ -142,9 +142,7 @@
 }
 .rp-dates input:focus {
   outline: none;
-  box-shadow:
-    var(--neu-inset),
-    inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent);
+  border-color: var(--amber);
 }
 .rp-dash {
   color: var(--text-faint);
@@ -153,24 +151,25 @@
 .rp-apply {
   padding: 6px;
   border-radius: 6px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  background: var(--bg0);
+  border: 1px solid var(--line);
   color: var(--text);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
-  transition: box-shadow var(--dur-2) var(--ease-out);
+  transition: all 0.12s ease;
 }
 .rp-apply:hover:not(:disabled) {
-  box-shadow:
-    var(--neu-raised-sm),
-    inset 0 0 0 1px color-mix(in srgb, var(--amber) 50%, transparent);
+  background: var(--bg2);
+  border-color: var(--text-dim);
 }
 .rp-apply.is-active {
-  box-shadow: var(--neu-inset);
+  background: var(--bg2);
+  border-color: var(--amber);
   color: var(--amber);
 }
 .rp-apply:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: default;
 }

@@ -83,3 +83,61 @@ export function detectProjectDirs(extra: string[] = []): string[] {
   }
   return dirs;
 }
+
+const rootCache = new Map<string, string>();
+
+/**
+ * Clear the project root resolution cache (useful for testing).
+ */
+export function clearProjectRootCache(): void {
+  rootCache.clear();
+}
+
+/**
+ * Resolve the canonical repository / project root for a given working directory path.
+ *
+ * When developers run Claude Code in subfolders (e.g. `repo/backend`, `repo/frontend`,
+ * `repo/docs`), or when tool commands `cd` into subdirectories during turns, the raw
+ * transcript `cwd` reflects the subfolder. This function detects the enclosing `.git`
+ * repository root or worktree parent so sessions and turns in the same repo roll up
+ * cohesively into a single unified project in the Project Explorer and Session Explorer.
+ */
+export function resolveProjectRoot(rawPath: string): string {
+  if (!rawPath || typeof rawPath !== 'string') return rawPath;
+  const cached = rootCache.get(rawPath);
+  if (cached !== undefined) return cached;
+
+  let p = path.normalize(rawPath);
+
+  // If inside a worktree (e.g. .../.claude/worktrees/wf_123 or .../.worktrees/feature), collapse to main repo root
+  const claudeWtIdx = p.indexOf('/.claude/worktrees');
+  if (claudeWtIdx !== -1) {
+    p = p.slice(0, claudeWtIdx);
+  } else {
+    const wtIdx = p.indexOf('/.worktrees');
+    if (wtIdx !== -1) {
+      p = p.slice(0, wtIdx);
+    }
+  }
+
+  const home = os.homedir();
+  let current = path.resolve(p);
+
+  // Walk up checking for .git (directory or worktree file)
+  while (current && current !== '/' && current !== home && current !== path.dirname(current)) {
+    try {
+      const gitPath = path.join(current, '.git');
+      if (fs.existsSync(gitPath)) {
+        rootCache.set(rawPath, current);
+        return current;
+      }
+    } catch {
+      /* inaccessible folder — stop upward traversal */
+      break;
+    }
+    current = path.dirname(current);
+  }
+
+  rootCache.set(rawPath, p);
+  return p;
+}

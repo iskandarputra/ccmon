@@ -1,30 +1,43 @@
 /* ───────────────────────────────────────────────────────────────────────────
-   ProjectsView (.prj- prefix) · Redesigned from scratch
-   Executive Project Intelligence Hub — dual grid/table modes & hero metrics
+   ProjectsView (.prj- prefix)
+   Executive Workspace Intelligence, Master-Detail Split Explorer & Telemetry
    ─────────────────────────────────────────────────────────────────────────── */
 
-/* ── Hero Banner ────────────────────────────────────────────────────────── */
+/* ===== Hero KPI Telemetry Deck ============================================ */
 
 .prj-hero-banner {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
 }
 
 .prj-hero-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 18px 20px;
-  background: var(--bg1);
+  gap: 4px;
+  padding: 16px 18px;
+  background: linear-gradient(
+    180deg,
+    var(--bg1) 0%,
+    color-mix(in srgb, var(--bg1) 85%, var(--bg0)) 100%
+  );
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  transition: all 0.2s ease;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 4px 16px rgba(0, 0, 0, 0.2);
+  transition:
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .prj-hero-card:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--text-dim) 35%, var(--line));
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 6px 20px rgba(0, 0, 0, 0.25);
 }
 
 .prj-h-lbl {
@@ -38,7 +51,11 @@
 
 .prj-h-val {
   font-family: var(--sans);
-  font-size: 28px;
+  font-feature-settings:
+    'tnum' 1,
+    'cv02' 1,
+    'cv03' 1;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--text);
@@ -47,8 +64,8 @@
 
 .prj-h-top {
   font-family: var(--mono);
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--amber);
   white-space: nowrap;
   overflow: hidden;
@@ -60,9 +77,18 @@
   font-size: 11px;
   color: var(--text-dim);
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ── Toolbar Controls ───────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .prj-hero-banner {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ===== Toolbar Controls =================================================== */
 
 .prj-toolbar {
   display: flex;
@@ -75,7 +101,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  width: 240px;
+  width: 220px;
 }
 
 .prj-search-icon {
@@ -90,12 +116,12 @@
 .prj-input {
   width: 100%;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text);
   background: var(--bg0);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 6px 10px 6px 32px;
+  border-radius: 6px;
+  padding: 5px 10px 5px 30px;
   outline: none;
   transition: all 0.15s ease;
 }
@@ -104,7 +130,7 @@
 }
 .prj-input:focus {
   border-color: var(--amber);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 15%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--amber) 15%, transparent);
 }
 
 .prj-select {
@@ -113,8 +139,8 @@
   color: var(--text-dim);
   background: var(--bg0);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 6px 10px;
+  border-radius: 6px;
+  padding: 5px 10px;
   outline: none;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -124,7 +150,269 @@
   border-color: var(--text-dim);
 }
 
-/* ── Grid Container & Cards ────────────────────────────────────────────── */
+/* ===== Master-Detail Split Explorer ======================================= */
+
+.prj-split-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  min-height: 560px;
+}
+
+.prj-master-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 720px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.prj-master-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.prj-master-item:hover {
+  background: var(--bg1);
+  border-color: color-mix(in srgb, var(--text-dim) 40%, var(--line));
+  transform: translateY(-1px);
+}
+
+.prj-master-item.is-selected {
+  background: var(--bg1);
+  border-color: var(--amber);
+  box-shadow:
+    0 0 0 1px var(--amber),
+    0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.prj-m-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prj-m-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.prj-m-title b {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prj-m-cost {
+  font-family: var(--sans);
+  font-feature-settings: 'tnum' 1;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  flex: none;
+}
+
+.prj-m-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+/* ── Detail Pane ─────────────────────────────────────────────────────────── */
+
+.prj-detail-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 0;
+}
+
+.prj-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.prj-d-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.prj-d-info h3 {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.prj-d-path {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prj-d-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.prj-d-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.prj-d-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--bg1);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.prj-d-lbl {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.prj-d-val {
+  font-family: var(--sans);
+  font-feature-settings: 'tnum' 1;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.prj-d-val.is-amber {
+  color: var(--amber);
+}
+
+/* ── Sessions List in Detail Pane ────────────────────────────────────────── */
+
+.prj-sessions-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  flex: 1;
+}
+
+.prj-ses-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 2px;
+}
+
+.prj-ses-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.prj-ses-item {
+  display: grid;
+  grid-template-columns: 100px 1fr 100px 80px 80px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg1);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  transition: all 0.12s ease;
+}
+
+.prj-ses-item:hover {
+  border-color: var(--line);
+  background: var(--bg2);
+}
+
+.prj-ses-id {
+  color: var(--amber);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prj-ses-ctx {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.prj-ses-ctx-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.prj-ses-ctx-bar {
+  height: 4px;
+  background: color-mix(in srgb, var(--bg2) 80%, black);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.prj-ses-ctx-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ===== Grid Container & Cards ============================================= */
 
 .prj-grid-container {
   display: grid;
@@ -136,15 +424,15 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 18px;
-  background: var(--bg1);
+  padding: 16px;
+  background: var(--bg0);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   transition: all 0.2s ease;
 }
 .prj-card:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: color-mix(in srgb, var(--text-dim) 40%, var(--line));
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
@@ -159,8 +447,8 @@
 .prj-icon-box {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
-  background: var(--bg0);
+  border-radius: 8px;
+  background: var(--bg1);
   border: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -181,13 +469,14 @@
 }
 
 .prj-name {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
 }
 
 .prj-path {
@@ -208,23 +497,24 @@
 
 .prj-cost-val {
   font-family: var(--sans);
-  font-size: 18px;
-  font-weight: 600;
+  font-feature-settings: 'tnum' 1;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text);
 }
 
 .prj-cost-lbl {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .prj-spark-wrap {
   height: 44px;
-  border-radius: 8px;
-  background: var(--bg0);
+  border-radius: 6px;
+  background: var(--bg1);
   border: 1px solid var(--line-soft);
   overflow: hidden;
   display: flex;
@@ -241,8 +531,8 @@
 
 .prj-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
 }
 
 .prj-metric {
@@ -250,21 +540,23 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px 8px;
-  background: var(--bg0);
+  background: var(--bg1);
   border: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
 }
 
 .prj-m-lbl {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-faint);
+  text-transform: uppercase;
 }
 
 .prj-m-val {
-  font-family: var(--mono);
+  font-family: var(--sans);
+  font-feature-settings: 'tnum' 1;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -301,7 +593,7 @@
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 3px;
-  background: var(--bg0);
+  background: var(--bg1);
   border: 1px solid var(--line-soft);
 }
 
@@ -310,7 +602,7 @@
   flex: none;
 }
 
-/* ── Table Extensions ────────────────────────────────────────────────────── */
+/* ===== Table Extensions =================================================== */
 
 .tbl-prj-title {
   display: flex;
@@ -326,7 +618,7 @@
   color: var(--text-faint);
 }
 
-/* ── Empty States ────────────────────────────────────────────────────────── */
+/* ===== Empty States ======================================================= */
 
 .prj-empty {
   display: flex;
@@ -345,7 +637,7 @@
 }
 .prj-empty-lead {
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text);
   margin: 0;
@@ -357,8 +649,198 @@
   margin: 0;
 }
 
-@media (max-width: 900px) {
-  .prj-hero-banner {
+@media (max-width: 1080px) {
+  .prj-split-layout {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== Project Architecture & Hotspots ==================================== */
+
+.prj-knowledge-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.prj-knowledge-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: lowercase;
+}
+
+.prj-knowledge-sub {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-weight: normal;
+}
+
+.prj-layers-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 6px;
+}
+
+.prj-layer-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: var(--mono);
+}
+
+.prj-layer-chip-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+}
+
+.prj-layer-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.prj-layer-label {
+  color: var(--text-dim);
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prj-layer-pct {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 10px;
+}
+
+.prj-layer-chip-bot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 9.5px;
+}
+
+.prj-layer-cost {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.prj-layer-ops {
+  color: var(--text-faint);
+}
+
+.prj-layer-bar {
+  height: 2px;
+  background: var(--bg2);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.prj-layer-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 1px;
+}
+
+.prj-hotspots-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.prj-hotspots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.prj-hotspot-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.prj-hotspot-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.prj-hotspot-path {
+  color: var(--text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prj-hotspot-layer {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+.prj-hotspot-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.prj-hotspot-meta b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ===== Knowledge Graph Project Focus Bar ===================================== */
+
+.prj-graph-selector-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+

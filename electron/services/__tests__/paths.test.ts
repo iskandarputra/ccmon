@@ -8,7 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { candidateRoots, detectProjectDirs, expandHome, splitPathList } from '../paths';
+import {
+  candidateRoots,
+  detectProjectDirs,
+  expandHome,
+  splitPathList,
+  resolveProjectRoot,
+  clearProjectRootCache,
+} from '../paths';
 
 describe('expandHome', () => {
   it('expands a bare ~ and a leading ~/ to the home directory', () => {
@@ -148,5 +155,46 @@ describe('detectProjectDirs', () => {
     const env = mkRoot('env');
     process.env.CLAUDE_CONFIG_DIR = env;
     expect(detectProjectDirs([extra])[0]).toBe(path.join(extra, 'projects'));
+  });
+});
+
+describe('resolveProjectRoot', () => {
+  let tmp: string;
+
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ccmon-projroot-'));
+    clearProjectRootCache();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    clearProjectRootCache();
+  });
+
+  it('resolves subfolder working directories to the enclosing git repository root', () => {
+    const repoRoot = path.join(tmp, 'MyRepo');
+    const subfolder = path.join(repoRoot, 'backend', 'src', 'tc');
+    fs.mkdirSync(path.join(repoRoot, '.git'), { recursive: true });
+    fs.mkdirSync(subfolder, { recursive: true });
+
+    expect(resolveProjectRoot(subfolder)).toBe(repoRoot);
+    expect(resolveProjectRoot(path.join(repoRoot, 'backend'))).toBe(repoRoot);
+    expect(resolveProjectRoot(repoRoot)).toBe(repoRoot);
+  });
+
+  it('collapses worktree subpaths to the main repository root', () => {
+    const repoRoot = path.join(tmp, 'FleetOS');
+    const worktreeDir = path.join(repoRoot, '.claude', 'worktrees', 'wf_12345', 'src');
+    fs.mkdirSync(path.join(repoRoot, '.git'), { recursive: true });
+    fs.mkdirSync(worktreeDir, { recursive: true });
+
+    expect(resolveProjectRoot(worktreeDir)).toBe(repoRoot);
+  });
+
+  it('returns raw path when no git repository is present', () => {
+    const plainDir = path.join(tmp, 'scratch', 'demo');
+    fs.mkdirSync(plainDir, { recursive: true });
+
+    expect(resolveProjectRoot(plainDir)).toBe(plainDir);
   });
 });

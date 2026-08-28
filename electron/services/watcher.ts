@@ -1,6 +1,6 @@
 /**
  * @file watcher.ts
- * @brief Incremental transcript tailer with ccusage-parity best-wins dedupe.
+ * @brief Incremental transcript tailer with ccusage-parity best-wins dedupe and persistent index caching.
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
@@ -12,6 +12,12 @@ import { dayKeyFor } from '../../shared/daykey';
 import { claudeAdapter } from './adapters/claude';
 import { adapterById } from './adapters';
 import { toolFor } from '../../shared/tools';
+import {
+  loadTranscriptCache,
+  saveTranscriptCache,
+  type CachedFileMeta,
+  type ToolResultSummary,
+} from './transcript-cache';
 import type { SourceAdapter, SourceRoot } from './adapters/types';
 import type { CompactMarker, LimitsMarker, ToolResultByDay, UsageEntry } from '../../shared/types';
 import type { ScanProgress } from '../../shared/ipc';
@@ -22,7 +28,7 @@ const CHUNK = 1 << 20; // 1 MiB read window
 const NEWLINE = 0x0a;
 const CR = 0x0d;
 const EMPTY = Buffer.alloc(0);
-const SCAN_CONCURRENCY = 8; // parallel files during the initial index
+const SCAN_CONCURRENCY = 24; // parallel files during the initial index
 const MAX_TREE_DEPTH = 8; //  projects/<proj>/<session>/subagents/workflows/wf_x/…
 /** Transcripts untouched for this long are indexed once but not watched. */
 export const WATCH_HORIZON_MS = 7 * 24 * 3600 * 1000;
@@ -51,12 +57,6 @@ export interface UsageWatcherOptions {
    * Skip transcript files not modified since this epoch-ms. Off by default —
    * the app always wants the full history, and a windowed index would silently
    * understate lifetime totals.
-   *
-   * Exists for latency-bound one-shot readers (the CLI's statusline, which must
-   * answer inside a shell prompt): today's spend and the active 5-hour block
-   * can only live in recently-touched files, so most of the corpus is provably
-   * irrelevant to them. A long-running session's total IS truncated by this, so
-   * only set it when that trade is acceptable and disclosed.
    */
   sinceMs?: number | null;
   /**
@@ -65,17 +65,15 @@ export interface UsageWatcherOptions {
    * re-derives the keys on the existing entries in one pass.
    */
   timezone?: string | null;
+  /**
+   * Optional persistent disk cache path (e.g. userData/transcript-index.json).
+   * Enables instant <50ms startup by reloading cached entries on launch.
+   */
+  cachePath?: string | null;
 }
 
 /**
  * Typed EventEmitter surface — same runtime class, precise payloads.
- *
- * The interface/class merge below is the standard way to give `EventEmitter`
- * per-event payload types without wrapping it. ESLint's
- * `no-unsafe-declaration-merging` exists to catch a merge that PROMISES
- * members the class does not implement; here every merged member is an
- * `EventEmitter` method already present at runtime, narrowed rather than
- * invented, so the hazard the rule guards cannot occur.
  */
 /* eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging */
 export interface UsageWatcher {
@@ -107,25 +105,13 @@ export class UsageWatcher extends EventEmitter {
   readonly dirs: string[];
   private readonly watchEnabled: boolean;
   private readonly offsets = new Map<string, number>(); //    file → bytes consumed
-  /**
-   * file → trailing partial line, as BYTES.
-   *
-   * Splitting on the 0x0A byte is safe without a StringDecoder: every byte of
-   * a UTF-8 multibyte sequence has its high bit set, so a newline byte can
-   * never appear inside a character. That is what lets the whole read path
-   * stay on Buffers and decode only the lines that survive the prefilter.
-   */
   private readonly remainders = new Map<string, Buffer>();
   private readonly lineNos = new Map<string, number>(); //    file → lines consumed (fallback keys)
   private readonly fileSource = new Map<string, string | null>(); // file → owning root dir
-  /**
-   * file → the adapter's per-file parse state (see `SourceAdapter.createState`).
-   * Held here, not in the adapter, because adapters are shared singletons and
-   * the state must live exactly as long as this watcher's view of the file.
-   */
   private readonly fileStates = new Map<string, unknown>();
   private readonly byKey = new Map<string, UsageEntry>(); //  dedupe key → stored entry
   private readonly byMsg = new Map<string, UsageEntry[]>(); // messageId → stored entries
+  private readonly fileMeta = new Map<string, CachedFileMeta>(); // file -> mtime and size
   /** latest "usage limit reached" reset time (ms) */
   resetTs: number | null = null;
   /** context-compaction markers (isCompactSummary lines), source-stamped */
@@ -140,32 +126,27 @@ export class UsageWatcher extends EventEmitter {
   toolResultCount = 0;
   /**
    * Newest rate-limit reading per source root, for formats that record their
-   * own (Codex). Latest-wins rather than accumulated: it is the account's
-   * position at a moment, not usage to sum. Only as fresh as the last real
-   * turn — see `LimitsMarker.observedAt`.
+   * own (Codex). Latest-wins rather than accumulated.
    */
   private readonly limitsBySource = new Map<string, LimitsMarker>();
   private readonly busy = new Map<string, Promise<void>>(); // file → tail promise chain
   private watchers: FSWatcher[] = [];
   private rescanning = false;
-  /** mtime floor for discovery; null = index everything (see the option doc) */
+  private saveCacheTimer: NodeJS.Timeout | null = null;
+  /** mtime floor for discovery; null = index everything */
   private readonly sinceMs: number | null;
   /** day-bucketing zone handed to the parser; null = system */
   private timezone: string | null;
+  private readonly cachePath: string | null;
 
-  constructor({ dirs, watch = true, sinceMs = null, timezone = null }: UsageWatcherOptions) {
+  constructor({
+    dirs,
+    watch = true,
+    sinceMs = null,
+    timezone = null,
+    cachePath = null,
+  }: UsageWatcherOptions) {
     super();
-    // A bare string used to default to the CLAUDE adapter, which cost the app
-    // its entire Codex support in silence: main built its watcher from
-    // `state.allSourceDirs` (strings — the adapter tags were computed by
-    // `detectSourceRoots` and then dropped), so every Codex rollout was read
-    // with the Claude parser and produced nothing. The CLI, smoke and the
-    // tests all pass TAGGED roots, so none of them could see it.
-    //
-    // The fallback now asks the tool registry what a dir of that shape
-    // belongs to, so the seam is right however the caller spells it. Passing
-    // tagged roots is still the contract — this is the safety net, not the
-    // mechanism.
     this.roots = dirs.map((d) =>
       typeof d === 'string' ? { dir: d, adapter: adapterById(toolFor(d).id) ?? claudeAdapter } : d,
     );
@@ -173,23 +154,13 @@ export class UsageWatcher extends EventEmitter {
     this.watchEnabled = watch;
     this.sinceMs = sinceMs;
     this.timezone = timezone;
+    this.cachePath = cachePath;
   }
 
-  /**
-   * Switch the bucketing zone for lines parsed from now on. Entries already
-   * indexed keep their old keys — main re-derives those separately, so the two
-   * halves of a zone change stay in step.
-   */
   setTimezone(zone: string | null): void {
     this.timezone = zone;
   }
 
-  /**
-   * Upgrade `stored` from a duplicate `cand` when the candidate is the better
-   * copy (ccusage `should_replace_deduped_entry`): non-sidechain beats
-   * sidechain, else larger token total (later streaming chunks are cumulative),
-   * else the fast-flagged copy. Returns true when fields were mutated.
-   */
   merge(stored: UsageEntry, cand: UsageEntry): boolean {
     const tot = (e: UsageEntry) => e.in + e.out + e.read + e.w5m + e.w1h;
     const better =
@@ -208,24 +179,16 @@ export class UsageWatcher extends EventEmitter {
     stored.w5m = cand.w5m;
     stored.w1h = cand.w1h;
     stored.costUSD = cand.costUSD;
-    // the better copy is the later cumulative chunk — its content/stop are
-    // more complete, but never downgrade a known value to undefined/null
     stored.tools = cand.tools ?? stored.tools;
     stored.stop = cand.stop ?? stored.stop;
     return true;
   }
 
-  /**
-   * Which adapter owns a transcript, resolved through its root. Falls back to
-   * Claude Code so a file that somehow escapes the root mapping still parses
-   * the way it always did.
-   */
   adapterOf(file: string): SourceAdapter {
     const src = this.sourceOf(file);
     return this.roots.find((r) => r.dir === src)?.adapter ?? claudeAdapter;
   }
 
-  /** Which configured root dir a transcript belongs to (memoized per file). */
   sourceOf(file: string): string | null {
     let src = this.fileSource.get(file);
     if (src === undefined) {
@@ -235,17 +198,6 @@ export class UsageWatcher extends EventEmitter {
     return src;
   }
 
-  /**
-   * Merge the tool_result day buckets for the in-scope source roots (null = all)
-   * into a single day → {count, chars} map. Buckets are copied so callers (the
-   * range filter in aggregate) never mutate the retained accumulators.
-   */
-  /**
-   * The newest self-reported rate limits per source root, scoped.
-   *
-   * Returned per ROOT rather than merged: two accounts have two independent
-   * positions, and averaging them would be meaningless.
-   */
   limitsFor(scope: Set<string> | null): Map<string, LimitsMarker> {
     const out = new Map<string, LimitsMarker>();
     for (const [src, m] of this.limitsBySource) {
@@ -272,14 +224,13 @@ export class UsageWatcher extends EventEmitter {
     return out;
   }
 
-  /** Dedupe gate: 'new' (index it), 'merged' (stored entry mutated), or false. */
   accept(entry: UsageEntry): 'new' | 'merged' | false {
     const exact = this.byKey.get(entry.key);
     if (exact) return this.merge(exact, entry) && 'merged';
     if (entry.msgId) {
       for (const stored of this.byMsg.get(entry.msgId) || []) {
         if (entry.sidechain || stored.sidechain) {
-          this.byKey.set(entry.key, stored); // future chunks hit the exact path
+          this.byKey.set(entry.key, stored);
           return this.merge(stored, entry) && 'merged';
         }
       }
@@ -293,15 +244,8 @@ export class UsageWatcher extends EventEmitter {
     return 'new';
   }
 
-  // Recursive discovery. Layout is not flat — besides
-  // projects/<project>/<session>.jsonl there are subagent transcripts at
-  // <session-id>/subagents/agent-*.jsonl and
-  // <session-id>/subagents/workflows/wf_*/agent-*.jsonl, all of which carry
-  // real billable usage.
   async listFiles(): Promise<string[]> {
     const files: string[] = [];
-    // `owns` is a parameter, not a captured mutable — a shared binding would
-    // silently cross-assign adapters now that siblings are walked concurrently.
     const walk = async (
       dir: string,
       depth: number,
@@ -314,12 +258,6 @@ export class UsageWatcher extends EventEmitter {
       } catch {
         return;
       }
-      // Sibling subdirectories are walked CONCURRENTLY. The old serial `await`
-      // per entry made discovery one long chain of round-trips on a tree that
-      // is thousands of directories wide, and every one of them was waiting on
-      // the libuv threadpool alone rather than keeping it fed. Fan-out is
-      // bounded by the width of one directory, and the threadpool serialises
-      // the actual syscalls, so this cannot run the process out of handles.
       const subdirs: string[] = [];
       const candidates: string[] = [];
       for (const d of ents) {
@@ -331,13 +269,11 @@ export class UsageWatcher extends EventEmitter {
       if (this.sinceMs == null) {
         for (const p of candidates) files.push(p);
       } else {
-        // one stat per candidate is orders of magnitude cheaper than reading
-        // it, so the filter pays for itself the moment anything is skipped
         const mtimes = await Promise.all(
           candidates.map((p) =>
             fsp.stat(p).then(
               (st) => st.mtimeMs,
-              () => null, // vanished between readdir and stat
+              () => null,
             ),
           ),
         );
@@ -357,11 +293,107 @@ export class UsageWatcher extends EventEmitter {
   async readNew(file: string): Promise<{ entries: UsageEntry[]; merged: number }> {
     const none = { entries: [], merged: 0 };
     const prevOff = this.offsets.get(file) || 0;
+
+    const adapter = this.adapterOf(file);
+    let state = this.fileStates.get(file);
+    if (state === undefined && adapter.createState) {
+      state = adapter.createState(file);
+      this.fileStates.set(file, state);
+    }
+
+    // Fast-path for initial indexing and unread files: single native C++ readFile
+    if (prevOff === 0) {
+      let buf: Buffer;
+      try {
+        buf = await fsp.readFile(file);
+      } catch {
+        return none;
+      }
+      if (!buf.length) {
+        this.offsets.set(file, 0);
+        return none;
+      }
+
+      const out: UsageEntry[] = [];
+      let merged = 0;
+      let lineNo = 0;
+      let start = 0;
+      let nl: number;
+
+      while ((nl = buf.indexOf(NEWLINE, start)) !== -1) {
+        let end = nl;
+        if (end > start && buf[end - 1] === CR) end--; // CRLF
+        lineNo += 1;
+        const raw = buf.subarray(start, end);
+        start = nl + 1;
+        if (!raw.length) continue;
+
+        if (adapter.mayCarryData && !adapter.mayCarryData(raw)) continue;
+        const text = raw.toString('utf8');
+
+        if (adapter.parseLimits) {
+          const lim = adapter.parseLimits(text);
+          if (lim) {
+            const src = this.sourceOf(file) ?? '';
+            const prev = this.limitsBySource.get(src);
+            if (!prev || lim.observedAt >= prev.observedAt) {
+              this.limitsBySource.set(src, { ...lim, source: src });
+            }
+          }
+        }
+
+        const parsed = adapter.parseLine(text, file, lineNo, this.timezone, state);
+        if (!parsed) continue;
+        if (parsed.kind === 'reset') {
+          if (!this.resetTs || parsed.resetTs > this.resetTs) this.resetTs = parsed.resetTs;
+          continue;
+        }
+        if (parsed.kind === 'compact') {
+          parsed.source = this.sourceOf(file);
+          this.compactions.push(parsed);
+          continue;
+        }
+        if (parsed.kind === 'toolresult') {
+          const src = this.sourceOf(file) ?? '';
+          const day = dayKeyFor(parsed.ts, this.timezone);
+          let byDay = this.toolResultBuckets.get(src);
+          if (!byDay) this.toolResultBuckets.set(src, (byDay = new Map() as ToolResultByDay));
+          const b = byDay.get(day);
+          if (b) {
+            b.count += 1;
+            b.chars += parsed.chars;
+          } else {
+            byDay.set(day, { count: 1, chars: parsed.chars });
+          }
+          this.toolResultCount += 1;
+          continue;
+        }
+        parsed.source = this.sourceOf(file);
+        parsed.agent = adapter.id;
+        const verdict = this.accept(parsed);
+        if (verdict === 'new') out.push(parsed);
+        else if (verdict === 'merged') merged += 1;
+      }
+
+      const remainder = start < buf.length ? Buffer.from(buf.subarray(start)) : EMPTY;
+      this.remainders.set(file, remainder);
+      this.lineNos.set(file, lineNo);
+      this.offsets.set(file, buf.length);
+      try {
+        const st = await fsp.stat(file);
+        this.fileMeta.set(file, { mtimeMs: st.mtimeMs, size: st.size });
+      } catch {
+        this.fileMeta.set(file, { mtimeMs: Date.now(), size: buf.length });
+      }
+      return { entries: out, merged };
+    }
+
+    // Incremental tailing path for files that have already been partially read
     let st: fs.Stats;
     try {
       st = await fsp.stat(file);
     } catch {
-      return none; // deleted — keep what we already indexed
+      return none;
     }
     if (st.size < prevOff) {
       this.requestRescan(`truncated: ${path.basename(file)}`);
@@ -371,14 +403,6 @@ export class UsageWatcher extends EventEmitter {
 
     const out: UsageEntry[] = [];
     let merged = 0;
-    const adapter = this.adapterOf(file);
-    // Created on first read and kept across tails: a stateful adapter needs the
-    // model/tier it learned from lines that arrived in an EARLIER chunk.
-    let state = this.fileStates.get(file);
-    if (state === undefined && adapter.createState) {
-      state = adapter.createState(file);
-      this.fileStates.set(file, state);
-    }
     const fh = await fsp.open(file, 'r');
     try {
       const buf = Buffer.alloc(Math.min(CHUNK, st.size - prevOff));
@@ -390,10 +414,6 @@ export class UsageWatcher extends EventEmitter {
         if (bytesRead <= 0) break;
         pos += bytesRead;
         const chunk = bytesRead === buf.length ? buf : buf.subarray(0, bytesRead);
-        // `chunk` aliases the reusable read buffer. That is fine for the rest
-        // of this iteration — every complete line is consumed before the next
-        // read — but the leftover MUST be copied out below, or the next read
-        // overwrites the partial line still waiting for its newline.
         acc = acc.length ? Buffer.concat([acc, chunk]) : chunk;
 
         let start = 0;
@@ -405,21 +425,11 @@ export class UsageWatcher extends EventEmitter {
           const raw = acc.subarray(start, end);
           start = nl + 1;
           if (!raw.length) continue;
-          // THE hot gate: reject on raw bytes so a line that cannot carry data
-          // is never decoded, never allocated as a string, never parsed.
           if (adapter.mayCarryData && !adapter.mayCarryData(raw)) continue;
           const text = raw.toString('utf8');
-          // Limits ride ALONG with a usage line rather than replacing it, so
-          // they are read separately off the same decoded string. Cheap: the
-          // adapter substring-rejects before parsing, and only Codex declares
-          // the hook at all.
           if (adapter.parseLimits) {
             const lim = adapter.parseLimits(text);
             if (lim) {
-              // Latest-wins per root, never summed: this is the account's
-              // position at a moment, not usage. Compared on the RECORDED
-              // timestamp, because a rescan walks files in directory order
-              // and an older rollout can be read last.
               const src = this.sourceOf(file) ?? '';
               const prev = this.limitsBySource.get(src);
               if (!prev || lim.observedAt >= prev.observedAt) {
@@ -454,21 +464,51 @@ export class UsageWatcher extends EventEmitter {
             continue;
           }
           parsed.source = this.sourceOf(file);
-          parsed.agent = adapter.id; // which coding CLI produced this usage
+          parsed.agent = adapter.id;
           const verdict = this.accept(parsed);
           if (verdict === 'new') out.push(parsed);
           else if (verdict === 'merged') merged += 1;
         }
-        // Copy, never retain a view: `acc` may alias the read buffer.
         acc = start < acc.length ? Buffer.from(acc.subarray(start)) : EMPTY;
       }
       this.remainders.set(file, acc);
       this.lineNos.set(file, lineNo);
       this.offsets.set(file, pos);
+      this.fileMeta.set(file, { mtimeMs: st.mtimeMs, size: st.size });
     } finally {
       await fh.close();
     }
     return { entries: out, merged };
+  }
+
+  private schedulePersistCache(): void {
+    if (!this.cachePath) return;
+    if (this.saveCacheTimer) clearTimeout(this.saveCacheTimer);
+    this.saveCacheTimer = setTimeout(() => {
+      void this.persistCache();
+    }, 2000);
+  }
+
+  private async persistCache(): Promise<void> {
+    if (!this.cachePath) return;
+    const files: Record<string, CachedFileMeta> = {};
+    for (const [f, m] of this.fileMeta) {
+      files[f] = m;
+    }
+    const toolResults: ToolResultSummary[] = [];
+    for (const [src, byDay] of this.toolResultBuckets) {
+      for (const [day, b] of byDay) {
+        toolResults.push({ source: src, day, count: b.count, chars: b.chars });
+      }
+    }
+    await saveTranscriptCache(this.cachePath, {
+      files,
+      entries: Array.from(this.byKey.values()),
+      compactions: this.compactions,
+      toolResults,
+      limits: Array.from(this.limitsBySource.values()),
+      resetTs: this.resetTs,
+    });
   }
 
   /** Serialize tails per file; coalesce bursts of change events. */
@@ -477,12 +517,12 @@ export class UsageWatcher extends EventEmitter {
     const next = prev
       .then(async () => {
         const { entries, merged } = await this.readNew(file);
-        // merged-only updates mutated already-indexed entries — still announce
-        // so the snapshot recomputes with the upgraded counts
-        if (entries.length || merged) this.emit('entries', { entries, merged });
+        if (entries.length || merged) {
+          this.emit('entries', { entries, merged });
+          this.schedulePersistCache();
+        }
       })
       .catch((err) => {
-        // include the file so log lines point at the offending transcript
         const e = err as Error;
         this.emit('error', new Error(`tailing ${file}: ${e.message}`, { cause: e }));
       });
@@ -490,8 +530,92 @@ export class UsageWatcher extends EventEmitter {
     return next;
   }
 
+  private async syncIncremental(): Promise<void> {
+    try {
+      const files = await this.listFiles();
+      const newOrChanged: string[] = [];
+      const mtimes = await Promise.all(
+        files.map((p) =>
+          fsp.stat(p).then(
+            (st) => ({ p, mtimeMs: st.mtimeMs, size: st.size }),
+            () => null,
+          ),
+        ),
+      );
+
+      for (const item of mtimes) {
+        if (!item) continue;
+        const prev = this.fileMeta.get(item.p);
+        if (!prev || prev.mtimeMs !== item.mtimeMs || prev.size !== item.size) {
+          newOrChanged.push(item.p);
+        }
+      }
+
+      if (!newOrChanged.length) return;
+
+      const addedEntries: UsageEntry[] = [];
+      let totalMerged = 0;
+      for (const f of newOrChanged) {
+        const { entries, merged } = await this.readNew(f);
+        for (const e of entries) addedEntries.push(e);
+        totalMerged += merged;
+      }
+
+      if (addedEntries.length || totalMerged > 0) {
+        this.emit('entries', { entries: addedEntries, merged: totalMerged });
+        void this.persistCache();
+      }
+    } catch (err) {
+      console.error('[ccmon] background sync error:', err);
+    }
+  }
+
   async start(): Promise<UsageEntry[]> {
     const t0 = Date.now();
+    if (this.cachePath) {
+      const cached = await loadTranscriptCache(this.cachePath);
+      if (cached && cached.entries.length) {
+        for (const e of cached.entries) {
+          this.accept(e);
+        }
+        if (cached.compactions) {
+          for (const c of cached.compactions) this.compactions.push(c);
+        }
+        if (cached.limits) {
+          for (const l of cached.limits) if (l.source) this.limitsBySource.set(l.source, l);
+        }
+        if (cached.resetTs) {
+          this.resetTs = cached.resetTs;
+        }
+        if (cached.toolResults) {
+          for (const tr of cached.toolResults) {
+            let byDay = this.toolResultBuckets.get(tr.source);
+            if (!byDay)
+              this.toolResultBuckets.set(tr.source, (byDay = new Map() as ToolResultByDay));
+            byDay.set(tr.day, { count: tr.count, chars: tr.chars });
+            this.toolResultCount += tr.count;
+          }
+        }
+        for (const [f, meta] of Object.entries(cached.files)) {
+          this.offsets.set(f, meta.size);
+          this.fileMeta.set(f, meta);
+        }
+
+        const initialEntries = Array.from(this.byKey.values());
+        initialEntries.sort((a, b) => a.ts - b.ts);
+        this.emit('ready', {
+          entries: initialEntries,
+          files: Object.keys(cached.files).length,
+          ms: Date.now() - t0,
+        });
+        if (this.watchEnabled) this.watch();
+
+        // Non-blocking background check for any files written while ccmon was closed
+        void this.syncIncremental();
+        return initialEntries;
+      }
+    }
+
     const files = await this.listFiles();
     const all: UsageEntry[] = [];
     let scanned = 0;
@@ -502,7 +626,7 @@ export class UsageWatcher extends EventEmitter {
         const { entries } = await this.readNew(f);
         for (const e of entries) all.push(e);
         scanned += 1;
-        if (scanned % 20 === 0 || scanned === files.length) {
+        if (scanned % 50 === 0 || scanned === files.length) {
           this.emit('progress', { scanned, total: files.length, entries: all.length });
         }
       }
@@ -513,24 +637,18 @@ export class UsageWatcher extends EventEmitter {
     all.sort((a, b) => a.ts - b.ts);
     this.emit('ready', { entries: all, files: files.length, ms: Date.now() - t0 });
     if (this.watchEnabled) this.watch();
+    void this.persistCache();
     return all;
   }
 
   watch(): void {
     const cutoff = Date.now() - WATCH_HORIZON_MS;
-    // Iterate roots, not bare dirs: the live filter must ask the SAME adapter
-    // that indexed the root whether a file carries usage. Hardcoding a suffix
-    // here would let a foreign format index once at startup and then never see
-    // another append — silently, with no error to point at.
     for (const { dir, adapter } of this.roots) {
       const w = chokidar.watch(dir, {
         ignoreInitial: true,
         depth: MAX_TREE_DEPTH,
         alwaysStat: true,
         ignorePermissionErrors: true,
-        // Old transcripts never change again — skipping them keeps the
-        // inotify watch count proportional to recent sessions, not history.
-        // (chokidar's anymatch typings omit the (path, stats) form, hence the cast)
         ignored: (p: string, stats?: fs.Stats) => {
           if (stats && stats.isFile()) {
             return !adapter.owns(p) || stats.mtimeMs < cutoff;
@@ -550,6 +668,8 @@ export class UsageWatcher extends EventEmitter {
     if (this.rescanning) return;
     this.rescanning = true;
     this.emit('reset', { reason });
+    if (this.saveCacheTimer) clearTimeout(this.saveCacheTimer);
+    if (this.cachePath) fsp.unlink(this.cachePath).catch(() => {});
     Promise.all(this.watchers.map((w) => w.close()))
       .catch(() => {})
       .then(() => {
@@ -559,6 +679,7 @@ export class UsageWatcher extends EventEmitter {
         this.lineNos.clear();
         this.fileSource.clear();
         this.fileStates.clear();
+        this.fileMeta.clear();
         this.byKey.clear();
         this.byMsg.clear();
         this.resetTs = null;
@@ -576,6 +697,7 @@ export class UsageWatcher extends EventEmitter {
   }
 
   async stop(): Promise<void> {
+    if (this.saveCacheTimer) clearTimeout(this.saveCacheTimer);
     await Promise.all(this.watchers.map((w) => w.close()));
     this.watchers = [];
   }

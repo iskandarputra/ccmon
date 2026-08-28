@@ -1,6 +1,116 @@
-/* insights view — derived analytics (.ins- prefix) */
+/* ───────────────────────────────────────────────────────────────────────────
+   Insights & Optimization View (.ins- prefix)
+   Derived Cost Analytics, Cache Economics, Plan Value & Efficiency Telemetry
+   ─────────────────────────────────────────────────────────────────────────── */
 
-/* ── cache economics: two comparison bars + fact tiles ────────────────────── */
+/* ===== Hero KPI Telemetry Deck ============================================ */
+
+.ins-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.ins-kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  background: linear-gradient(
+    180deg,
+    var(--bg1) 0%,
+    color-mix(in srgb, var(--bg1) 85%, var(--bg0)) 100%
+  );
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 4px 16px rgba(0, 0, 0, 0.2);
+  transition:
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ins-kpi-card:hover {
+  border-color: color-mix(in srgb, var(--text-dim) 35%, var(--line));
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.ins-kpi-lbl {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ins-kpi-aside {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  color: var(--text-dim);
+}
+
+.ins-kpi-val {
+  font-family: var(--sans);
+  font-feature-settings:
+    'tnum' 1,
+    'cv02' 1,
+    'cv03' 1;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.15;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ins-kpi-delta {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.ins-kpi-delta.is-up {
+  color: var(--rose);
+  background: color-mix(in srgb, var(--rose) 12%, var(--bg0));
+}
+.ins-kpi-delta.is-down {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, var(--bg0));
+}
+
+.ins-kpi-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1024px) {
+  .ins-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ===== Cache Economics & Comparison Bars ================================== */
+
 .ins-cache {
   display: flex;
   flex-direction: column;
@@ -11,59 +121,115 @@
   font-size: 12px;
 }
 
+.ins-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px 14px;
+  background: color-mix(in srgb, var(--amber) 4%, var(--bg0));
+  border: 1px solid color-mix(in srgb, var(--amber) 20%, transparent);
+  border-radius: 10px;
+}
+
+.ins-hero-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: var(--amber);
+  padding: 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--amber) 14%, var(--bg1));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-sizing: content-box;
+}
+
+.ins-hero-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ins-hero-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.ins-hero-value {
+  font-family: var(--sans);
+  font-feature-settings:
+    'tnum' 1,
+    'cv02' 1;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--ok);
+}
+
+.ins-hero-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 .ins-cache-row {
   display: grid;
-  grid-template-columns: 110px 1fr auto;
+  grid-template-columns: 120px 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 8px 10px;
-  margin: 0 -10px;
-  border-radius: var(--radius-sm);
-  transition:
-    background var(--dur-1) var(--ease-out),
-    transform var(--dur-1) var(--ease-out);
+  gap: 14px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  transition: all 0.15s ease;
 }
+
 .ins-cache-row:hover {
+  border-color: var(--line);
   background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  transform: translateX(4px);
 }
 
 .ins-cache-label {
   color: var(--text-dim);
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .ins-cache-row b {
   color: var(--text);
   font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  min-width: 76px;
+  font-feature-settings: 'tnum' 1;
+  font-weight: 600;
+  min-width: 80px;
   text-align: right;
 }
 
 .ins-cache-track {
-  height: 9px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
-  border-radius: 5px;
+  height: 8px;
+  background: color-mix(in srgb, var(--bg2) 80%, black);
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .ins-cache-fill {
   height: 100%;
-  border-radius: 5px;
+  border-radius: 4px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ── fact tiles: bordered rounded cards (label over big value) ────────────── */
+/* ===== Fact Tiles (Grid of Key Metrics) ================================== */
+
 .ins-facts {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
   margin: 0;
-  margin-top: 4px;
+  margin-top: 6px;
   padding-top: 14px;
   border-top: 1px solid var(--line-soft);
 }
@@ -71,26 +237,26 @@
 .ins-facts li {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 11px 13px;
-  border-radius: 14px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  transition:
-    box-shadow var(--dur-1) var(--ease-out),
-    transform var(--dur-1) var(--ease-out);
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  transition: all 0.15s ease;
 }
+
 .ins-facts li:hover {
-  box-shadow:
-    var(--neu-raised-sm),
-    inset 0 0 0 1px color-mix(in srgb, var(--amber) 40%, transparent);
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+  background: var(--bg1);
   transform: translateY(-1px);
 }
 
 .ins-facts span {
   color: var(--text-faint);
-  font-size: 11px;
-  letter-spacing: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -99,157 +265,20 @@
 .ins-facts b {
   color: var(--text);
   font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.2;
 }
 
-/* fact tiles opening a panel (no chart above them) — drop the divider */
 .ins-facts-top {
   border-top: none;
   margin-top: 0;
-  padding-top: 2px;
+  padding-top: 0;
 }
 
-/* ── hero numeral: the single headline figure of a section ────────────────── */
-.ins-hero {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  padding: 4px 2px 12px;
-}
-.ins-hero-icon {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  color: var(--amber);
-  padding: 10px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--amber) 12%, var(--bg1));
-  box-shadow: var(--neu-raised);
-  box-sizing: content-box;
-}
-.ins-hero-body {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.ins-hero-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.ins-hero-value {
-  font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  font-size: 30px;
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--text);
-}
-.ins-hero-sub {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-dim);
-}
+/* ===== Model Economics Table ============================================== */
 
-/* ── tool usage — two-column bar list ─────────────────────────────────────── */
-.ins-tools {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 9px 40px;
-  font-family: var(--mono);
-  font-size: 11px;
-  padding: 2px 4px;
-}
-
-.ins-tool {
-  display: grid;
-  grid-template-columns: minmax(120px, 170px) 1fr 52px 80px;
-  align-items: center;
-  gap: 12px;
-  padding: 5px 8px;
-  margin: 0 -8px;
-  border-radius: var(--radius-sm);
-  transition:
-    background var(--dur-1) var(--ease-out),
-    transform var(--dur-1) var(--ease-out);
-}
-.ins-tool:hover {
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  transform: translateX(3px);
-}
-
-.ins-tool-name {
-  color: var(--text-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ins-tool-track {
-  height: 8px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.ins-tool-track i {
-  display: block;
-  height: 100%;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--chart-4) 70%, transparent);
-}
-
-.ins-tool b {
-  color: var(--text);
-  font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  text-align: right;
-}
-
-.ins-tool-cost {
-  color: var(--text-faint);
-  font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
-}
-
-/* ── empty state — centered icon + lead + sub line ────────────────────────── */
-.ins-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 8px;
-  flex: 1;
-  padding: 40px 16px;
-}
-.ins-empty-icon {
-  width: 22px;
-  height: 22px;
-  color: var(--text-faint);
-}
-.ins-empty-lead {
-  font-family: var(--sans);
-  font-size: 13px;
-  color: var(--text-dim);
-}
-.ins-empty-sub {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-faint);
-}
-
-/* ── model economics: inline share bar inside the table ───────────────────── */
 .ins-share {
   display: inline-flex;
   align-items: center;
@@ -261,17 +290,23 @@
   display: block;
   height: 6px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--chart-2) 75%, transparent);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--chart-2) 60%, transparent),
+    var(--chart-2)
+  );
   min-width: 2px;
 }
 
-/* ── records list — bordered rows with leading icon ───────────────────────── */
+/* ===== Engineering Records List ========================================== */
+
 .ins-records {
   list-style: none;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 6px;
+  margin: 0;
+  padding: 0;
   flex: 1;
   font-family: var(--mono);
   font-size: 12px;
@@ -280,38 +315,39 @@
 .ins-records li {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 9px 11px;
-  margin: 0 -4px;
-  border-radius: 12px;
-  transition:
-    background var(--dur-1) var(--ease-out),
-    box-shadow var(--dur-1) var(--ease-out),
-    transform var(--dur-1) var(--ease-out);
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  transition: all 0.15s ease;
 }
+
 .ins-records li:hover {
+  border-color: var(--line);
   background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  transform: translateX(3px);
+  transform: translateX(2px);
 }
 
 .ins-records-icon {
   flex: none;
-  width: 15px;
-  height: 15px;
-  color: var(--text-dim);
+  width: 14px;
+  height: 14px;
+  color: var(--amber);
 }
 
 .ins-records span {
-  color: var(--text-faint);
+  color: var(--text-dim);
+  font-size: 11px;
   white-space: nowrap;
 }
 
 .ins-records b {
   color: var(--text);
   font-family: var(--sans);
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  font-feature-settings: 'tnum' 1;
+  font-weight: 600;
+  font-size: 12px;
   text-align: right;
   margin-left: auto;
   overflow: hidden;
@@ -319,11 +355,312 @@
   white-space: nowrap;
 }
 
+/* ===== MCP Tool Usage Distribution ======================================= */
+
+.ins-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 10px 24px;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+.ins-tool {
+  display: grid;
+  grid-template-columns: minmax(130px, 180px) 1fr 50px 80px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
+  transition: all 0.15s ease;
+}
+
+.ins-tool:hover {
+  background: var(--bg1);
+  border-color: var(--line);
+  transform: translateX(2px);
+}
+
+.ins-tool-name {
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ins-tool-track {
+  height: 6px;
+  background: color-mix(in srgb, var(--bg2) 80%, black);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ins-tool-track i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--chart-4) 60%, transparent),
+    var(--chart-4)
+  );
+}
+
+.ins-tool b {
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-weight: 600;
+  text-align: right;
+}
+
+.ins-tool-cost {
+  color: var(--text);
+  font-family: var(--sans);
+  font-feature-settings: 'tnum' 1;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ===== Empty State Placeholder ============================================ */
+
+.ins-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  flex: 1;
+  padding: 40px 16px;
+  background: var(--bg0);
+  border-radius: 8px;
+  border: 1px dashed var(--line);
+}
+
+.ins-empty-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--text-faint);
+}
+
+.ins-empty-lead {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ins-empty-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ===== Architecture Layers & Knowledge Graph ============================= */
+
+.ins-layers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ins-layer-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.ins-layer-card:hover {
+  background: var(--bg1);
+  border-color: var(--line-focus);
+}
+
+.ins-layer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ins-layer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ins-layer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ins-layer-pct {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.ins-layer-metrics {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ins-layer-cost {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  font-feature-settings: 'tnum' 1;
+}
+
+.ins-layer-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+
+.ins-layer-bar {
+  height: 4px;
+  background: color-mix(in srgb, var(--bg2) 80%, black);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ins-layer-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* Hotspots Table */
+.ins-hotspot-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.ins-filter-pill {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ins-filter-pill:hover {
+  background: var(--bg1);
+  color: var(--text);
+  border-color: var(--line-focus);
+}
+
+.ins-filter-pill.is-active {
+  background: var(--bg2);
+  color: var(--text);
+  border-color: var(--line-focus);
+}
+
+.ins-hotspots-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ins-hotspots-table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--line);
+}
+
+.ins-hotspots-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-dim);
+}
+
+.ins-hotspots-table tr:hover td {
+  background: color-mix(in srgb, var(--bg1) 60%, transparent);
+}
+
+.ins-hotspots-table .hotspot-file {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  font-weight: 500;
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ins-hotspots-table .hotspot-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ins-hotspots-table .hotspot-num {
+  font-family: var(--mono);
+  text-align: right;
+  font-weight: 600;
+}
+
+.ins-hotspots-table .hotspot-cost {
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+}
+
+.ins-tab-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .ins-kpi-card:hover,
   .ins-cache-row:hover,
   .ins-facts li:hover,
   .ins-tool:hover,
-  .ins-records li:hover {
+  .ins-records li:hover,
+  .ins-layer-card:hover {
     transform: none;
   }
 }

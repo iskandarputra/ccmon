@@ -188,22 +188,22 @@
 .ses-chips {
   display: flex;
   justify-content: flex-end;
-  gap: 5px;
+  gap: 4px;
 }
 .ses-chip {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.04em;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--blue) 14%, var(--bg1));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 30%, transparent);
-  color: color-mix(in srgb, var(--blue) 80%, var(--text));
+  letter-spacing: 0.02em;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--blue) 12%, var(--bg0));
+  border: 1px solid color-mix(in srgb, var(--blue) 25%, transparent);
+  color: color-mix(in srgb, var(--blue) 85%, var(--text));
   white-space: nowrap;
 }
 .ses-chip-more {
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
   color: var(--text-faint);
 }
 
@@ -213,7 +213,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 9px;
+  gap: 8px;
 }
 .ses-ctx-label {
   font-family: var(--mono);
@@ -223,19 +223,19 @@
   white-space: nowrap;
 }
 .ses-gauge {
-  width: 64px;
+  width: 60px;
   height: 5px;
-  border-radius: 999px;
-  background: var(--bg1);
-  box-shadow: var(--neu-inset);
+  border-radius: 3px;
+  background: var(--bg0);
+  border: 1px solid var(--line-soft);
   overflow: hidden;
   flex: none;
 }
 .ses-gauge i {
   display: block;
   height: 100%;
-  border-radius: 999px;
-  transition: width var(--dur-2) var(--ease-out);
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 
 .ses-none {

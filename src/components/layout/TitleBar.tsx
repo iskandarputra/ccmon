@@ -104,7 +104,11 @@ function DeepseekChip() {
   );
 }
 
-export function TitleBar() {
+interface TitleBarProps {
+  onToggleAdvisor?: () => void;
+}
+
+export function TitleBar({ onToggleAdvisor }: TitleBarProps) {
   const lastEventTs = useUsageStore((s) => s.lastEventTs);
   const now = useNow(5000);
   const live = lastEventTs && now - lastEventTs < LIVE_WINDOW_MS;
@@ -163,6 +167,38 @@ export function TitleBar() {
       <div className="tb-right">
         {showRange && <RangePicker />}
         <DeepseekChip />
+        {onToggleAdvisor && (
+          <button
+            type="button"
+            className="tb-privacy"
+            onClick={onToggleAdvisor}
+            title="Ask AI Usage Advisor (⌘J)"
+            style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M12 4l1.3 3.9L17.2 9 13.3 10.3 12 14.2 10.7 10.3 6.8 9l3.9-1.1z" />
+            </svg>
+            <span>advisor</span>
+            <kbd
+              style={{
+                fontSize: '9px',
+                opacity: 0.7,
+                padding: '1px 3px',
+                border: '1px solid var(--line)',
+                borderRadius: '3px',
+              }}
+            >
+              ⌘J
+            </kbd>
+          </button>
+        )}
         <span className={`tb-live ${live ? 'is-live' : ''}`}>
           <span className="dot" />
           {live ? 'live' : 'idle'}

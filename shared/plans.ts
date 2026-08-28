@@ -12,6 +12,9 @@
  */
 export const PLAN_PRICES_USD = {
   pro: 20,
+  team: 30,
+  team5x: 125,
+  team20x: 225,
   max5x: 100,
   max20x: 200,
 } as const;

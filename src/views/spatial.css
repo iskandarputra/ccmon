@@ -1,29 +1,32 @@
 /* ── Spatial 3D Canvas Stage ─────────────────────────────────────────────────── */
 
-.spa-stage {
+.spa-studio {
   position: relative;
-  height: clamp(360px, 58vh, 720px);
-  border-radius: 14px;
+  width: 100%;
+  height: calc(100vh - 78px);
+  border-radius: 12px;
   overflow: hidden;
   background: var(--bg0);
   border: 1px solid var(--line);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-.spa-stage canvas {
+.spa-studio canvas {
   display: block;
+  width: 100% !important;
+  height: 100% !important;
   touch-action: none;
   border-radius: inherit;
 }
 
 /* stage vignette overlay */
-.spa-stage::after {
+.spa-studio::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.45);
 }
 
 /* ── Floating Top Control Bar ────────────────────────────────────────────── */
@@ -37,21 +40,21 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  z-index: 10;
+  z-index: 20;
   pointer-events: none;
 }
 
 .spa-mode-group {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
-  background: var(--bg1);
-  backdrop-filter: blur(16px);
+  gap: 2px;
+  padding: 3px;
+  background: color-mix(in srgb, var(--bg1) 85%, transparent);
+  backdrop-filter: blur(24px);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   pointer-events: auto;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .spa-mode-btn {
@@ -60,15 +63,15 @@
   font-weight: 500;
   color: var(--text-dim);
   padding: 4px 10px;
-  border-radius: 6px;
-  transition: all 0.15s ease;
+  border-radius: 5px;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   border: 1px solid transparent;
   text-transform: capitalize;
 }
 
 .spa-mode-btn:hover {
   color: var(--text);
-  background: var(--bg2);
+  background: color-mix(in srgb, var(--bg2) 65%, transparent);
 }
 
 .spa-mode-btn.is-active {
@@ -76,7 +79,9 @@
   color: var(--text);
   font-weight: 600;
   border-color: var(--line);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
 }
 
 .spa-view-group {
@@ -89,28 +94,29 @@
 .spa-plot-pills {
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 4px;
-  background: var(--bg1);
-  backdrop-filter: blur(16px);
+  gap: 2px;
+  padding: 3px;
+  background: color-mix(in srgb, var(--bg1) 85%, transparent);
+  backdrop-filter: blur(24px);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .spa-plot-btn {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-dim);
-  padding: 3px 8px;
+  padding: 4px 9px;
   border-radius: 5px;
-  transition: all 0.15s ease;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   border: 1px solid transparent;
+  text-transform: capitalize;
 }
 
 .spa-plot-btn:hover {
   color: var(--text);
-  background: var(--bg2);
+  background: color-mix(in srgb, var(--bg2) 65%, transparent);
 }
 
 .spa-plot-btn.is-active {
@@ -118,28 +124,32 @@
   color: var(--text);
   font-weight: 600;
   border-color: var(--line);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
 }
 
 .spa-orbit-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   font-family: var(--mono);
   font-size: 11px;
+  font-weight: 500;
   color: var(--text-dim);
   padding: 5px 12px;
-  background: var(--bg1);
-  backdrop-filter: blur(16px);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg1) 85%, transparent);
+  backdrop-filter: blur(24px);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   transition: all 0.15s ease;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
 }
 
 .spa-orbit-btn:hover {
   color: var(--text);
   border-color: var(--text-dim);
-  background: var(--bg2);
 }
 
 .spa-orbit-dot {
@@ -147,7 +157,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--text-faint);
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .spa-orbit-dot.is-on {
@@ -155,36 +165,42 @@
   box-shadow: 0 0 8px var(--sage);
 }
 
-/* ── Floating Telemetry HUD ──────────────────────────────────────────────── */
+/* ── Hover Telemetry HUD (Bottom Left) ──────────────────────────────────── */
 
 .spa-hud {
   position: absolute;
-  bottom: 14px;
-  right: 14px;
-  min-width: 240px;
-  padding: 14px 16px;
-  background: var(--bg1);
-  backdrop-filter: blur(16px);
+  bottom: 18px;
+  left: 18px;
+  z-index: 20;
+  min-width: 250px;
+  max-width: 320px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--bg1) 90%, transparent);
+  backdrop-filter: blur(24px);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
-  font-family: var(--mono);
-  font-size: 11px;
+  border-radius: 8px;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 8px 32px rgba(0, 0, 0, 0.45);
   pointer-events: none;
-  z-index: 10;
+  opacity: 0.85;
   transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
+    opacity 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.spa-hud.is-on {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
 }
 
 .spa-hud-title {
-  font-size: 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--amber);
-  margin-bottom: 8px;
-  padding-bottom: 6px;
+  color: var(--text);
+  margin-bottom: 6px;
+  padding-bottom: 5px;
   border-bottom: 1px solid var(--line-soft);
 }
 
@@ -192,49 +208,52 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  color: var(--text-dim);
-  line-height: 1.7;
+  font-family: var(--mono);
+  font-size: 11px;
+  gap: 12px;
+  margin-top: 3px;
+}
+
+.spa-hud-row span {
+  color: var(--text-faint);
 }
 
 .spa-hud-row b {
   color: var(--text);
-  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 
 .spa-hud-hint {
-  color: var(--text-faint);
-  letter-spacing: 0.04em;
-  font-size: 11px;
-}
-
-/* ── Axis Legend & Controls Footer ────────────────────────────────────────── */
-
-.spa-legend {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 16px;
-  flex-wrap: wrap;
-  margin-top: 12px;
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+/* ── Legend & Camera Tips (Bottom Right) ─────────────────────────────────── */
+
+.spa-legend {
+  position: absolute;
+  bottom: 18px;
+  right: 18px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
   color: var(--text-dim);
+  background: color-mix(in srgb, var(--bg0) 85%, transparent);
+  backdrop-filter: blur(20px);
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
 }
 
 .spa-hint {
+  font-size: 10px;
   color: var(--text-faint);
-}
-
-@media (max-width: 820px) {
-  .spa-control-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .spa-legend {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
 }

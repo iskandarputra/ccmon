@@ -9,16 +9,18 @@
 .hint-btn {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: var(--text-dim);
-  padding: 2px 9px;
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
-  border-radius: 6px;
-  transition: all var(--dur-1) var(--ease-out);
+  padding: 2px 8px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  transition: all 0.15s ease;
 }
 .hint-btn:hover {
   color: var(--text);
+  border-color: var(--text-dim);
+  background: var(--bg1);
 }
 
 /* Modal Popup Styles */
@@ -26,43 +28,41 @@
   position: fixed;
   inset: 0;
   z-index: 999;
-  background: color-mix(in srgb, var(--bg0) 60%, transparent);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: hint-fade-in var(--dur-2) var(--ease-out);
+  animation: hint-fade-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .hint-popup {
   width: 100%;
   max-width: 480px;
   margin: 20px;
-  padding: 24px;
-  /* .panel already supplies the neumorphic extrude; deepen it slightly
-     since this floats above the overlay rather than sitting in the grid */
+  padding: 20px 24px;
+  background: var(--bg1);
+  border-radius: 10px;
+  border: 1px solid var(--line);
   box-shadow:
-    calc(var(--neu-dist) * 1.4) calc(var(--neu-dist) * 1.4) calc(var(--neu-blur) * 1.6)
-      var(--neu-dark),
-    calc(var(--neu-dist) * -1.4) calc(var(--neu-dist) * -1.4) calc(var(--neu-blur) * 1.6)
-      var(--neu-light),
-    0 0 0 1px var(--neu-edge);
-  animation: hint-pop-in var(--dur-2) var(--ease-out);
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 24px 64px rgba(0, 0, 0, 0.6);
+  animation: hint-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .hint-popup-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--line-soft);
 }
 
 .hint-popup-title {
   font-family: var(--sans);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text);
   text-transform: capitalize;
   margin: 0;
@@ -72,7 +72,7 @@
   color: var(--text-dim);
   padding: 4px;
   border-radius: 4px;
-  transition: all var(--dur-1) var(--ease-out);
+  transition: all 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -83,40 +83,18 @@
 
 .hint-close-btn:hover {
   color: var(--text);
-  background: var(--bg1);
-  box-shadow: var(--neu-raised-sm);
+  background: var(--bg0);
 }
 
 .hint-popup-body {
   font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.7;
+  font-size: 11.5px;
+  line-height: 1.6;
   color: var(--text-faint);
 }
 
-/* Make sure links or highlights inside the hint body look good */
 .hint-popup-body b,
 .hint-popup-body strong {
   color: var(--text);
   font-weight: 500;
-}
-
-@keyframes hint-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes hint-pop-in {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
 }

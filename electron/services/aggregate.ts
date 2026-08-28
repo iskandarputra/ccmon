@@ -7,6 +7,7 @@
 import { computeBlocks } from './blocks';
 import { costForMode, costWith, type PricingEngine } from './pricing';
 import { localDateKey } from './parser';
+import { resolveProjectRoot } from './paths';
 import { dayKeyFor, zonedParts, type Zone } from '../../shared/daykey';
 import { dayKeyInRange, isBoundedRange } from '../../shared/range';
 import type { ResolvedRange } from '../../shared/types';
@@ -33,6 +34,11 @@ import type {
   UsageEntry,
   WeeklyRow,
   WhatIfRow,
+  ArchLayerKey,
+  FileHotspot,
+  KnowledgeGraphData,
+  LayerSpend,
+  ModuleSpend,
 } from '../../shared/types';
 
 const DAY_MS = 86400000;
@@ -164,6 +170,172 @@ function computeStreaks(
   return { current, longest };
 }
 
+/**
+ * Strip numeric / version prefixes from folder names (e.g. '0_CONFIG' -> 'config', '1_DRIVERS' -> 'drivers', '04_application' -> 'application', 'v1_api' -> 'api').
+ */
+function normalizeSegment(seg: string): string {
+  return seg.toLowerCase().replace(/^(\d+[-_.]|v\d+[-_.])/, '');
+}
+
+/**
+ * Classify a touched file path into an architectural functional layer using
+ * generalized wildcard tokens, segment normalization, and domain heuristics.
+ */
+export function classifyArchLayer(filePath: string): ArchLayerKey {
+  if (!filePath || typeof filePath !== 'string') return 'other';
+  const p = filePath.toLowerCase().replace(/\\/g, '/');
+  const rawSegments = p.split('/').filter(Boolean);
+  const segments = rawSegments.map(normalizeSegment);
+  const filename = rawSegments[rawSegments.length - 1] || '';
+  const stem = filename.includes('.') ? filename.slice(0, filename.lastIndexOf('.')) : filename;
+  const ext = filename.includes('.') ? filename.slice(filename.lastIndexOf('.')) : '';
+
+  // 1. Tests, QA & Fuzzing
+  if (
+    segments.some((s) => /^(tests?|__tests__|testing|fuzz|pty|e2e|benchmarks?|bench|specs?|qa)$/.test(s)) ||
+    /(\.test\.|\.spec\.|_test\.|test_|_spec\.)/.test(filename)
+  ) {
+    return 'testing';
+  }
+
+  // 2. Documentation, Specs & Architectural Notes
+  if (
+    segments.some((s) => /^(docs?|documentation|specs?|rfc|decisions?|tracking|guides?|invariants?|notes?|wiki|changelog)$/.test(s)) ||
+    ['.md', '.mdx', '.rst', '.txt', '.pdf'].includes(ext) ||
+    ['doxyfile', 'license', 'changelog', 'contributing', 'notice'].includes(filename)
+  ) {
+    return 'docs';
+  }
+
+  // 3. Agent Skills, Sidecars & CLI Extensions
+  if (
+    segments.some((s) => /^(skills|\.claude|\.codex|\.cursor|\.gemini|\.agents)$/.test(s)) ||
+    p.includes('/.claude/skills/')
+  ) {
+    return 'skills';
+  }
+
+  // 4. Data Science, Machine Learning & AI
+  if (
+    segments.some((s) => /^(notebooks?|training|datasets?|ml|ai|evaluation|weights|embeddings?)$/.test(s)) ||
+    ['.ipynb', '.onnx', '.pt', '.pth', '.pkl', '.parquet', '.h5', '.arrow'].includes(ext) ||
+    stem.includes('embedding')
+  ) {
+    return 'ml';
+  }
+
+  // 5. Embedded, Hardware, Drivers & Firmware
+  if (
+    segments.some((s) => /^(drivers?|hal|hardware|firmware|bootloaders?|stm32|esp32|esp-idf|freertos|bsp|serial|uart|spi|i2c|gpio|nvs|led|can|watchdog|ros|urdf)$/.test(s)) ||
+    ['.ino', '.hex', '.sv', '.vhd', '.v'].includes(ext) ||
+    stem.includes('driver') ||
+    stem.includes('bootloader') ||
+    stem.includes('watchdog') ||
+    stem.includes('fault') ||
+    stem.includes('bsp') ||
+    stem.includes('stm32') ||
+    stem.includes('esp32')
+  ) {
+    return 'embedded';
+  }
+
+  // 6. Protocols, Transport & Networking
+  if (
+    segments.some((s) => /^(proto|protocols?|transports?|framing|networking|network)$/.test(s)) ||
+    ['xmodem', 'ymodem', 'zmodem', 'passthrough', 'protocol', 'tcp', 'udp', 'mqtt', 'wifi', 'mavlink', 'nmea', 'canbus', 'osc'].some((k) => stem.includes(k))
+  ) {
+    return 'proto';
+  }
+
+  // 7. TUI, Terminal UI & CLI Rendering
+  if (
+    segments.some((s) => /^(tui|render|rendering|hud|pager|scrollback|terminal|cli|console|prompts?|completions?)$/.test(s)) ||
+    ['sparkline', 'pager', 'scrollback', 'hud', 'fuzzy', 'completions'].some((k) => stem.includes(k))
+  ) {
+    return 'tui';
+  }
+
+  // 8. Mobile & Native Apps
+  if (
+    segments.some((s) => /^(ios|android|flutter|react-native)$/.test(s)) ||
+    ['.swift', '.kt', '.dart', '.m'].includes(ext)
+  ) {
+    return 'mobile';
+  }
+
+  // 9. Smart Contracts & Web3
+  if (
+    segments.some((s) => /^(contracts?|solidity|circuit)$/.test(s)) ||
+    ['.sol', '.cairo', '.vy'].includes(ext)
+  ) {
+    return 'contracts';
+  }
+
+  // 10. DevOps, Cloud, CI/CD & Build Scripts
+  if (
+    segments.some((s) => /^(\.github|\.gitlab|docker|deploy|deployment|infra|infrastructure|k8s|helm|terraform|scripts?|packaging|releases?|ci|cd)$/.test(s)) ||
+    ['dockerfile', 'docker-compose.yml', 'makefile', 'cmakelists.txt', 'build.sh'].includes(filename) ||
+    ['.yml', '.yaml', '.sh', '.bash', '.deb'].includes(ext)
+  ) {
+    return 'devops';
+  }
+
+  // 11. Configuration & Board Settings
+  if (
+    segments.some((s) => /^(configs?|settings?|configurations?)$/.test(s)) ||
+    ['package.json', 'tsconfig.json', 'cargo.toml', 'go.mod', 'go.sum', 'pyproject.toml', 'pom.xml', '.env', '.env.example'].includes(filename) ||
+    stem.includes('config') ||
+    stem.includes('sdkconfig')
+  ) {
+    return 'config';
+  }
+
+  // 12. UI, Editor & Frontend
+  if (
+    segments.some((s) => /^(frontend|ui|components?|views?|pages?|styles?|layouts?|editor|renderer|web_interface|web)$/.test(s)) ||
+    ['.tsx', '.jsx', '.vue', '.svelte', '.html', '.css', '.scss', '.less'].includes(ext)
+  ) {
+    return 'frontend';
+  }
+
+  // 13. Backend Services & API
+  if (
+    segments.some((s) => /^(backend|api|server|services?|controllers?|routes?|handlers?|endpoints?|db|database|graphql|grpc|application|apps?)$/.test(s)) ||
+    ['service', 'repository', 'controller', 'handler', 'route', 'resolver', 'migration'].some((k) => stem.includes(k))
+  ) {
+    return 'backend';
+  }
+
+  // 14. Core Systems, State Machines & Runtime Engine
+  if (
+    segments.some((s) => /^(core|engine|lib|libs|loop|runtime|sm|state|dispatch|scheduler|sys_mgr|managers?)$/.test(s)) ||
+    ['dispatch', 'event_bus', 'scheduler', 'state_machine', 'runtime', 'tasks', 'rx_thread'].some((k) => stem.includes(k)) ||
+    ['.py', '.go', '.rs', '.cpp', '.c', '.h', '.hpp', '.java', '.ts', '.js'].includes(ext)
+  ) {
+    return 'core';
+  }
+
+  return 'other';
+}
+
+const LAYER_META: Record<ArchLayerKey, { label: string; color: string }> = {
+  core: { label: 'Core Systems & Logic', color: 'var(--amber)' },
+  proto: { label: 'Protocols & Transport', color: '#14b8a6' },
+  tui: { label: 'TUI & Terminal UI', color: '#a855f7' },
+  embedded: { label: 'Embedded & Hardware', color: '#06b6d4' },
+  backend: { label: 'Backend & Services', color: '#f59e0b' },
+  frontend: { label: 'UI & Frontend', color: '#38bdf8' },
+  ml: { label: 'Data Science & ML', color: '#ec4899' },
+  mobile: { label: 'Mobile & Apps', color: '#8b5cf6' },
+  contracts: { label: 'Smart Contracts', color: '#6366f1' },
+  testing: { label: 'Testing & QA', color: 'var(--sage)' },
+  docs: { label: 'Docs & Specs', color: 'var(--chart-4)' },
+  devops: { label: 'DevOps & Infra', color: 'var(--chart-5)' },
+  skills: { label: 'Agent Skills', color: 'var(--chart-6)' },
+  config: { label: 'Config & Tooling', color: '#64748b' },
+  other: { label: 'Other / Utility', color: 'var(--text-faint)' },
+};
+
 interface DayAcc extends SumRow {
   sessions: Set<string>;
   models: Map<string, SumRow> | null;
@@ -188,6 +360,20 @@ interface ProjectAcc extends SumRow {
   lastTs: number;
   sidechainCost: number;
   daily: Map<string, number> | null;
+  layerMap: Map<ArchLayerKey, { cost: number; tokens: number; touches: number }>;
+  hotspotMap: Map<
+    string,
+    {
+      file: string;
+      shortPath: string;
+      layer: ArchLayerKey;
+      touches: number;
+      cost: number;
+      tokens: number;
+      sessions: Set<string>;
+      lastTs: number;
+    }
+  >;
 }
 
 interface SessionAcc extends SumRow {
@@ -365,9 +551,10 @@ export function dayBreakdown(
 
   for (const e of entries) {
     const c = costOf(e);
+    const pPath = resolveProjectRoot(e.project);
     dayCost.set(e.dateKey, (dayCost.get(e.dateKey) || 0) + c);
-    const pf = projFirstTs.get(e.project);
-    if (pf === undefined || e.ts < pf) projFirstTs.set(e.project, e.ts);
+    const pf = projFirstTs.get(pPath);
+    if (pf === undefined || e.ts < pf) projFirstTs.set(pPath, e.ts);
     if (e.dateKey !== dateKey) continue;
 
     cost += c;
@@ -375,11 +562,11 @@ export function dayBreakdown(
     outTok += e.out;
     entryCount += 1;
     daySessions.add(e.sessionId);
-    proj.set(e.project, (proj.get(e.project) || 0) + c);
+    proj.set(pPath, (proj.get(pPath) || 0) + c);
     modelC.set(e.model, (modelC.get(e.model) || 0) + c);
     const sv = sess.get(e.sessionId);
     if (sv) sv.cost += c;
-    else sess.set(e.sessionId, { project: e.project, cost: c });
+    else sess.set(e.sessionId, { project: pPath, cost: c });
     if (e.tools?.length) {
       toolTurns += 1;
       toolInvocations += e.tools.length;
@@ -533,6 +720,32 @@ export function buildSnapshot(
   const toolDayMap = new Map<string, number[]>(); // tool → invocations per window day
   let toolTurns = 0;
   let toolInvocations = 0;
+  const layerMap = new Map<ArchLayerKey, { cost: number; tokens: number; touches: number }>();
+  const hotspotMap = new Map<
+    string,
+    {
+      file: string;
+      shortPath: string;
+      layer: ArchLayerKey;
+      touches: number;
+      cost: number;
+      tokens: number;
+      sessions: Set<string>;
+      lastTs: number;
+    }
+  >();
+  const moduleMap = new Map<
+    string,
+    {
+      name: string;
+      cost: number;
+      tokens: number;
+      touches: number;
+      files: Set<string>;
+      layer: ArchLayerKey;
+    }
+  >();
+  let totalFileTouches = 0;
   const stopReasons: Record<string, number> = {};
   const compactBySession = new Map<string, number>();
   // pending compaction timestamps per session (ascending) — drained in the main
@@ -712,10 +925,11 @@ export function buildSnapshot(
     if (e.ts > m.lastTs) m.lastTs = e.ts;
 
     // project
-    let p = projMap.get(e.project);
+    const pPath = resolveProjectRoot(e.project);
+    let p = projMap.get(pPath);
     if (!p) {
       p = {
-        path: e.project,
+        path: pPath,
         ...sumRow(),
         todayCost: 0,
         weekCost: 0,
@@ -723,8 +937,10 @@ export function buildSnapshot(
         lastTs: 0,
         sidechainCost: 0,
         daily: null,
+        layerMap: new Map(),
+        hotspotMap: new Map(),
       };
-      projMap.set(e.project, p);
+      projMap.set(pPath, p);
     }
     addTo(p, e, cost, write);
     if (e.sidechain) p.sidechainCost += cost;
@@ -762,7 +978,7 @@ export function buildSnapshot(
     if (!s) {
       s = {
         id: e.sessionId,
-        project: e.project,
+        project: pPath,
         ...sumRow(),
         firstTs: e.ts,
         lastTs: e.ts,
@@ -777,7 +993,7 @@ export function buildSnapshot(
     if (e.ts < s.firstTs) s.firstTs = e.ts;
     if (e.ts >= s.lastTs) {
       s.lastTs = e.ts;
-      s.project = e.project;
+      s.project = pPath;
       s.lastModel = e.model;
       s.lastCtx = e.in + e.read + e.w5m + e.w1h;
     }
@@ -788,6 +1004,96 @@ export function buildSnapshot(
       const { weekday: wd, hour: hr } = zonedParts(e.ts, zone);
       hourly[wd][hr] += e.in + e.out;
       hourlyCost[wd][hr] += cost;
+    }
+
+    // file & layer knowledge tracking
+    if (e.files?.length) {
+      const costPerFile = cost / e.files.length;
+      const tokPerFile = (e.in + e.out) / e.files.length;
+      for (const rawF of e.files) {
+        totalFileTouches += 1;
+        const layer = classifyArchLayer(rawF);
+        let lm = layerMap.get(layer);
+        if (!lm) layerMap.set(layer, (lm = { cost: 0, tokens: 0, touches: 0 }));
+        lm.cost += costPerFile;
+        lm.tokens += tokPerFile;
+        lm.touches += 1;
+
+        const normF = rawF.replace(/\\/g, '/');
+        const parts = normF.split('/').filter(Boolean);
+        const shortPath = parts.slice(-3).join('/') || normF;
+        let hs = hotspotMap.get(normF);
+        if (!hs) {
+          hotspotMap.set(
+            normF,
+            (hs = {
+              file: normF,
+              shortPath,
+              layer,
+              touches: 0,
+              cost: 0,
+              tokens: 0,
+              sessions: new Set(),
+              lastTs: e.ts,
+            }),
+          );
+        }
+        hs.touches += 1;
+        hs.cost += costPerFile;
+        hs.tokens += tokPerFile;
+        hs.sessions.add(e.sessionId);
+        if (e.ts > hs.lastTs) hs.lastTs = e.ts;
+
+        // per-project layer tracking
+        let plm = p.layerMap.get(layer);
+        if (!plm) p.layerMap.set(layer, (plm = { cost: 0, tokens: 0, touches: 0 }));
+        plm.cost += costPerFile;
+        plm.tokens += tokPerFile;
+        plm.touches += 1;
+
+        // per-project hotspot tracking
+        let phs = p.hotspotMap.get(normF);
+        if (!phs) {
+          p.hotspotMap.set(
+            normF,
+            (phs = {
+              file: normF,
+              shortPath,
+              layer,
+              touches: 0,
+              cost: 0,
+              tokens: 0,
+              sessions: new Set(),
+              lastTs: e.ts,
+            }),
+          );
+        }
+        phs.touches += 1;
+        phs.cost += costPerFile;
+        phs.tokens += tokPerFile;
+        phs.sessions.add(e.sessionId);
+        if (e.ts > phs.lastTs) phs.lastTs = e.ts;
+
+        const modName = parts.length > 2 ? parts.slice(0, 2).join('/') : parts[0] || 'root';
+        let mod = moduleMap.get(modName);
+        if (!mod) {
+          moduleMap.set(
+            modName,
+            (mod = {
+              name: modName,
+              cost: 0,
+              tokens: 0,
+              touches: 0,
+              files: new Set(),
+              layer,
+            }),
+          );
+        }
+        mod.cost += costPerFile;
+        mod.tokens += tokPerFile;
+        mod.touches += 1;
+        mod.files.add(normF);
+      }
     }
   }
 
@@ -891,22 +1197,57 @@ export function buildSnapshot(
   const projects: ProjectRow[] = [...projMap.values()]
     .sort((a, b) => b.lastTs - a.lastTs)
     .slice(0, PROJECT_LIMIT)
-    .map((p) => ({
-      path: p.path,
-      cost: p.cost,
-      todayCost: p.todayCost,
-      weekCost: p.weekCost,
-      in: p.in,
-      out: p.out,
-      read: p.read,
-      write: p.write,
-      tokens: p.in + p.out,
-      entries: p.entries,
-      sessions: p.sessions.size,
-      lastTs: p.lastTs,
-      sidechainCost: p.sidechainCost,
-      daily: projDayKeys.map((k) => ({ date: k, cost: p.daily?.get(k) || 0 })),
-    }));
+    .map((p) => {
+      const projKnowledgeCost = [...p.layerMap.values()].reduce((sum, l) => sum + l.cost, 0);
+      const pLayers: LayerSpend[] = (Object.keys(LAYER_META) as ArchLayerKey[])
+        .map((k) => {
+          const lm = p.layerMap.get(k) || { cost: 0, tokens: 0, touches: 0 };
+          return {
+            key: k,
+            label: LAYER_META[k].label,
+            cost: lm.cost,
+            pct: projKnowledgeCost > 0 ? (lm.cost / projKnowledgeCost) * 100 : 0,
+            tokens: Math.round(lm.tokens),
+            touches: lm.touches,
+            color: LAYER_META[k].color,
+          };
+        })
+        .filter((l) => l.touches > 0 || l.cost > 0)
+        .sort((a, b) => b.cost - a.cost);
+
+      const pHotspots: FileHotspot[] = [...p.hotspotMap.values()]
+        .sort((a, b) => b.touches - a.touches || b.cost - a.cost)
+        .slice(0, 20)
+        .map((h) => ({
+          file: h.file,
+          shortPath: h.shortPath,
+          layer: h.layer,
+          touches: h.touches,
+          cost: h.cost,
+          tokens: Math.round(h.tokens),
+          sessions: h.sessions.size,
+          lastTs: h.lastTs,
+        }));
+
+      return {
+        path: p.path,
+        cost: p.cost,
+        todayCost: p.todayCost,
+        weekCost: p.weekCost,
+        in: p.in,
+        out: p.out,
+        read: p.read,
+        write: p.write,
+        tokens: p.in + p.out,
+        entries: p.entries,
+        sessions: p.sessions.size,
+        lastTs: p.lastTs,
+        sidechainCost: p.sidechainCost,
+        daily: projDayKeys.map((k) => ({ date: k, cost: p.daily?.get(k) || 0 })),
+        layers: pLayers,
+        hotspots: pHotspots,
+      };
+    });
 
   const allSessionRows = [...sessMap.values()].sort((a, b) => b.lastTs - a.lastTs);
   const ctxCutoff = now - CONTEXT_WINDOW_MS;
@@ -1067,6 +1408,57 @@ export function buildSnapshot(
     estTokens: Math.round(toolResultChars / 4),
   };
 
+  // ---- architecture layer & knowledge graph assembly ------------------------
+  const totalKnowledgeCost = [...layerMap.values()].reduce((sum, l) => sum + l.cost, 0);
+  const layers: LayerSpend[] = (Object.keys(LAYER_META) as ArchLayerKey[])
+    .map((k) => {
+      const lm = layerMap.get(k) || { cost: 0, tokens: 0, touches: 0 };
+      return {
+        key: k,
+        label: LAYER_META[k].label,
+        cost: lm.cost,
+        pct: totalKnowledgeCost > 0 ? (lm.cost / totalKnowledgeCost) * 100 : 0,
+        tokens: Math.round(lm.tokens),
+        touches: lm.touches,
+        color: LAYER_META[k].color,
+      };
+    })
+    .filter((l) => l.touches > 0 || l.cost > 0)
+    .sort((a, b) => b.cost - a.cost);
+
+  const hotspots: FileHotspot[] = [...hotspotMap.values()]
+    .sort((a, b) => b.touches - a.touches || b.cost - a.cost)
+    .slice(0, 30)
+    .map((h) => ({
+      file: h.file,
+      shortPath: h.shortPath,
+      layer: h.layer,
+      touches: h.touches,
+      cost: h.cost,
+      tokens: Math.round(h.tokens),
+      sessions: h.sessions.size,
+      lastTs: h.lastTs,
+    }));
+
+  const modules: ModuleSpend[] = [...moduleMap.values()]
+    .sort((a, b) => b.cost - a.cost || b.touches - a.touches)
+    .slice(0, 15)
+    .map((m) => ({
+      name: m.name,
+      cost: m.cost,
+      tokens: Math.round(m.tokens),
+      touches: m.touches,
+      filesCount: m.files.size,
+      layer: m.layer,
+    }));
+
+  const knowledge: KnowledgeGraphData = {
+    layers,
+    hotspots,
+    modules,
+    totalFileTouches,
+  };
+
   return {
     generatedAt: now,
     version,
@@ -1135,6 +1527,7 @@ export function buildSnapshot(
     reconcile,
     records,
     recentEvents: entries.slice(-FEED_SEED).map((e) => toFeedEvent(e, costOfMemo(e))),
+    knowledge,
     accountSpend: accountSpendMap,
   };
 }

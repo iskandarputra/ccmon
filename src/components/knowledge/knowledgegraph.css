@@ -1,0 +1,259 @@
+/**
+ * @file knowledgegraph.css
+ * @brief Styles for the Obsidian/CodeGraph force-directed knowledge graph.
+ * @author Iskandar Putra <www.iskandarputra.com>
+ */
+
+.kg-container {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  width: 100%;
+  height: 520px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  user-select: none;
+}
+
+.kg-container.is-fullscreen {
+  position: fixed;
+  top: 40px;
+  left: 40px;
+  right: 40px;
+  bottom: 40px;
+  height: auto;
+  z-index: 9999;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.8),
+    0 0 0 1px var(--line);
+}
+
+.kg-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.kg-toolbar > * {
+  pointer-events: auto;
+}
+
+.kg-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: color-mix(in srgb, var(--bg1) 85%, transparent);
+  backdrop-filter: blur(12px);
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.kg-search-input {
+  background: transparent;
+  border: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  outline: none;
+  width: 140px;
+}
+.kg-search-input::placeholder {
+  color: var(--text-faint);
+}
+
+.kg-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: color-mix(in srgb, var(--bg1) 85%, transparent);
+  backdrop-filter: blur(12px);
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.kg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.kg-btn:hover {
+  background: var(--bg2);
+  color: var(--text);
+  border-color: var(--line);
+}
+.kg-btn.is-active {
+  background: var(--bg2);
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+  font-weight: 600;
+}
+
+.kg-layer-pills {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg1) 85%, transparent);
+  backdrop-filter: blur(12px);
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  pointer-events: auto;
+}
+
+.kg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-transform: capitalize;
+  transition: all 0.15s ease;
+}
+.kg-pill:hover {
+  background: var(--bg2);
+  color: var(--text);
+}
+.kg-pill.is-active {
+  background: var(--bg2);
+  color: var(--text);
+  border-color: var(--line);
+  font-weight: 600;
+}
+
+.kg-pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.kg-canvas {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+.kg-canvas:active {
+  cursor: grabbing;
+}
+
+.kg-hud {
+  position: absolute;
+  pointer-events: none;
+  z-index: 20;
+  transform: translate(-50%, -100%);
+  margin-top: -12px;
+  background: color-mix(in srgb, var(--bg1) 92%, black);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--mono);
+  min-width: 180px;
+  max-width: 320px;
+}
+
+.kg-hud-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kg-hud-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kg-hud-tag {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.kg-hud-path {
+  font-size: 10px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kg-hud-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+}
+
+.kg-hud-num {
+  color: var(--text-dim);
+}
+
+.kg-hud-cost {
+  color: var(--amber);
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.kg-stats-badge {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: color-mix(in srgb, var(--bg1) 85%, transparent);
+  backdrop-filter: blur(12px);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  pointer-events: none;
+  z-index: 10;
+}

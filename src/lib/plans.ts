@@ -32,6 +32,11 @@ export function planPriceUSD(
     if (p === 'pro') return CHATGPT_PLAN_PRICES_USD.pro;
     return null; // free, business, enterprise, or unrecognised
   }
+  if (p.includes('team')) {
+    if (tier === '20x') return PLAN_PRICES_USD.team20x;
+    if (tier === '5x') return PLAN_PRICES_USD.team5x;
+    return PLAN_PRICES_USD.team;
+  }
   if (p.includes('max')) return tier === '20x' ? PLAN_PRICES_USD.max20x : PLAN_PRICES_USD.max5x;
   if (p.includes('pro')) return PLAN_PRICES_USD.pro;
   return null;

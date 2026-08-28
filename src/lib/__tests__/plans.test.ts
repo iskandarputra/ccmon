@@ -18,8 +18,13 @@ describe('planPriceUSD — Claude', () => {
     expect(planPriceUSD('max', null)).toBe(100);
   });
 
-  it('returns null for seat-priced plans, which have nothing to compare', () => {
-    expect(planPriceUSD('team', null)).toBeNull();
+  it('prices team plans and tier upgrades', () => {
+    expect(planPriceUSD('team', null)).toBe(30);
+    expect(planPriceUSD('team', '5x')).toBe(125);
+    expect(planPriceUSD('team', '20x')).toBe(225);
+  });
+
+  it('returns null for enterprise and unknown plans', () => {
     expect(planPriceUSD('enterprise', null)).toBeNull();
     expect(planPriceUSD(null, null)).toBeNull();
   });

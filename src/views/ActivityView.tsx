@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 import { Panel } from '../components/ui/Panel';
 import { Hint } from '../components/ui/Hint';
+import { DayDrilldown } from '../components/insights/DayDrilldown';
 import { useUsageStore } from '../store/useUsageStore';
 import { axisUSD, fmtUSD, fmtTok, fmtInt, shortModel, dayLabel, monthLabel } from '../lib/format';
 import { ACCENTS, withAlpha } from '../lib/palette';
@@ -219,6 +220,7 @@ function BucketTip<T extends { cost: number; tokens: number; entries: number; da
 export function ActivityView() {
   const snapshot = useUsageStore((s) => s.snapshot)!;
   const [range, setRange] = useState(14);
+  const [drillDate, setDrillDate] = useState<string | null>(null);
   // when a global range is active it governs the window; the local 7/14/35
   // pills only sub-slice in all-time mode
   const bounded = snapshot.range.preset !== 'all';
@@ -290,45 +292,59 @@ export function ActivityView() {
         <div className="g12">
           <div className="act-strip">
             <div className="act-stat">
-              <span className="act-stat-icon">
-                <Glyph>{ICONS.avg}</Glyph>
-              </span>
-              <span className="act-stat-label">avg daily cost</span>
+              <div className="act-stat-head">
+                <span className="act-stat-label">Avg Daily Cost</span>
+                <span className="act-stat-icon">
+                  <Glyph>{ICONS.avg}</Glyph>
+                </span>
+              </div>
               <span className="act-stat-value">{fmtUSD(records.avgDailyCost)}</span>
               <span className="act-stat-sub">per active day</span>
             </div>
+
             <div className="act-stat">
-              <span className="act-stat-icon">
-                <Glyph>{ICONS.active}</Glyph>
-              </span>
-              <span className="act-stat-label">active days</span>
+              <div className="act-stat-head">
+                <span className="act-stat-label">Active Days</span>
+                <span className="act-stat-icon">
+                  <Glyph>{ICONS.active}</Glyph>
+                </span>
+              </div>
               <span className="act-stat-value">
                 {fmtInt(records.activeDays)}
                 <span className="act-dim"> / {fmtInt(records.totalDays)}</span>
               </span>
               <span className="act-stat-sub">of tracked span</span>
             </div>
+
             <div className="act-stat">
-              <span className="act-stat-icon">
-                <Glyph>{ICONS.streak}</Glyph>
-              </span>
-              <span className="act-stat-label">current streak</span>
+              <div className="act-stat-head">
+                <span className="act-stat-label">Current Streak</span>
+                <span className="act-stat-icon">
+                  <Glyph>{ICONS.streak}</Glyph>
+                </span>
+              </div>
               <span className="act-stat-value">{records.streak?.current ?? 0}d</span>
               <span className="act-stat-sub">consecutive active days</span>
             </div>
+
             <div className="act-stat">
-              <span className="act-stat-icon">
-                <Glyph>{ICONS.longest}</Glyph>
-              </span>
-              <span className="act-stat-label">longest streak</span>
+              <div className="act-stat-head">
+                <span className="act-stat-label">Longest Streak</span>
+                <span className="act-stat-icon">
+                  <Glyph>{ICONS.longest}</Glyph>
+                </span>
+              </div>
               <span className="act-stat-value">{records.streak?.longest ?? 0}d</span>
               <span className="act-stat-sub">all time</span>
             </div>
+
             <div className="act-stat">
-              <span className="act-stat-icon">
-                <Glyph>{ICONS.record}</Glyph>
-              </span>
-              <span className="act-stat-label">record day</span>
+              <div className="act-stat-head">
+                <span className="act-stat-label">Record Day</span>
+                <span className="act-stat-icon">
+                  <Glyph>{ICONS.record}</Glyph>
+                </span>
+              </div>
               <span className="act-stat-value">
                 {records.maxDay ? fmtUSD(records.maxDay.cost) : '—'}
               </span>
@@ -360,6 +376,10 @@ export function ActivityView() {
                   data={rows}
                   margin={{ top: 6, right: 4, bottom: 0, left: 0 }}
                   barCategoryGap="28%"
+                  onClick={(state) => {
+                    if (state?.activeLabel) setDrillDate(state.activeLabel);
+                  }}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid vertical={false} stroke="var(--line-soft)" />
                   <XAxis
@@ -570,6 +590,8 @@ export function ActivityView() {
           )}
         </Panel>
       </div>
+
+      {drillDate && <DayDrilldown date={drillDate} onClose={() => setDrillDate(null)} />}
     </div>
   );
 }
