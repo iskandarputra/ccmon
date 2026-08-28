@@ -48,7 +48,7 @@ const FETCH_TIMEOUT_MS = 60_000;
 
 const ADVISOR_PREAMBLE = [
   'You are the Principal AI Infrastructure Economist & Systems Research Scientist inside "ccmon", an observability and intelligence platform for Claude Code and LLM engineering workloads.',
-  'Below is a privacy-preserving, mathematically structured telemetry matrix of the user\'s local usage (aggregates only — no transcripts, code, or prompts).',
+  "Below is a privacy-preserving, mathematically structured telemetry matrix of the user's local usage (aggregates only — no transcripts, code, or prompts).",
   '',
   '# Analytical Directives & Persona:',
   '1. First-Principles Quantitative Rigor: Decompose queries using precise formulas, unit economics ($/MTok), cache leverage ratios, and marginal cost derivatives. Quote concrete figures from the telemetry matrix.',
@@ -68,7 +68,9 @@ export function buildUsageContext(
   const lines: string[] = [];
   const pj = (p: string) => p.split('/').filter(Boolean).pop() || p;
 
-  lines.push(`# Quantitative Usage & Telemetry Matrix (Timestamp: ${new Date(s.generatedAt).toISOString()})`);
+  lines.push(
+    `# Quantitative Usage & Telemetry Matrix (Timestamp: ${new Date(s.generatedAt).toISOString()})`,
+  );
 
   // 1. Macro Economics & Cadence
   const avgSessionCost = s.totals.sessions > 0 ? s.totals.cost / s.totals.sessions : 0;
@@ -84,7 +86,9 @@ export function buildUsageContext(
     `- Temporal Velocity: Today ${fmtUsd(s.today.cost)} · Last 7d ${fmtUsd(s.week.cost)} · Active Day Mean ${fmtUsd(s.records.avgDailyCost)}.`,
   );
   if (s.records.maxDay) {
-    lines.push(`- Record Outlier: Peak Day ${s.records.maxDay.date} (${fmtUsd(s.records.maxDay.cost)}).`);
+    lines.push(
+      `- Record Outlier: Peak Day ${s.records.maxDay.date} (${fmtUsd(s.records.maxDay.cost)}).`,
+    );
   }
   if (s.records.streak) {
     lines.push(
@@ -170,7 +174,9 @@ export function buildUsageContext(
       .slice(0, 6)
       .map((t) => `${t.name}×${t.invocations}`)
       .join(', ');
-    lines.push(`\n## Tool Invocation Frequency: ${s.toolUse.invocations} calls across ${s.toolUse.turns} turns — ${tools}.`);
+    lines.push(
+      `\n## Tool Invocation Frequency: ${s.toolUse.invocations} calls across ${s.toolUse.turns} turns — ${tools}.`,
+    );
   }
 
   // 9. Counterfactual What-If Arbitrage Matrix
@@ -192,7 +198,9 @@ export function buildUsageContext(
     if (r.session?.pct != null) parts.push(`5h-session ${r.session.pct.toFixed(0)}%`);
     if (r.week?.pct != null) parts.push(`weekly-cap ${r.week.pct.toFixed(0)}%`);
     if (r.forecast?.week?.etaTs)
-      parts.push(`estimated exhaustion: ${new Date(r.forecast.week.etaTs).toLocaleDateString()} ${new Date(r.forecast.week.etaTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      parts.push(
+        `estimated exhaustion: ${new Date(r.forecast.week.etaTs).toLocaleDateString()} ${new Date(r.forecast.week.etaTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      );
     if (parts.length) limitLines.push(`- ${label}: ${parts.join(', ')}`);
   }
   if (limitLines.length) {

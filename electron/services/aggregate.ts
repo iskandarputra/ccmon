@@ -192,7 +192,9 @@ export function classifyArchLayer(filePath: string): ArchLayerKey {
 
   // 1. Tests, QA & Fuzzing
   if (
-    segments.some((s) => /^(tests?|__tests__|testing|fuzz|pty|e2e|benchmarks?|bench|specs?|qa)$/.test(s)) ||
+    segments.some((s) =>
+      /^(tests?|__tests__|testing|fuzz|pty|e2e|benchmarks?|bench|specs?|qa)$/.test(s),
+    ) ||
     /(\.test\.|\.spec\.|_test\.|test_|_spec\.)/.test(filename)
   ) {
     return 'testing';
@@ -200,7 +202,11 @@ export function classifyArchLayer(filePath: string): ArchLayerKey {
 
   // 2. Documentation, Specs & Architectural Notes
   if (
-    segments.some((s) => /^(docs?|documentation|specs?|rfc|decisions?|tracking|guides?|invariants?|notes?|wiki|changelog)$/.test(s)) ||
+    segments.some((s) =>
+      /^(docs?|documentation|specs?|rfc|decisions?|tracking|guides?|invariants?|notes?|wiki|changelog)$/.test(
+        s,
+      ),
+    ) ||
     ['.md', '.mdx', '.rst', '.txt', '.pdf'].includes(ext) ||
     ['doxyfile', 'license', 'changelog', 'contributing', 'notice'].includes(filename)
   ) {
@@ -217,7 +223,9 @@ export function classifyArchLayer(filePath: string): ArchLayerKey {
 
   // 4. Data Science, Machine Learning & AI
   if (
-    segments.some((s) => /^(notebooks?|training|datasets?|ml|ai|evaluation|weights|embeddings?)$/.test(s)) ||
+    segments.some((s) =>
+      /^(notebooks?|training|datasets?|ml|ai|evaluation|weights|embeddings?)$/.test(s),
+    ) ||
     ['.ipynb', '.onnx', '.pt', '.pth', '.pkl', '.parquet', '.h5', '.arrow'].includes(ext) ||
     stem.includes('embedding')
   ) {
@@ -226,7 +234,11 @@ export function classifyArchLayer(filePath: string): ArchLayerKey {
 
   // 5. Embedded, Hardware, Drivers & Firmware
   if (
-    segments.some((s) => /^(drivers?|hal|hardware|firmware|bootloaders?|stm32|esp32|esp-idf|freertos|bsp|serial|uart|spi|i2c|gpio|nvs|led|can|watchdog|ros|urdf)$/.test(s)) ||
+    segments.some((s) =>
+      /^(drivers?|hal|hardware|firmware|bootloaders?|stm32|esp32|esp-idf|freertos|bsp|serial|uart|spi|i2c|gpio|nvs|led|can|watchdog|ros|urdf)$/.test(
+        s,
+      ),
+    ) ||
     ['.ino', '.hex', '.sv', '.vhd', '.v'].includes(ext) ||
     stem.includes('driver') ||
     stem.includes('bootloader') ||
@@ -242,15 +254,35 @@ export function classifyArchLayer(filePath: string): ArchLayerKey {
   // 6. Protocols, Transport & Networking
   if (
     segments.some((s) => /^(proto|protocols?|transports?|framing|networking|network)$/.test(s)) ||
-    ['xmodem', 'ymodem', 'zmodem', 'passthrough', 'protocol', 'tcp', 'udp', 'mqtt', 'wifi', 'mavlink', 'nmea', 'canbus', 'osc'].some((k) => stem.includes(k))
+    [
+      'xmodem',
+      'ymodem',
+      'zmodem',
+      'passthrough',
+      'protocol',
+      'tcp',
+      'udp',
+      'mqtt',
+      'wifi',
+      'mavlink',
+      'nmea',
+      'canbus',
+      'osc',
+    ].some((k) => stem.includes(k))
   ) {
     return 'proto';
   }
 
   // 7. TUI, Terminal UI & CLI Rendering
   if (
-    segments.some((s) => /^(tui|render|rendering|hud|pager|scrollback|terminal|cli|console|prompts?|completions?)$/.test(s)) ||
-    ['sparkline', 'pager', 'scrollback', 'hud', 'fuzzy', 'completions'].some((k) => stem.includes(k))
+    segments.some((s) =>
+      /^(tui|render|rendering|hud|pager|scrollback|terminal|cli|console|prompts?|completions?)$/.test(
+        s,
+      ),
+    ) ||
+    ['sparkline', 'pager', 'scrollback', 'hud', 'fuzzy', 'completions'].some((k) =>
+      stem.includes(k),
+    )
   ) {
     return 'tui';
   }
@@ -273,8 +305,14 @@ export function classifyArchLayer(filePath: string): ArchLayerKey {
 
   // 10. DevOps, Cloud, CI/CD & Build Scripts
   if (
-    segments.some((s) => /^(\.github|\.gitlab|docker|deploy|deployment|infra|infrastructure|k8s|helm|terraform|scripts?|packaging|releases?|ci|cd)$/.test(s)) ||
-    ['dockerfile', 'docker-compose.yml', 'makefile', 'cmakelists.txt', 'build.sh'].includes(filename) ||
+    segments.some((s) =>
+      /^(\.github|\.gitlab|docker|deploy|deployment|infra|infrastructure|k8s|helm|terraform|scripts?|packaging|releases?|ci|cd)$/.test(
+        s,
+      ),
+    ) ||
+    ['dockerfile', 'docker-compose.yml', 'makefile', 'cmakelists.txt', 'build.sh'].includes(
+      filename,
+    ) ||
     ['.yml', '.yaml', '.sh', '.bash', '.deb'].includes(ext)
   ) {
     return 'devops';
@@ -283,7 +321,17 @@ export function classifyArchLayer(filePath: string): ArchLayerKey {
   // 11. Configuration & Board Settings
   if (
     segments.some((s) => /^(configs?|settings?|configurations?)$/.test(s)) ||
-    ['package.json', 'tsconfig.json', 'cargo.toml', 'go.mod', 'go.sum', 'pyproject.toml', 'pom.xml', '.env', '.env.example'].includes(filename) ||
+    [
+      'package.json',
+      'tsconfig.json',
+      'cargo.toml',
+      'go.mod',
+      'go.sum',
+      'pyproject.toml',
+      'pom.xml',
+      '.env',
+      '.env.example',
+    ].includes(filename) ||
     stem.includes('config') ||
     stem.includes('sdkconfig')
   ) {
@@ -292,7 +340,11 @@ export function classifyArchLayer(filePath: string): ArchLayerKey {
 
   // 12. UI, Editor & Frontend
   if (
-    segments.some((s) => /^(frontend|ui|components?|views?|pages?|styles?|layouts?|editor|renderer|web_interface|web)$/.test(s)) ||
+    segments.some((s) =>
+      /^(frontend|ui|components?|views?|pages?|styles?|layouts?|editor|renderer|web_interface|web)$/.test(
+        s,
+      ),
+    ) ||
     ['.tsx', '.jsx', '.vue', '.svelte', '.html', '.css', '.scss', '.less'].includes(ext)
   ) {
     return 'frontend';
@@ -300,16 +352,26 @@ export function classifyArchLayer(filePath: string): ArchLayerKey {
 
   // 13. Backend Services & API
   if (
-    segments.some((s) => /^(backend|api|server|services?|controllers?|routes?|handlers?|endpoints?|db|database|graphql|grpc|application|apps?)$/.test(s)) ||
-    ['service', 'repository', 'controller', 'handler', 'route', 'resolver', 'migration'].some((k) => stem.includes(k))
+    segments.some((s) =>
+      /^(backend|api|server|services?|controllers?|routes?|handlers?|endpoints?|db|database|graphql|grpc|application|apps?)$/.test(
+        s,
+      ),
+    ) ||
+    ['service', 'repository', 'controller', 'handler', 'route', 'resolver', 'migration'].some((k) =>
+      stem.includes(k),
+    )
   ) {
     return 'backend';
   }
 
   // 14. Core Systems, State Machines & Runtime Engine
   if (
-    segments.some((s) => /^(core|engine|lib|libs|loop|runtime|sm|state|dispatch|scheduler|sys_mgr|managers?)$/.test(s)) ||
-    ['dispatch', 'event_bus', 'scheduler', 'state_machine', 'runtime', 'tasks', 'rx_thread'].some((k) => stem.includes(k)) ||
+    segments.some((s) =>
+      /^(core|engine|lib|libs|loop|runtime|sm|state|dispatch|scheduler|sys_mgr|managers?)$/.test(s),
+    ) ||
+    ['dispatch', 'event_bus', 'scheduler', 'state_machine', 'runtime', 'tasks', 'rx_thread'].some(
+      (k) => stem.includes(k),
+    ) ||
     ['.py', '.go', '.rs', '.cpp', '.c', '.h', '.hpp', '.java', '.ts', '.js'].includes(ext)
   ) {
     return 'core';
