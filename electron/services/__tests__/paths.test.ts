@@ -197,4 +197,29 @@ describe('resolveProjectRoot', () => {
 
     expect(resolveProjectRoot(plainDir)).toBe(plainDir);
   });
+
+  /**
+   * A stored `cwd` is data from whichever machine wrote the transcript, so the
+   * flavour has to follow the string. Normalising a POSIX path with the host's
+   * `path` module on Windows turned `/p/alpha` into `\p\alpha` and changed the
+   * project key every grouping, label and CSV row is built from.
+   */
+  it('keeps a POSIX path in POSIX form on any host', () => {
+    expect(resolveProjectRoot('/no-such-ccmon-root/p/alpha')).toBe('/no-such-ccmon-root/p/alpha');
+  });
+
+  it('keeps a Windows path in Windows form on any host', () => {
+    expect(resolveProjectRoot('C:\\no-such-ccmon-root\\p\\alpha')).toBe(
+      'C:\\no-such-ccmon-root\\p\\alpha',
+    );
+  });
+
+  it('collapses worktree subpaths in either flavour', () => {
+    expect(resolveProjectRoot('/no-such-ccmon-root/repo/.worktrees/feat/src')).toBe(
+      '/no-such-ccmon-root/repo',
+    );
+    expect(resolveProjectRoot('C:\\no-such-ccmon-root\\repo\\.claude\\worktrees\\wf_1\\src')).toBe(
+      'C:\\no-such-ccmon-root\\repo',
+    );
+  });
 });

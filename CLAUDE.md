@@ -12,7 +12,7 @@ it writes its own rate limits into the transcript rather than an API.
 | Command | What | When to run |
 |---|---|---|
 | `npm run dev` | esbuild + Vite + Electron, hot reload | developing |
-| `npm test` | vitest, 821 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
+| `npm test` | vitest, 824 cases over `electron/services/__tests__/` + `src/lib/__tests__/` + `scripts/__tests__/` | after touching any service math |
 | `npm run lint` | eslint (correctness rules only; Prettier owns formatting) | before every commit |
 | `npm run format` | prettier over everything but Markdown and fixtures | before every commit |
 | `npm run smoke` | full pipeline against real `~/.claude` data, no Electron | after touching `electron/services/` |

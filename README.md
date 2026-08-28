@@ -104,7 +104,7 @@ Yes, and you can check. An automated parity test (`npm run parity`)
 cross-checks the token math against [ccusage](https://github.com/ccusage/ccusage)
 (MIT), the established CLI for coding-agent usage reports; current drift is
 **0.000 percent** — an exact integer match on all four token fields across
-29,230 entries. 821 unit tests cover the parsing, pricing, block, forecast,
+29,230 entries. 824 unit tests cover the parsing, pricing, block, forecast,
 account and shell-integration logic, and CI runs them on Linux, macOS and
 Windows on every push.
 
