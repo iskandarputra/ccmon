@@ -74,10 +74,22 @@ const SUGGESTIONS: Suggestion[] = [
 ];
 
 const FOLLOW_UPS = [
-  { label: '📊 Cache vs Idle Waste', prompt: 'Break down my prompt cache savings against idle TTL waste penalties' },
-  { label: '⚡ Subagent Overhead', prompt: 'Analyze my subagent sidechain cost and recursion depth' },
-  { label: '💰 Model Arbitrage', prompt: 'Show counterfactual what-if re-pricing across model tiers' },
-  { label: '🎯 Rate-Limit Forecast', prompt: 'Forecast limit exhaustion across my active accounts' },
+  {
+    label: '📊 Cache vs Idle Waste',
+    prompt: 'Break down my prompt cache savings against idle TTL waste penalties',
+  },
+  {
+    label: '⚡ Subagent Overhead',
+    prompt: 'Analyze my subagent sidechain cost and recursion depth',
+  },
+  {
+    label: '💰 Model Arbitrage',
+    prompt: 'Show counterfactual what-if re-pricing across model tiers',
+  },
+  {
+    label: '🎯 Rate-Limit Forecast',
+    prompt: 'Forecast limit exhaustion across my active accounts',
+  },
 ];
 
 const PROMPT_HINTS = [
@@ -216,12 +228,10 @@ export function AdvisorView() {
       const r = limits[d];
       return r?.ok ? (r.session?.pct ?? null) : null;
     };
-    return (
-      sourceDirs
-        .filter((d) => accounts[d]?.tool === 'claude' && accounts[d]?.hasCredentials)
-        .map((dir) => ({ dir, pct: sessionPct(dir) }))
-        .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999))
-    );
+    return sourceDirs
+      .filter((d) => accounts[d]?.tool === 'claude' && accounts[d]?.hasCredentials)
+      .map((dir) => ({ dir, pct: sessionPct(dir) }))
+      .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999));
   }, [sourceDirs, accounts, limits]);
 
   useEffect(() => {

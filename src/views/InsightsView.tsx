@@ -624,7 +624,9 @@ export function InsightsView() {
   const sourceDirs = useUsageStore((s) => s.sourceDirs);
   const ins = useMemo(() => (snapshot ? deriveInsights(snapshot) : null), [snapshot]);
   const [drillDay, setDrillDay] = useState<string | null>(null);
-  const [analyticsTab, setAnalyticsTab] = useState<'intelligence' | 'timeline' | 'all'>('intelligence');
+  const [analyticsTab, setAnalyticsTab] = useState<'intelligence' | 'timeline' | 'all'>(
+    'intelligence',
+  );
   const [actRange, setActRange] = useState(14);
   const plan = useMemo(
     () =>
@@ -1025,7 +1027,9 @@ export function InsightsView() {
                     />
                     <Tooltip
                       cursor={BAR_CURSOR}
-                      content={<BucketTip titleFor={(d: WeeklyRow) => `wk of ${dayLabel(d.week)}`} />}
+                      content={
+                        <BucketTip titleFor={(d: WeeklyRow) => `wk of ${dayLabel(d.week)}`} />
+                      }
                     />
                     <Bar
                       dataKey="cost"
@@ -1048,7 +1052,8 @@ export function InsightsView() {
                 <>
                   monthly{' '}
                   <Hint label="how to read this">
-                    Data rolls up to the start of each month. The current month is still accumulating.
+                    Data rolls up to the start of each month. The current month is still
+                    accumulating.
                   </Hint>
                 </>
               }
@@ -1181,777 +1186,797 @@ export function InsightsView() {
         <>
           {/* spend trend + weekly rhythm */}
           <div className="g8">
-        <Panel
-          title={
-            <>
-              spend trend · {winLabel('30 days')}{' '}
-              <Hint label="how to read this">
-                Daily cost over the selected range. The line is a 7-day moving average. Spikes are
-                identified using a robust statistical threshold to flag days that are significantly
-                above your typical usage pattern.
-              </Hint>
-            </>
-          }
-          right={
-            <span className="panel-note">
-              click a day for its breakdown · line 7-day average
-              {ins.spikeDays > 0 ? ' · amber = spike day' : ''}
-            </span>
-          }
-        >
-          <ResponsiveContainer width="100%" height={232}>
-            <ComposedChart
-              data={ins.trend}
-              margin={{ top: 6, right: 4, bottom: 0, left: 0 }}
-              onClick={(s: { activeLabel?: string }) =>
-                s?.activeLabel && setDrillDay(s.activeLabel)
+            <Panel
+              title={
+                <>
+                  spend trend · {winLabel('30 days')}{' '}
+                  <Hint label="how to read this">
+                    Daily cost over the selected range. The line is a 7-day moving average. Spikes
+                    are identified using a robust statistical threshold to flag days that are
+                    significantly above your typical usage pattern.
+                  </Hint>
+                </>
               }
-              style={{ cursor: 'pointer' }}
+              right={
+                <span className="panel-note">
+                  click a day for its breakdown · line 7-day average
+                  {ins.spikeDays > 0 ? ' · amber = spike day' : ''}
+                </span>
+              }
             >
-              <defs>
-                <linearGradient id="ins-trend" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" style={{ stopColor: 'var(--chart-2)', stopOpacity: 0.85 }} />
-                  <stop offset="100%" style={{ stopColor: 'var(--chart-2)', stopOpacity: 0.25 }} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} stroke="var(--line-soft)" />
-              <XAxis
-                dataKey="date"
-                tickFormatter={dayLabel}
-                tick={AXIS_TICK}
-                axisLine={{ stroke: 'var(--line)' }}
-                tickLine={false}
-                minTickGap={26}
-              />
-              <YAxis
-                width={56}
-                tick={AXIS_TICK}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={axisUSD}
-              />
-              <Tooltip
-                cursor={{ fill: 'color-mix(in srgb, var(--text) 4%, transparent)' }}
-                content={<TrendTip />}
-              />
-              <Bar
-                dataKey="cost"
-                fill="url(#ins-trend)"
-                radius={[3, 3, 0, 0]}
-                maxBarSize={22}
-                isAnimationActive={false}
-              >
-                {ins.trend.map((t) => (
-                  <Cell key={t.date} fill={t.spike ? 'var(--warn)' : 'url(#ins-trend)'} />
-                ))}
-              </Bar>
-              <Line
-                dataKey="ma7"
-                type="linear"
-                stroke="var(--chart-1)"
-                strokeWidth={1.8}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </Panel>
-      </div>
-      <div className="g4">
-        <Panel
-          title={
-            <>
-              weekday rhythm{' '}
-              <Hint label="what is this?">
-                Averages your daily spend by day of the week over the last 35 days, revealing which
-                days you are most active.
-              </Hint>
-            </>
-          }
-          right={<span className="panel-note">avg est cost</span>}
-        >
-          <ResponsiveContainer width="100%" height={232}>
-            <BarChart data={ins.weekdays} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="ins-wd" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" style={{ stopColor: 'var(--chart-4)', stopOpacity: 1 }} />
-                  <stop offset="100%" style={{ stopColor: 'var(--chart-4)', stopOpacity: 0.4 }} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} stroke="var(--line-soft)" />
-              <XAxis
-                dataKey="wd"
-                tick={AXIS_TICK}
-                axisLine={{ stroke: 'var(--line)' }}
-                tickLine={false}
-              />
-              <YAxis
-                width={56}
-                tick={AXIS_TICK}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={axisUSD}
-              />
-              <Tooltip
-                cursor={{ fill: 'color-mix(in srgb, var(--text) 4%, transparent)' }}
-                content={<WeekdayTip />}
-              />
-              <Bar
-                dataKey="avg"
-                fill="url(#ins-wd)"
-                radius={[3, 3, 0, 0]}
-                maxBarSize={26}
-                isAnimationActive={false}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </Panel>
-      </div>
+              <ResponsiveContainer width="100%" height={232}>
+                <ComposedChart
+                  data={ins.trend}
+                  margin={{ top: 6, right: 4, bottom: 0, left: 0 }}
+                  onClick={(s: { activeLabel?: string }) =>
+                    s?.activeLabel && setDrillDay(s.activeLabel)
+                  }
+                  style={{ cursor: 'pointer' }}
+                >
+                  <defs>
+                    <linearGradient id="ins-trend" x1="0" y1="0" x2="0" y2="1">
+                      <stop
+                        offset="0%"
+                        style={{ stopColor: 'var(--chart-2)', stopOpacity: 0.85 }}
+                      />
+                      <stop
+                        offset="100%"
+                        style={{ stopColor: 'var(--chart-2)', stopOpacity: 0.25 }}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="var(--line-soft)" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={dayLabel}
+                    tick={AXIS_TICK}
+                    axisLine={{ stroke: 'var(--line)' }}
+                    tickLine={false}
+                    minTickGap={26}
+                  />
+                  <YAxis
+                    width={56}
+                    tick={AXIS_TICK}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={axisUSD}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'color-mix(in srgb, var(--text) 4%, transparent)' }}
+                    content={<TrendTip />}
+                  />
+                  <Bar
+                    dataKey="cost"
+                    fill="url(#ins-trend)"
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={22}
+                    isAnimationActive={false}
+                  >
+                    {ins.trend.map((t) => (
+                      <Cell key={t.date} fill={t.spike ? 'var(--warn)' : 'url(#ins-trend)'} />
+                    ))}
+                  </Bar>
+                  <Line
+                    dataKey="ma7"
+                    type="linear"
+                    stroke="var(--chart-1)"
+                    strokeWidth={1.8}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </Panel>
+          </div>
+          <div className="g4">
+            <Panel
+              title={
+                <>
+                  weekday rhythm{' '}
+                  <Hint label="what is this?">
+                    Averages your daily spend by day of the week over the last 35 days, revealing
+                    which days you are most active.
+                  </Hint>
+                </>
+              }
+              right={<span className="panel-note">avg est cost</span>}
+            >
+              <ResponsiveContainer width="100%" height={232}>
+                <BarChart data={ins.weekdays} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="ins-wd" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" style={{ stopColor: 'var(--chart-4)', stopOpacity: 1 }} />
+                      <stop
+                        offset="100%"
+                        style={{ stopColor: 'var(--chart-4)', stopOpacity: 0.4 }}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="var(--line-soft)" />
+                  <XAxis
+                    dataKey="wd"
+                    tick={AXIS_TICK}
+                    axisLine={{ stroke: 'var(--line)' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    width={56}
+                    tick={AXIS_TICK}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={axisUSD}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'color-mix(in srgb, var(--text) 4%, transparent)' }}
+                    content={<WeekdayTip />}
+                  />
+                  <Bar
+                    dataKey="avg"
+                    fill="url(#ins-wd)"
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={26}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </Panel>
+          </div>
 
-      {/* longer horizons */}
-      <div className="g6">
-        <Panel
-          title={
-            <>
-              week over week{' '}
-              <Hint label="how to read this">
-                Weekly spend totals for up to the last 12 weeks. The percentage shown in the tooltip
-                is the change compared to the previous week.
-              </Hint>
-            </>
-          }
-          right={<span className="panel-note">≤12 weeks</span>}
-        >
-          <ResponsiveContainer width="100%" height={208}>
-            <BarChart data={ins.weekly} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="ins-wow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" style={{ stopColor: 'var(--chart-2)', stopOpacity: 1 }} />
-                  <stop offset="100%" style={{ stopColor: 'var(--chart-2)', stopOpacity: 0.4 }} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} stroke="var(--line-soft)" />
-              <XAxis
-                dataKey="week"
-                tickFormatter={dayLabel}
-                tick={AXIS_TICK}
-                axisLine={{ stroke: 'var(--line)' }}
-                tickLine={false}
-                minTickGap={22}
-              />
-              <YAxis
-                width={56}
-                tick={AXIS_TICK}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={axisUSD}
-              />
-              <Tooltip
-                cursor={{ fill: 'color-mix(in srgb, var(--text) 4%, transparent)' }}
-                content={<WeeklyTip />}
-              />
-              <Bar
-                dataKey="cost"
-                fill="url(#ins-wow)"
-                radius={[3, 3, 0, 0]}
-                maxBarSize={30}
-                isAnimationActive={false}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </Panel>
-      </div>
-      <div className="g6">
-        <Panel
-          title={
-            <>
-              {plan ? 'plan value' : apiKey ? 'billing' : 'plan value'}{' '}
-              <Hint label="how it's computed">
-                {plan
-                  ? "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."
-                  : apiKey
-                    ? "api-key billing — you pay per token at the provider's published rates. effective rates are blended (total cost ÷ output tokens) and include input + cache costs, so they read higher than the pure output rate. balance left, runway and the cost check come from your connected deepseek key (accounts view): runway is balance ÷ burn, measured from the balance actually falling once there are a few hours of polls and estimated from local transcripts before that. the cost check compares real balance consumption against ccmon's computed cost over the same span — a large gap usually means usage on the same key from another tool or machine."
-                    : "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."}
-              </Hint>
-            </>
-          }
-          right={
-            <span className="panel-note">
-              {ins.curMonth ? `${monthLabel(ins.curMonth.month)} · ` : ''}
-              {plan
-                ? 'api-equivalent vs subscription'
-                : apiKey
-                  ? 'per-provider spend'
-                  : 'api-equivalent vs subscription'}
-            </span>
-          }
-        >
-          {plan ? (
-            <div className="ins-cache">
-              <div className="ins-cache-row">
-                <span className="ins-cache-label">api-equivalent</span>
-                <div className="ins-cache-track">
-                  <div
-                    className="ins-cache-fill"
-                    style={{
-                      width: `${Math.max(2, (plan.monthCost / planRef) * 100)}%`,
-                      background: 'var(--chart-1)',
-                    }}
+          {/* longer horizons */}
+          <div className="g6">
+            <Panel
+              title={
+                <>
+                  week over week{' '}
+                  <Hint label="how to read this">
+                    Weekly spend totals for up to the last 12 weeks. The percentage shown in the
+                    tooltip is the change compared to the previous week.
+                  </Hint>
+                </>
+              }
+              right={<span className="panel-note">≤12 weeks</span>}
+            >
+              <ResponsiveContainer width="100%" height={208}>
+                <BarChart data={ins.weekly} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="ins-wow" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" style={{ stopColor: 'var(--chart-2)', stopOpacity: 1 }} />
+                      <stop
+                        offset="100%"
+                        style={{ stopColor: 'var(--chart-2)', stopOpacity: 0.4 }}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="var(--line-soft)" />
+                  <XAxis
+                    dataKey="week"
+                    tickFormatter={dayLabel}
+                    tick={AXIS_TICK}
+                    axisLine={{ stroke: 'var(--line)' }}
+                    tickLine={false}
+                    minTickGap={22}
                   />
-                </div>
-                <b>{fmtUSD(plan.monthCost)}</b>
-              </div>
-              <div className="ins-cache-row">
-                <span className="ins-cache-label">plan price</span>
-                <div className="ins-cache-track">
-                  <div
-                    className="ins-cache-fill"
-                    style={{
-                      width: `${Math.max(2, (plan.price / planRef) * 100)}%`,
-                      background: withAlpha('var(--chart-3)', 0.55),
-                    }}
+                  <YAxis
+                    width={56}
+                    tick={AXIS_TICK}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={axisUSD}
                   />
+                  <Tooltip
+                    cursor={{ fill: 'color-mix(in srgb, var(--text) 4%, transparent)' }}
+                    content={<WeeklyTip />}
+                  />
+                  <Bar
+                    dataKey="cost"
+                    fill="url(#ins-wow)"
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={30}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </Panel>
+          </div>
+          <div className="g6">
+            <Panel
+              title={
+                <>
+                  {plan ? 'plan value' : apiKey ? 'billing' : 'plan value'}{' '}
+                  <Hint label="how it's computed">
+                    {plan
+                      ? "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."
+                      : apiKey
+                        ? "api-key billing — you pay per token at the provider's published rates. effective rates are blended (total cost ÷ output tokens) and include input + cache costs, so they read higher than the pure output rate. balance left, runway and the cost check come from your connected deepseek key (accounts view): runway is balance ÷ burn, measured from the balance actually falling once there are a few hours of polls and estimated from local transcripts before that. the cost check compares real balance consumption against ccmon's computed cost over the same span — a large gap usually means usage on the same key from another tool or machine."
+                        : "api-equivalent is this month's usage priced at api rates under the current cost mode. plan prices assumed: pro $20 · max 5x $100 · max 20x $200, with the tier read from your stored login. team/enterprise seats have no public price and are excluded."}
+                  </Hint>
+                </>
+              }
+              right={
+                <span className="panel-note">
+                  {ins.curMonth ? `${monthLabel(ins.curMonth.month)} · ` : ''}
+                  {plan
+                    ? 'api-equivalent vs subscription'
+                    : apiKey
+                      ? 'per-provider spend'
+                      : 'api-equivalent vs subscription'}
+                </span>
+              }
+            >
+              {plan ? (
+                <div className="ins-cache">
+                  <div className="ins-cache-row">
+                    <span className="ins-cache-label">api-equivalent</span>
+                    <div className="ins-cache-track">
+                      <div
+                        className="ins-cache-fill"
+                        style={{
+                          width: `${Math.max(2, (plan.monthCost / planRef) * 100)}%`,
+                          background: 'var(--chart-1)',
+                        }}
+                      />
+                    </div>
+                    <b>{fmtUSD(plan.monthCost)}</b>
+                  </div>
+                  <div className="ins-cache-row">
+                    <span className="ins-cache-label">plan price</span>
+                    <div className="ins-cache-track">
+                      <div
+                        className="ins-cache-fill"
+                        style={{
+                          width: `${Math.max(2, (plan.price / planRef) * 100)}%`,
+                          background: withAlpha('var(--chart-3)', 0.55),
+                        }}
+                      />
+                    </div>
+                    <b>{fmtUSD(plan.price)}</b>
+                  </div>
+                  <ul className="ins-facts">
+                    <li>
+                      <span>plan</span>
+                      <b>{plan.label}</b>
+                    </li>
+                    <li>
+                      <span>value multiple</span>
+                      <b style={{ color: plan.multiple >= 1 ? 'var(--ok)' : 'var(--text)' }}>
+                        ×{plan.multiple.toFixed(1)}
+                      </b>
+                    </li>
+                    <li>
+                      <span>{plan.saved >= 0 ? 'saved vs api' : 'under plan price'}</span>
+                      <b>{fmtUSD(Math.abs(plan.saved))}</b>
+                    </li>
+                    <li>
+                      <span>proj month end</span>
+                      <b>{plan.projMultiple != null ? `×${plan.projMultiple.toFixed(1)}` : '—'}</b>
+                    </li>
+                  </ul>
                 </div>
-                <b>{fmtUSD(plan.price)}</b>
-              </div>
-              <ul className="ins-facts">
-                <li>
-                  <span>plan</span>
-                  <b>{plan.label}</b>
-                </li>
-                <li>
-                  <span>value multiple</span>
-                  <b style={{ color: plan.multiple >= 1 ? 'var(--ok)' : 'var(--text)' }}>
-                    ×{plan.multiple.toFixed(1)}
-                  </b>
-                </li>
-                <li>
-                  <span>{plan.saved >= 0 ? 'saved vs api' : 'under plan price'}</span>
-                  <b>{fmtUSD(Math.abs(plan.saved))}</b>
-                </li>
-                <li>
-                  <span>proj month end</span>
-                  <b>{plan.projMultiple != null ? `×${plan.projMultiple.toFixed(1)}` : '—'}</b>
-                </li>
-              </ul>
-            </div>
-          ) : apiKey && billingSummary ? (
-            <div className="ins-cache">
-              {/* with a live balance the bar becomes a real gauge — spend so
+              ) : apiKey && billingSummary ? (
+                <div className="ins-cache">
+                  {/* with a live balance the bar becomes a real gauge — spend so
                   far against spend + what's left — instead of a lone total
                   filling its own track to 100% and meaning nothing */}
-              <div className="ins-cache-row">
-                <span className="ins-cache-label">total spend</span>
-                <div className="ins-cache-track">
-                  <div
-                    className="ins-cache-fill"
-                    style={{
-                      width: `${Math.max(2, dsBalanceUSD != null ? (billingSummary.totalCost / (billingSummary.totalCost + dsBalanceUSD)) * 100 : 100)}%`,
-                      background: 'var(--chart-1)',
-                    }}
-                  />
+                  <div className="ins-cache-row">
+                    <span className="ins-cache-label">total spend</span>
+                    <div className="ins-cache-track">
+                      <div
+                        className="ins-cache-fill"
+                        style={{
+                          width: `${Math.max(2, dsBalanceUSD != null ? (billingSummary.totalCost / (billingSummary.totalCost + dsBalanceUSD)) * 100 : 100)}%`,
+                          background: 'var(--chart-1)',
+                        }}
+                      />
+                    </div>
+                    <b>{fmtUSD(billingSummary.totalCost)}</b>
+                  </div>
+                  {dsBalanceUSD != null && (
+                    <div className="ins-cache-row">
+                      <span className="ins-cache-label">balance left</span>
+                      <div className="ins-cache-track">
+                        <div
+                          className="ins-cache-fill"
+                          style={{
+                            width: `${Math.max(2, (dsBalanceUSD / (billingSummary.totalCost + dsBalanceUSD)) * 100)}%`,
+                            background: withAlpha('var(--chart-4)', 0.6),
+                          }}
+                        />
+                      </div>
+                      <b>{fmtUSD(dsBalanceUSD)}</b>
+                    </div>
+                  )}
+                  <ul className="ins-facts">
+                    {billingSummary.providers.map((p) => (
+                      <li key={p.id}>
+                        <span>{p.label}</span>
+                        <b>
+                          {fmtUSD(p.cost)}
+                          {p.share > 0 && (
+                            <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
+                              {fmtPct(p.share * 100)} ·{' '}
+                              {p.effectiveOutRate != null
+                                ? `${currencySymbol()}${fmtUSD(p.effectiveOutRate)}/mtok out`
+                                : '—'}
+                            </span>
+                          )}
+                        </b>
+                      </li>
+                    ))}
+                    {dsRunway && (
+                      <li>
+                        <span>runway</span>
+                        <b style={{ color: runwayColor(dsRunway.days) }}>
+                          {runwayLabel(dsRunway.days)}
+                          <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
+                            {dsRunway.source === 'measured' ? 'measured' : 'estimated'}
+                          </span>
+                        </b>
+                      </li>
+                    )}
+                    {deepseek?.ok && deepseek.drift?.ratio != null && (
+                      <li>
+                        <span>cost check</span>
+                        <b
+                          style={{
+                            color:
+                              Math.abs(deepseek.drift.ratio) >= DRIFT_ALERT
+                                ? 'var(--warn)'
+                                : undefined,
+                          }}
+                        >
+                          {driftLabel(deepseek.drift.ratio)}
+                          <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
+                            real vs computed
+                          </span>
+                        </b>
+                      </li>
+                    )}
+                    <li>
+                      <span>billing</span>
+                      <b style={{ color: 'var(--text-dim)' }}>api key · per-token</b>
+                    </li>
+                  </ul>
                 </div>
-                <b>{fmtUSD(billingSummary.totalCost)}</b>
-              </div>
-              {dsBalanceUSD != null && (
+              ) : (
+                <div className="ins-empty">
+                  <Glyph className="ins-empty-icon">
+                    <rect x="3" y="6" width="18" height="13" rx="2.5" />
+                    <path d="M3 10h18M7 15h4" />
+                  </Glyph>
+                  <span className="ins-empty-lead">no subscription detected</span>
+                  <span className="ins-empty-sub">
+                    sign in from the accounts view to compare plan value
+                  </span>
+                </div>
+              )}
+            </Panel>
+          </div>
+          <div className="g6">
+            <Panel
+              title={
+                <>
+                  cache economics{' '}
+                  <Hint label="what is this?">
+                    Compares your actual API spend to what it would have cost without prompt
+                    caching.
+                  </Hint>
+                </>
+              }
+              right={<span className="panel-note">all-time</span>}
+            >
+              <div className="ins-cache">
+                <div className="ins-hero">
+                  <Glyph className="ins-hero-icon">
+                    <ellipse cx="12" cy="6.5" rx="7.5" ry="3" />
+                    <path d="M4.5 6.5v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-11" />
+                    <path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3" />
+                  </Glyph>
+                  <div className="ins-hero-body">
+                    <span className="ins-hero-label">saved by caching</span>
+                    <span className="ins-hero-value">{fmtUSD(cache.savedUSD)}</span>
+                    <span className="ins-hero-sub">
+                      {fmtPct(cacheLeverage)} of would-be cost · hit{' '}
+                      {fmtPct(cache.hitRate * 100, 1)}
+                    </span>
+                  </div>
+                </div>
                 <div className="ins-cache-row">
-                  <span className="ins-cache-label">balance left</span>
+                  <span className="ins-cache-label">actual spend</span>
                   <div className="ins-cache-track">
                     <div
                       className="ins-cache-fill"
                       style={{
-                        width: `${Math.max(2, (dsBalanceUSD / (billingSummary.totalCost + dsBalanceUSD)) * 100)}%`,
-                        background: withAlpha('var(--chart-4)', 0.6),
+                        width: `${Math.min(100, (snapshot.totals.cost / (cache.wouldHaveCostUSD || 1)) * 100)}%`,
+                        background: 'var(--chart-2)',
                       }}
                     />
                   </div>
-                  <b>{fmtUSD(dsBalanceUSD)}</b>
+                  <b>{fmtUSD(snapshot.totals.cost)}</b>
                 </div>
-              )}
-              <ul className="ins-facts">
-                {billingSummary.providers.map((p) => (
-                  <li key={p.id}>
-                    <span>{p.label}</span>
+                <div className="ins-cache-row">
+                  <span className="ins-cache-label">without caching</span>
+                  <div className="ins-cache-track">
+                    <div
+                      className="ins-cache-fill"
+                      style={{ width: '100%', background: withAlpha('var(--chart-3)', 0.55) }}
+                    />
+                  </div>
+                  <b>{fmtUSD(cache.wouldHaveCostUSD)}</b>
+                </div>
+                <ul className="ins-facts">
+                  <li>
+                    <span>cache read</span>
+                    <b>{fmtTok(cache.readTokens)} tok</b>
+                  </li>
+                  <li>
+                    <span>cache write</span>
+                    <b>{fmtTok(cache.writeTokens)} tok</b>
+                  </li>
+                  <li>
+                    <span>hit rate</span>
+                    <b>{fmtPct(cache.hitRate * 100, 1)}</b>
+                  </li>
+                  <li>
+                    <span>saved</span>
+                    <b style={{ color: 'var(--ok)' }}>{fmtUSD(cache.savedUSD)}</b>
+                  </li>
+                </ul>
+              </div>
+            </Panel>
+          </div>
+          <div className="g6">
+            <Panel
+              title={
+                <>
+                  cache ttl · cost of walking away{' '}
+                  <Hint label="why?">
+                    stepping away past a cache tier's ttl (5 min / 1 h) expires the session's prompt
+                    cache, so the next turn re-writes it at write rates instead of reading it back.
+                    extra spent = those writes minus what reads would have cost. prompt edits can
+                    also invalidate caches, so treat this as an upper bound on idle cost.
+                  </Hint>
+                </>
+              }
+              right={<span className="panel-note">all-time</span>}
+            >
+              <div className="ins-cache">
+                <ul className="ins-facts ins-facts-top">
+                  <li>
+                    <span>extra spent</span>
+                    <b style={{ color: idle.extraUSD > 0 ? 'var(--warn)' : 'var(--text)' }}>
+                      {fmtUSD(idle.extraUSD)}
+                    </b>
+                  </li>
+                  <li>
+                    <span>of total spend</span>
                     <b>
-                      {fmtUSD(p.cost)}
-                      {p.share > 0 && (
-                        <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
-                          {fmtPct(p.share * 100)} ·{' '}
-                          {p.effectiveOutRate != null
-                            ? `${currencySymbol()}${fmtUSD(p.effectiveOutRate)}/mtok out`
-                            : '—'}
-                        </span>
+                      {fmtPct(
+                        snapshot.totals.cost > 0 ? (idle.extraUSD / snapshot.totals.cost) * 100 : 0,
+                        1,
                       )}
                     </b>
                   </li>
-                ))}
-                {dsRunway && (
                   <li>
-                    <span>runway</span>
-                    <b style={{ color: runwayColor(dsRunway.days) }}>
-                      {runwayLabel(dsRunway.days)}
-                      <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
-                        {dsRunway.source === 'measured' ? 'measured' : 'estimated'}
-                      </span>
-                    </b>
+                    <span>re-written</span>
+                    <b>{fmtTok(idle.tokens)} tok</b>
                   </li>
-                )}
-                {deepseek?.ok && deepseek.drift?.ratio != null && (
                   <li>
-                    <span>cost check</span>
-                    <b
-                      style={{
-                        color:
-                          Math.abs(deepseek.drift.ratio) >= DRIFT_ALERT ? 'var(--warn)' : undefined,
-                      }}
-                    >
-                      {driftLabel(deepseek.drift.ratio)}
-                      <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
-                        real vs computed
-                      </span>
-                    </b>
+                    <span>occurrences</span>
+                    <b>{fmtInt(idle.events)}×</b>
                   </li>
-                )}
-                <li>
-                  <span>billing</span>
-                  <b style={{ color: 'var(--text-dim)' }}>api key · per-token</b>
-                </li>
-              </ul>
-            </div>
-          ) : (
-            <div className="ins-empty">
-              <Glyph className="ins-empty-icon">
-                <rect x="3" y="6" width="18" height="13" rx="2.5" />
-                <path d="M3 10h18M7 15h4" />
-              </Glyph>
-              <span className="ins-empty-lead">no subscription detected</span>
-              <span className="ins-empty-sub">
-                sign in from the accounts view to compare plan value
-              </span>
-            </div>
-          )}
-        </Panel>
-      </div>
-      <div className="g6">
-        <Panel
-          title={
-            <>
-              cache economics{' '}
-              <Hint label="what is this?">
-                Compares your actual API spend to what it would have cost without prompt caching.
-              </Hint>
-            </>
-          }
-          right={<span className="panel-note">all-time</span>}
-        >
-          <div className="ins-cache">
-            <div className="ins-hero">
-              <Glyph className="ins-hero-icon">
-                <ellipse cx="12" cy="6.5" rx="7.5" ry="3" />
-                <path d="M4.5 6.5v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-11" />
-                <path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3" />
-              </Glyph>
-              <div className="ins-hero-body">
-                <span className="ins-hero-label">saved by caching</span>
-                <span className="ins-hero-value">{fmtUSD(cache.savedUSD)}</span>
-                <span className="ins-hero-sub">
-                  {fmtPct(cacheLeverage)} of would-be cost · hit {fmtPct(cache.hitRate * 100, 1)}
-                </span>
+                </ul>
               </div>
-            </div>
-            <div className="ins-cache-row">
-              <span className="ins-cache-label">actual spend</span>
-              <div className="ins-cache-track">
-                <div
-                  className="ins-cache-fill"
-                  style={{
-                    width: `${Math.min(100, (snapshot.totals.cost / (cache.wouldHaveCostUSD || 1)) * 100)}%`,
-                    background: 'var(--chart-2)',
-                  }}
-                />
-              </div>
-              <b>{fmtUSD(snapshot.totals.cost)}</b>
-            </div>
-            <div className="ins-cache-row">
-              <span className="ins-cache-label">without caching</span>
-              <div className="ins-cache-track">
-                <div
-                  className="ins-cache-fill"
-                  style={{ width: '100%', background: withAlpha('var(--chart-3)', 0.55) }}
-                />
-              </div>
-              <b>{fmtUSD(cache.wouldHaveCostUSD)}</b>
-            </div>
-            <ul className="ins-facts">
-              <li>
-                <span>cache read</span>
-                <b>{fmtTok(cache.readTokens)} tok</b>
-              </li>
-              <li>
-                <span>cache write</span>
-                <b>{fmtTok(cache.writeTokens)} tok</b>
-              </li>
-              <li>
-                <span>hit rate</span>
-                <b>{fmtPct(cache.hitRate * 100, 1)}</b>
-              </li>
-              <li>
-                <span>saved</span>
-                <b style={{ color: 'var(--ok)' }}>{fmtUSD(cache.savedUSD)}</b>
-              </li>
-            </ul>
+            </Panel>
           </div>
-        </Panel>
-      </div>
-      <div className="g6">
-        <Panel
-          title={
-            <>
-              cache ttl · cost of walking away{' '}
-              <Hint label="why?">
-                stepping away past a cache tier's ttl (5 min / 1 h) expires the session's prompt
-                cache, so the next turn re-writes it at write rates instead of reading it back.
-                extra spent = those writes minus what reads would have cost. prompt edits can also
-                invalidate caches, so treat this as an upper bound on idle cost.
-              </Hint>
-            </>
-          }
-          right={<span className="panel-note">all-time</span>}
-        >
-          <div className="ins-cache">
-            <ul className="ins-facts ins-facts-top">
-              <li>
-                <span>extra spent</span>
-                <b style={{ color: idle.extraUSD > 0 ? 'var(--warn)' : 'var(--text)' }}>
-                  {fmtUSD(idle.extraUSD)}
-                </b>
-              </li>
-              <li>
-                <span>of total spend</span>
-                <b>
-                  {fmtPct(
-                    snapshot.totals.cost > 0 ? (idle.extraUSD / snapshot.totals.cost) * 100 : 0,
-                    1,
-                  )}
-                </b>
-              </li>
-              <li>
-                <span>re-written</span>
-                <b>{fmtTok(idle.tokens)} tok</b>
-              </li>
-              <li>
-                <span>occurrences</span>
-                <b>{fmtInt(idle.events)}×</b>
-              </li>
-            </ul>
-          </div>
-        </Panel>
-      </div>
 
-      {/* economics table + records */}
-      <div className="g7">
-        <Panel
-          title={
-            <>
-              model economics{' '}
-              <Hint label="how to read this">
-                Breakdown of the top 8 models by all-time cost, showing what percentage of your
-                spend goes to each, along with efficiency metrics like cost per message.
-              </Hint>
-            </>
-          }
-          right={<span className="panel-note">{winLabel('all-time')} · top 8</span>}
-        >
-          <div className="tbl-wrap">
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>model</th>
-                  <th>share</th>
-                  <th>est cost</th>
-                  <th>{currencySymbol()} / mtok out</th>
-                  <th>{currencySymbol()} / msg</th>
-                  <th>msgs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ins.models.map((m) => (
-                  <tr key={m.model}>
-                    <td className="t-name" title={m.model}>
-                      {shortModel(m.model)}
-                    </td>
-                    <td>
-                      <span className="ins-share">
-                        <i style={{ width: `${Math.max(2, m.share)}%` }} />
-                        {fmtPct(m.share)}
-                      </span>
-                    </td>
-                    <td className="t-cost">{fmtUSD(m.cost)}</td>
-                    <td>{m.perMTokOut != null ? fmtUSD(m.perMTokOut) : '—'}</td>
-                    <td>{fmtUSD(m.perMsg)}</td>
-                    <td>{fmtInt(m.entries)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* economics table + records */}
+          <div className="g7">
+            <Panel
+              title={
+                <>
+                  model economics{' '}
+                  <Hint label="how to read this">
+                    Breakdown of the top 8 models by all-time cost, showing what percentage of your
+                    spend goes to each, along with efficiency metrics like cost per message.
+                  </Hint>
+                </>
+              }
+              right={<span className="panel-note">{winLabel('all-time')} · top 8</span>}
+            >
+              <div className="tbl-wrap">
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th>model</th>
+                      <th>share</th>
+                      <th>est cost</th>
+                      <th>{currencySymbol()} / mtok out</th>
+                      <th>{currencySymbol()} / msg</th>
+                      <th>msgs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ins.models.map((m) => (
+                      <tr key={m.model}>
+                        <td className="t-name" title={m.model}>
+                          {shortModel(m.model)}
+                        </td>
+                        <td>
+                          <span className="ins-share">
+                            <i style={{ width: `${Math.max(2, m.share)}%` }} />
+                            {fmtPct(m.share)}
+                          </span>
+                        </td>
+                        <td className="t-cost">{fmtUSD(m.cost)}</td>
+                        <td>{m.perMTokOut != null ? fmtUSD(m.perMTokOut) : '—'}</td>
+                        <td>{fmtUSD(m.perMsg)}</td>
+                        <td>{fmtInt(m.entries)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
           </div>
-        </Panel>
-      </div>
-      {recon && recon.compared > 0 && (
-        <div className="g5">
-          <Panel
-            title={
-              <>
-                cost reconciliation{' '}
-                <Hint label="what is this?">
-                  Compares the cost Claude Code recorded on each message against ccmon&apos;s own
-                  token-based calculation, always calculating fresh regardless of your cost mode
-                  (otherwise the two would be the same number by definition). Only messages that
-                  carry a recorded cost can be compared, and models with no known price are skipped
-                  rather than scored as a total mismatch — so treat this as a check on the overlap,
-                  not on your whole bill.
-                </Hint>
-              </>
-            }
-            right={
-              <span className="panel-note">
-                {fmtPct(recon.coverage)} of {fmtInt(recon.total)} msgs
-              </span>
-            }
-          >
-            <div className="set-kv">
-              <div>
-                <span>recorded</span>
-                <b>{fmtUSD(recon.recorded)}</b>
-              </div>
-              <div>
-                <span>ccmon calculates</span>
-                <b>{fmtUSD(recon.calculated)}</b>
-              </div>
-              <div>
-                <span>drift</span>
-                <b>
-                  {recon.drift >= 0 ? '+' : '−'}
-                  {fmtUSD(Math.abs(recon.drift))} ({fmtPct(Math.abs(recon.driftPct))})
-                </b>
-              </div>
-            </div>
-            {recon.byModel.length > 0 && (
-              <ul className="ins-records">
-                {recon.byModel.slice(0, 5).map((m) => (
-                  <li key={m.key}>
-                    <span>{m.key}</span>
-                    <b>
-                      {m.calculated - m.recorded >= 0 ? '+' : '−'}
-                      {fmtUSD(Math.abs(m.calculated - m.recorded))}
-                    </b>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
-        </div>
-      )}
-      <div className="g5">
-        <Panel
-          title={
-            <>
-              records{' '}
-              <Hint label="what is this?">
-                Your all-time highs and averages across all tracked sessions.
-              </Hint>
-            </>
-          }
-          right={<span className="panel-note">all-time</span>}
-        >
-          <ul className="ins-records">
-            <li>
-              <Glyph className="ins-records-icon">{RECORD_ICONS[0]}</Glyph>
-              <span>best day</span>
-              <b>
-                {records.maxDay
-                  ? `${fmtUSD(records.maxDay.cost)} · ${dayLabel(records.maxDay.date)}`
-                  : '—'}
-              </b>
-            </li>
-            <li>
-              <Glyph className="ins-records-icon">{RECORD_ICONS[1]}</Glyph>
-              <span>longest session</span>
-              <b>
-                {records.longestSession
-                  ? `${fmtDuration(records.longestSession.durationMs)} · ${projectName(records.longestSession.project)}`
-                  : '—'}
-              </b>
-            </li>
-            <li>
-              <Glyph className="ins-records-icon">{RECORD_ICONS[2]}</Glyph>
-              <span>biggest 5h block</span>
-              <b>{fmtTok(records.maxBlockTokens)} tok</b>
-            </li>
-            <li>
-              <Glyph className="ins-records-icon">{RECORD_ICONS[3]}</Glyph>
-              <span>streak</span>
-              <b>
-                {records.streak.current}d now · {records.streak.longest}d best
-              </b>
-            </li>
-            <li>
-              <Glyph className="ins-records-icon">{RECORD_ICONS[4]}</Glyph>
-              <span>active days</span>
-              <b>
-                {records.activeDays} of {records.totalDays}
-                {records.totalDays > 0
-                  ? ` (${Math.round((records.activeDays / records.totalDays) * 100)}%)`
-                  : ''}
-              </b>
-            </li>
-            <li>
-              <Glyph className="ins-records-icon">{RECORD_ICONS[5]}</Glyph>
-              <span>avg / active day</span>
-              <b>{fmtUSD(records.avgDailyCost)}</b>
-            </li>
-            <li title="average context window size (input + cache read tokens) sent to the model per CLI turn">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[6]}</Glyph>
-              <span>avg context / turn</span>
-              <b>
-                {fmtTok(
-                  Math.round(
-                    (snapshot.totals.in + snapshot.totals.read) /
-                      Math.max(1, snapshot.totals.entries),
-                  ),
-                )}{' '}
-                tok
-              </b>
-            </li>
-            <li title="average estimated cost per CLI turn (input, output, and caching cost)">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[7]}</Glyph>
-              <span>avg cost / turn</span>
-              <b>{fmtUSD(snapshot.totals.cost / Math.max(1, snapshot.totals.entries))}</b>
-            </li>
-            <li>
-              <Glyph className="ins-records-icon">{RECORD_ICONS[8]}</Glyph>
-              <span>busiest hour · {winLabel('30d')}</span>
-              <b>
-                {ins.busiest
-                  ? `${WEEKDAYS[ins.busiest.wd]} ${String(ins.busiest.hour).padStart(2, '0')}:00 · ${fmtTok(ins.busiest.v)} tok`
-                  : '—'}
-              </b>
-            </li>
-            <li title="your lightest active hour over the last 30 days — when your 5-hour and weekly limit windows have seen the least competing usage, so a heavy task started here has the most headroom (may fall outside working hours)">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[9]}</Glyph>
-              <span>best time to start</span>
-              <b style={{ color: ins.bestStartHour != null ? 'var(--sage)' : undefined }}>
-                {ins.bestStartHour != null
-                  ? `around ${String(ins.bestStartHour).padStart(2, '0')}:00`
-                  : '—'}
-              </b>
-            </li>
-            <li title="days above median + 3.5 robust σ of the range">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[10]}</Glyph>
-              <span>spike days · {winLabel('35d')}</span>
-              <b style={ins.spikeDays > 0 ? { color: 'var(--warn)' } : undefined}>
-                {ins.spikeDays > 0 ? ins.spikeDays : 'none'}
-              </b>
-            </li>
-            <li title="among the most recent 150 sessions">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[11]}</Glyph>
-              <span>costliest session</span>
-              <b>
-                {costliest ? `${fmtUSD(costliest.cost)} · ${projectName(costliest.project)}` : '—'}
-              </b>
-            </li>
-            <li title="entries still flagged sidechain after dedupe — a floor on true subagent spend">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[12]}</Glyph>
-              <span>subagent share</span>
-              <b>
-                {snapshot.sidechain.cost > 0 && snapshot.totals.cost > 0
-                  ? `${fmtPct((snapshot.sidechain.cost / snapshot.totals.cost) * 100, 1)} · ${fmtUSD(snapshot.sidechain.cost)}`
-                  : '—'}
-              </b>
-            </li>
-            <li title="responses cut off by the output-token ceiling (stop_reason max_tokens)">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[13]}</Glyph>
-              <span>truncated · max_tokens</span>
-              <b
-                style={
-                  (snapshot.stopReasons.max_tokens || 0) > 0 ? { color: 'var(--warn)' } : undefined
+          {recon && recon.compared > 0 && (
+            <div className="g5">
+              <Panel
+                title={
+                  <>
+                    cost reconciliation{' '}
+                    <Hint label="what is this?">
+                      Compares the cost Claude Code recorded on each message against ccmon&apos;s
+                      own token-based calculation, always calculating fresh regardless of your cost
+                      mode (otherwise the two would be the same number by definition). Only messages
+                      that carry a recorded cost can be compared, and models with no known price are
+                      skipped rather than scored as a total mismatch — so treat this as a check on
+                      the overlap, not on your whole bill.
+                    </Hint>
+                  </>
+                }
+                right={
+                  <span className="panel-note">
+                    {fmtPct(recon.coverage)} of {fmtInt(recon.total)} msgs
+                  </span>
                 }
               >
-                {snapshot.stopReasons.max_tokens
-                  ? `${fmtInt(snapshot.stopReasons.max_tokens)} turn${snapshot.stopReasons.max_tokens === 1 ? '' : 's'}`
-                  : 'none'}
-              </b>
-            </li>
-            <li title="context compactions across all scoped sessions">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[14]}</Glyph>
-              <span>compactions</span>
-              <b>{snapshot.compactions ? fmtInt(snapshot.compactions) : 'none'}</b>
-            </li>
-            <li title="estimated input + cache-read cost paid to re-ingest context on the first turn after each compaction (a floor — counts only that first turn)">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[15]}</Glyph>
-              <span>compaction re-reads</span>
-              <b>
-                {snapshot.compactionReread.turns
-                  ? `${fmtUSD(snapshot.compactionReread.costUSD)} · ${fmtInt(snapshot.compactionReread.turns)} turn${snapshot.compactionReread.turns === 1 ? '' : 's'}`
-                  : 'none'}
-              </b>
-            </li>
-            <li title="volume of tool_result output returned to the model and re-fed as input on later turns — estimated tokens (chars ÷ 4); transcripts carry no exact per-result count">
-              <Glyph className="ins-records-icon">{RECORD_ICONS[16]}</Glyph>
-              <span>tool output · est</span>
-              <b>
-                {snapshot.toolResults.count
-                  ? `~${fmtTok(snapshot.toolResults.estTokens)} tok · ${fmtInt(snapshot.toolResults.count)} results`
-                  : 'none'}
-              </b>
-            </li>
-          </ul>
-        </Panel>
-      </div>
-
-      {/* tool usage */}
-      {snapshot.toolUse.rows.length > 0 && (
-        <div className="g12">
-          <Panel
-            title="tool usage"
-            right={
-              <span className="panel-note">
-                {fmtInt(snapshot.toolUse.invocations)} invocations ·{' '}
-                {fmtPct(
-                  snapshot.totals.entries > 0
-                    ? (snapshot.toolUse.turns / snapshot.totals.entries) * 100
-                    : 0,
-                )}{' '}
-                of turns use tools · {winLabel('all-time')}
-              </span>
-            }
-          >
-            <div className="ins-tools">
-              {snapshot.toolUse.rows.map((t) => {
-                const maxInv = snapshot.toolUse.rows[0].invocations || 1;
-                return (
-                  <div className="ins-tool" key={t.name} title={t.name}>
-                    <span className="ins-tool-name">{toolLabel(t.name)}</span>
-                    <span className="ins-tool-track">
-                      <i style={{ width: `${Math.max(2, (t.invocations / maxInv) * 100)}%` }} />
-                    </span>
-                    <b>{fmtInt(t.invocations)}</b>
-                    <span className="ins-tool-cost">{fmtUSD(t.cost)}</span>
+                <div className="set-kv">
+                  <div>
+                    <span>recorded</span>
+                    <b>{fmtUSD(recon.recorded)}</b>
                   </div>
-                );
-              })}
+                  <div>
+                    <span>ccmon calculates</span>
+                    <b>{fmtUSD(recon.calculated)}</b>
+                  </div>
+                  <div>
+                    <span>drift</span>
+                    <b>
+                      {recon.drift >= 0 ? '+' : '−'}
+                      {fmtUSD(Math.abs(recon.drift))} ({fmtPct(Math.abs(recon.driftPct))})
+                    </b>
+                  </div>
+                </div>
+                {recon.byModel.length > 0 && (
+                  <ul className="ins-records">
+                    {recon.byModel.slice(0, 5).map((m) => (
+                      <li key={m.key}>
+                        <span>{m.key}</span>
+                        <b>
+                          {m.calculated - m.recorded >= 0 ? '+' : '−'}
+                          {fmtUSD(Math.abs(m.calculated - m.recorded))}
+                        </b>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Panel>
             </div>
-            <Hint label="how to read this">
-              invocations count tool_use blocks in your transcripts; the cost is the estimated cost
-              of the turns where the tool appears. a turn that uses several tools counts fully
-              toward each, so the cost column overlaps — it shows where tokens go, not an exact
-              split.
-            </Hint>
-          </Panel>
-        </div>
+          )}
+          <div className="g5">
+            <Panel
+              title={
+                <>
+                  records{' '}
+                  <Hint label="what is this?">
+                    Your all-time highs and averages across all tracked sessions.
+                  </Hint>
+                </>
+              }
+              right={<span className="panel-note">all-time</span>}
+            >
+              <ul className="ins-records">
+                <li>
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[0]}</Glyph>
+                  <span>best day</span>
+                  <b>
+                    {records.maxDay
+                      ? `${fmtUSD(records.maxDay.cost)} · ${dayLabel(records.maxDay.date)}`
+                      : '—'}
+                  </b>
+                </li>
+                <li>
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[1]}</Glyph>
+                  <span>longest session</span>
+                  <b>
+                    {records.longestSession
+                      ? `${fmtDuration(records.longestSession.durationMs)} · ${projectName(records.longestSession.project)}`
+                      : '—'}
+                  </b>
+                </li>
+                <li>
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[2]}</Glyph>
+                  <span>biggest 5h block</span>
+                  <b>{fmtTok(records.maxBlockTokens)} tok</b>
+                </li>
+                <li>
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[3]}</Glyph>
+                  <span>streak</span>
+                  <b>
+                    {records.streak.current}d now · {records.streak.longest}d best
+                  </b>
+                </li>
+                <li>
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[4]}</Glyph>
+                  <span>active days</span>
+                  <b>
+                    {records.activeDays} of {records.totalDays}
+                    {records.totalDays > 0
+                      ? ` (${Math.round((records.activeDays / records.totalDays) * 100)}%)`
+                      : ''}
+                  </b>
+                </li>
+                <li>
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[5]}</Glyph>
+                  <span>avg / active day</span>
+                  <b>{fmtUSD(records.avgDailyCost)}</b>
+                </li>
+                <li title="average context window size (input + cache read tokens) sent to the model per CLI turn">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[6]}</Glyph>
+                  <span>avg context / turn</span>
+                  <b>
+                    {fmtTok(
+                      Math.round(
+                        (snapshot.totals.in + snapshot.totals.read) /
+                          Math.max(1, snapshot.totals.entries),
+                      ),
+                    )}{' '}
+                    tok
+                  </b>
+                </li>
+                <li title="average estimated cost per CLI turn (input, output, and caching cost)">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[7]}</Glyph>
+                  <span>avg cost / turn</span>
+                  <b>{fmtUSD(snapshot.totals.cost / Math.max(1, snapshot.totals.entries))}</b>
+                </li>
+                <li>
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[8]}</Glyph>
+                  <span>busiest hour · {winLabel('30d')}</span>
+                  <b>
+                    {ins.busiest
+                      ? `${WEEKDAYS[ins.busiest.wd]} ${String(ins.busiest.hour).padStart(2, '0')}:00 · ${fmtTok(ins.busiest.v)} tok`
+                      : '—'}
+                  </b>
+                </li>
+                <li title="your lightest active hour over the last 30 days — when your 5-hour and weekly limit windows have seen the least competing usage, so a heavy task started here has the most headroom (may fall outside working hours)">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[9]}</Glyph>
+                  <span>best time to start</span>
+                  <b style={{ color: ins.bestStartHour != null ? 'var(--sage)' : undefined }}>
+                    {ins.bestStartHour != null
+                      ? `around ${String(ins.bestStartHour).padStart(2, '0')}:00`
+                      : '—'}
+                  </b>
+                </li>
+                <li title="days above median + 3.5 robust σ of the range">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[10]}</Glyph>
+                  <span>spike days · {winLabel('35d')}</span>
+                  <b style={ins.spikeDays > 0 ? { color: 'var(--warn)' } : undefined}>
+                    {ins.spikeDays > 0 ? ins.spikeDays : 'none'}
+                  </b>
+                </li>
+                <li title="among the most recent 150 sessions">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[11]}</Glyph>
+                  <span>costliest session</span>
+                  <b>
+                    {costliest
+                      ? `${fmtUSD(costliest.cost)} · ${projectName(costliest.project)}`
+                      : '—'}
+                  </b>
+                </li>
+                <li title="entries still flagged sidechain after dedupe — a floor on true subagent spend">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[12]}</Glyph>
+                  <span>subagent share</span>
+                  <b>
+                    {snapshot.sidechain.cost > 0 && snapshot.totals.cost > 0
+                      ? `${fmtPct((snapshot.sidechain.cost / snapshot.totals.cost) * 100, 1)} · ${fmtUSD(snapshot.sidechain.cost)}`
+                      : '—'}
+                  </b>
+                </li>
+                <li title="responses cut off by the output-token ceiling (stop_reason max_tokens)">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[13]}</Glyph>
+                  <span>truncated · max_tokens</span>
+                  <b
+                    style={
+                      (snapshot.stopReasons.max_tokens || 0) > 0
+                        ? { color: 'var(--warn)' }
+                        : undefined
+                    }
+                  >
+                    {snapshot.stopReasons.max_tokens
+                      ? `${fmtInt(snapshot.stopReasons.max_tokens)} turn${snapshot.stopReasons.max_tokens === 1 ? '' : 's'}`
+                      : 'none'}
+                  </b>
+                </li>
+                <li title="context compactions across all scoped sessions">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[14]}</Glyph>
+                  <span>compactions</span>
+                  <b>{snapshot.compactions ? fmtInt(snapshot.compactions) : 'none'}</b>
+                </li>
+                <li title="estimated input + cache-read cost paid to re-ingest context on the first turn after each compaction (a floor — counts only that first turn)">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[15]}</Glyph>
+                  <span>compaction re-reads</span>
+                  <b>
+                    {snapshot.compactionReread.turns
+                      ? `${fmtUSD(snapshot.compactionReread.costUSD)} · ${fmtInt(snapshot.compactionReread.turns)} turn${snapshot.compactionReread.turns === 1 ? '' : 's'}`
+                      : 'none'}
+                  </b>
+                </li>
+                <li title="volume of tool_result output returned to the model and re-fed as input on later turns — estimated tokens (chars ÷ 4); transcripts carry no exact per-result count">
+                  <Glyph className="ins-records-icon">{RECORD_ICONS[16]}</Glyph>
+                  <span>tool output · est</span>
+                  <b>
+                    {snapshot.toolResults.count
+                      ? `~${fmtTok(snapshot.toolResults.estTokens)} tok · ${fmtInt(snapshot.toolResults.count)} results`
+                      : 'none'}
+                  </b>
+                </li>
+              </ul>
+            </Panel>
+          </div>
+
+          {/* tool usage */}
+          {snapshot.toolUse.rows.length > 0 && (
+            <div className="g12">
+              <Panel
+                title="tool usage"
+                right={
+                  <span className="panel-note">
+                    {fmtInt(snapshot.toolUse.invocations)} invocations ·{' '}
+                    {fmtPct(
+                      snapshot.totals.entries > 0
+                        ? (snapshot.toolUse.turns / snapshot.totals.entries) * 100
+                        : 0,
+                    )}{' '}
+                    of turns use tools · {winLabel('all-time')}
+                  </span>
+                }
+              >
+                <div className="ins-tools">
+                  {snapshot.toolUse.rows.map((t) => {
+                    const maxInv = snapshot.toolUse.rows[0].invocations || 1;
+                    return (
+                      <div className="ins-tool" key={t.name} title={t.name}>
+                        <span className="ins-tool-name">{toolLabel(t.name)}</span>
+                        <span className="ins-tool-track">
+                          <i style={{ width: `${Math.max(2, (t.invocations / maxInv) * 100)}%` }} />
+                        </span>
+                        <b>{fmtInt(t.invocations)}</b>
+                        <span className="ins-tool-cost">{fmtUSD(t.cost)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <Hint label="how to read this">
+                  invocations count tool_use blocks in your transcripts; the cost is the estimated
+                  cost of the turns where the tool appears. a turn that uses several tools counts
+                  fully toward each, so the cost column overlaps — it shows where tokens go, not an
+                  exact split.
+                </Hint>
+              </Panel>
+            </div>
+          )}
+        </>
       )}
-    </>
-  )}
 
       <DayDrilldown date={drillDay} onClose={() => setDrillDay(null)} />
     </div>

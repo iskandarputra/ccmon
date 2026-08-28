@@ -4,6 +4,19 @@
  * @author Iskandar Putra <www.iskandarputra.com>
  */
 
+/**
+ * The force simulation OWNS node positions and mutates them in place every
+ * frame — the canonical d3-force pattern, and the reason 60 fps of physics
+ * costs no re-renders. `react-hooks/immutability` sees the drag handler
+ * pinning a node (`n.fx = n.x`) as modifying a value the memo produced, which
+ * is exactly what it is; holding the same objects in state instead would
+ * re-render the tree on every tick. Disabled here for the same reason the
+ * three other React-Compiler-era rules are WARN in eslint.config.mjs: the
+ * pattern is deliberate, and there are no renderer tests to catch what a
+ * restructure would break.
+ */
+/* eslint-disable react-hooks/immutability */
+
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { fmtUSD, fmtInt } from '../../lib/format';
 import { withAlpha } from '../../lib/palette';

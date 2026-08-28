@@ -64,7 +64,7 @@ function CopyButton({ text, label = 'copy' }: { text: string; label?: string }) 
       className={`copy-btn ${copied ? 'is-copied' : ''}`}
       onClick={(e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(text);
+        void navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
@@ -397,16 +397,32 @@ export function ProjectsView() {
               </p>
             </div>
           ) : mode === 'graph' ? (
-            <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div
+              style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}
+            >
               {/* Project Focus Toolbar */}
               <div className="prj-graph-selector-bar">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}
+                >
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: 'var(--text-faint)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
                     Project Focus:
                   </span>
                   <select
                     className="prj-select"
-                    value={graphProjectScope === 'all' ? 'all' : (selectedPath ?? activeProject?.path ?? 'all')}
+                    value={
+                      graphProjectScope === 'all'
+                        ? 'all'
+                        : (selectedPath ?? activeProject?.path ?? 'all')
+                    }
                     onChange={(e) => {
                       if (e.target.value === 'all') {
                         setGraphProjectScope('all');
@@ -417,17 +433,26 @@ export function ProjectsView() {
                     }}
                     style={{ minWidth: '220px' }}
                   >
-                    <option value="all">⚡ All Projects Combined ({snapshot.knowledge?.hotspots?.length ?? 0} files)</option>
+                    <option value="all">
+                      ⚡ All Projects Combined ({snapshot.knowledge?.hotspots?.length ?? 0} files)
+                    </option>
                     {filtered.map((p) => (
                       <option key={p.path} value={p.path}>
-                        📁 {projectName(p.path)} ({p.hotspots?.length ?? 0} files · {fmtUSD(p.cost)})
+                        📁 {projectName(p.path)} ({p.hotspots?.length ?? 0} files · {fmtUSD(p.cost)}
+                        )
                       </option>
                     ))}
                   </select>
 
-                  <div className="pills" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 480px)' }}>
+                  <div
+                    className="pills"
+                    style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 480px)' }}
+                  >
                     {filtered.slice(0, 6).map((p) => {
-                      const isSel = (graphProjectScope !== 'all' && (selectedPath === p.path || (!selectedPath && activeProject?.path === p.path)));
+                      const isSel =
+                        graphProjectScope !== 'all' &&
+                        (selectedPath === p.path ||
+                          (!selectedPath && activeProject?.path === p.path));
                       return (
                         <button
                           key={p.path}
@@ -454,14 +479,30 @@ export function ProjectsView() {
 
                 {/* Active Project Meta Pill */}
                 {graphProjectScope !== 'all' && activeProject && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', color: 'var(--text-dim)' }}>
-                    <span><b>{activeProject.hotspots?.length ?? 0}</b> files</span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '12px',
+                      color: 'var(--text-dim)',
+                    }}
+                  >
+                    <span>
+                      <b>{activeProject.hotspots?.length ?? 0}</b> files
+                    </span>
                     <span>·</span>
-                    <span><b>{activeProject.layers?.length ?? 0}</b> domains</span>
+                    <span>
+                      <b>{activeProject.layers?.length ?? 0}</b> domains
+                    </span>
                     <span>·</span>
-                    <span><b>{fmtUSD(activeProject.cost)}</b> spend</span>
+                    <span>
+                      <b>{fmtUSD(activeProject.cost)}</b> spend
+                    </span>
                     <span>·</span>
-                    <span><b>{fmtInt(activeProject.sessions)}</b> sessions</span>
+                    <span>
+                      <b>{fmtInt(activeProject.sessions)}</b> sessions
+                    </span>
                   </div>
                 )}
               </div>
@@ -479,7 +520,7 @@ export function ProjectsView() {
                 }
                 title={
                   graphProjectScope === 'all'
-                    ? "All Projects Combined Knowledge Graph"
+                    ? 'All Projects Combined Knowledge Graph'
                     : `${projectName(activeProject?.path ?? '')} Knowledge Graph`
                 }
                 height={620}
