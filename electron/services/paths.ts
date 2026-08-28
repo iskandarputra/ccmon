@@ -94,6 +94,20 @@ export function clearProjectRootCache(): void {
 }
 
 /**
+ * Pick the path FLAVOUR a stored path is written in, rather than the host's.
+ *
+ * A `cwd` in a transcript is DATA, not a path on this machine: a Windows
+ * transcript carries `C:\repo\src`, a Linux one `/home/u/repo/src`, and the
+ * same file can be read on either OS. Running a POSIX path through the win32
+ * `path` module rewrites `/p/alpha` to `\p\alpha`, which silently changes the
+ * project key everything groups, labels and exports by — so the flavour has to
+ * follow the string, not `process.platform`.
+ */
+function flavourFor(p: string): path.PlatformPath {
+  return /^[a-zA-Z]:[\\/]/.test(p) || p.includes('\\') ? path.win32 : path.posix;
+}
+
+/**
  * Resolve the canonical repository / project root for a given working directory path.
  *
  * When developers run Claude Code in subfolders (e.g. `repo/backend`, `repo/frontend`,
@@ -101,32 +115,42 @@ export function clearProjectRootCache(): void {
  * transcript `cwd` reflects the subfolder. This function detects the enclosing `.git`
  * repository root or worktree parent so sessions and turns in the same repo roll up
  * cohesively into a single unified project in the Project Explorer and Session Explorer.
+ *
+ * The `.git` probe only ever succeeds for paths that exist on THIS machine; for a
+ * path from another OS the walk finds nothing and the normalised path comes back
+ * unchanged, which is the right answer rather than an error.
  */
 export function resolveProjectRoot(rawPath: string): string {
   if (!rawPath || typeof rawPath !== 'string') return rawPath;
   const cached = rootCache.get(rawPath);
   if (cached !== undefined) return cached;
 
-  let p = path.normalize(rawPath);
+  const pp = flavourFor(rawPath);
+  let p = pp.normalize(rawPath);
 
-  // If inside a worktree (e.g. .../.claude/worktrees/wf_123 or .../.worktrees/feature), collapse to main repo root
-  const claudeWtIdx = p.indexOf('/.claude/worktrees');
+  // If inside a worktree (e.g. .../.claude/worktrees/wf_123 or .../.worktrees/feature),
+  // collapse to main repo root. The markers are built from the flavour's separator —
+  // hardcoded '/' never matched a Windows path and left the collapse dead there.
+  const claudeWtIdx = p.indexOf(`${pp.sep}.claude${pp.sep}worktrees`);
   if (claudeWtIdx !== -1) {
     p = p.slice(0, claudeWtIdx);
   } else {
-    const wtIdx = p.indexOf('/.worktrees');
+    const wtIdx = p.indexOf(`${pp.sep}.worktrees`);
     if (wtIdx !== -1) {
       p = p.slice(0, wtIdx);
     }
   }
 
   const home = os.homedir();
-  let current = path.resolve(p);
+  // Relative paths are resolved against this process; absolute ones are already
+  // canonical in their own flavour and must not be re-rooted onto the host drive.
+  let current = pp.isAbsolute(p) ? p : path.resolve(p);
 
-  // Walk up checking for .git (directory or worktree file)
-  while (current && current !== '/' && current !== home && current !== path.dirname(current)) {
+  // Walk up checking for .git (directory or worktree file). `dirname` is a fixed
+  // point at the root, which terminates the walk for both `/` and `C:\`.
+  while (current && current !== home && current !== pp.dirname(current)) {
     try {
-      const gitPath = path.join(current, '.git');
+      const gitPath = pp.join(current, '.git');
       if (fs.existsSync(gitPath)) {
         rootCache.set(rawPath, current);
         return current;
@@ -135,7 +159,7 @@ export function resolveProjectRoot(rawPath: string): string {
       /* inaccessible folder — stop upward traversal */
       break;
     }
-    current = path.dirname(current);
+    current = pp.dirname(current);
   }
 
   rootCache.set(rawPath, p);
