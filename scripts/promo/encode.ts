@@ -69,9 +69,18 @@ function main(): void {
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
+  // A beat that is not in the take used to resolve to 0, which silently cut a
+  // highlight segment out of the opening frames instead of the view it names.
+  // Beat names are declared in tour.ts; a mismatch is a bug, so say so.
   const rel = (name: string): number => {
     const b = beats.find((x) => x.name === name);
-    return b ? Math.max(0, b.t - t0) : 0;
+    if (!b) {
+      throw new Error(
+        `[encode] take has no beat "${name}" — HIGHLIGHTS in encode.ts and the ` +
+          `beat names in tour.ts have diverged (take has: ${beats.map((x) => x.name).join(', ')})`,
+      );
+    }
+    return Math.max(0, b.t - t0);
   };
   // master window: shave the camera-up head and let the fade absorb the
   // closing dwell so the tour lands under 30s
@@ -93,19 +102,68 @@ function main(): void {
   console.log(`[encode] ${tourMp4}  ${mb(tourMp4)}  ${probeDuration(tourMp4).toFixed(1)}s`);
 
   // ---- highlight cut (gif + teaser) ---- (times relative to the trimmed master)
-  // one stop per headline view in tour order — including the accounts
-  // dashboard; the 3D stop shows the terrain plus the first mode hop
-  const segs: Array<[number, number]> = [
-    [rel('overview') + 0.4 - mStart, 1.6],
-    [rel('activity') + 0.8 - mStart, 1.8],
-    [rel('insights') + 0.5 - mStart, 1.6],
-    [rel('models') + 0.7 - mStart, 1.8],
-    [rel('projects') + 0.5 - mStart, 1.6],
-    [rel('accounts') + 1.0 - mStart, 2.0],
-    [rel('spatial') + 0.4 - mStart, 2.3],
-  ].map(([s, len]) => {
-    const start = Math.min(Math.max(0, s), dur - 0.1);
-    return [start, Math.min(len, Math.max(0.1, dur - start))];
+  // One stop per headline view, in tour order. Beat names MUST match those
+  // declared in tour.ts#ACTS — rel() throws rather than silently cutting the
+  // opening frames in place of a beat that was renamed.
+  // [beat, offset into the beat, seconds to hold]
+  //
+  // Offsets are measured from a FULLY PAINTED view: tour.ts#arrive stamps the
+  // beat only after the 300ms `.view-anim` entrance fade has finished. They
+  // used to be measured from the moment navigation was requested, so a small
+  // offset opened its segment on a view still at opacity 0 — a blank page in
+  // the gif with the shell painted around it. Keep offsets pointed at the
+  // MOMENT worth showing, not at padding for a fade that is already over.
+  const HIGHLIGHTS: Array<[string, number, number]> = [
+    ['pulse', 0.2, 1.7],
+    ['analytics', 1.6, 1.8], //  after the tab switch, so the sub-nav reads
+    ['projects', 0.2, 1.6], //   beat is stamped on the grid itself (branching act)
+    ['accounts', 1.3, 2.1], //   after the scroll lands on the pacing banner
+    ['advisor', 0.3, 1.7],
+    ['themes', 2.2, 2.0], //     mid theme-tour, so the palette visibly swaps
+    ['spatial', 0.3, 2.4],
+  ];
+
+  /**
+   * Keep this much clear of the act's end. The next act navigates immediately
+   * after, and `.view-anim` fades the new view in from opacity 0 over 300ms —
+   * a segment that ran to the wire ended on a blank page in the gif.
+   */
+  const TAIL_MARGIN = 0.45;
+
+  const segs: Array<[number, number]> = HIGHLIGHTS.map(([name, off, len]) => {
+    const start = Math.min(Math.max(0, rel(name) + off - mStart), dur - 0.1);
+    // clamp to the act's own end, so a segment can never bleed into the next
+    // view's entrance fade no matter how the choreography is retimed
+    const actEnd = rel(`${name}:end`) - mStart - TAIL_MARGIN;
+    const room = Math.max(0.4, Math.min(dur, actEnd) - start);
+    const kept = Math.min(len, room);
+    if (kept < len - 0.05) {
+      console.warn(
+        `[encode] segment "${name}" trimmed ${len.toFixed(1)}s → ${kept.toFixed(1)}s ` +
+          `to stay inside its act. Lower its offset or lengthen the act in tour.ts.`,
+      );
+    }
+    // A segment is only as good as the frames behind it. startScreencast emits
+    // NOTHING while the page is still, and the concat holds the last frame it
+    // did get across the gap — so a segment whose window contains no fresh
+    // frame silently shows whatever was on screen BEFORE it. That is how the
+    // projects segment came to show the knowledge graph: the grid was up, the
+    // beat was correct, and 3.4s passed with zero frames captured.
+    // Use tour.ts#dwell for any dwell the gif is meant to show.
+    const absStart = start + mStart;
+    const newest = frames.reduce(
+      (best, f) => (f.ts - t0 <= absStart && f.ts - t0 > best ? f.ts - t0 : best),
+      -Infinity,
+    );
+    const staleness = absStart - newest;
+    if (Number.isFinite(newest) && staleness > 0.5) {
+      console.warn(
+        `[encode] segment "${name}" opens on a frame ${staleness.toFixed(1)}s stale — ` +
+          `nothing repainted during that dwell, so it will show the PREVIOUS screen. ` +
+          `Wrap that dwell in tour.ts#dwell() so the compositor emits frames.`,
+      );
+    }
+    return [start, Math.min(kept, Math.max(0.1, dur - start))] as [number, number];
   });
 
   const trims = segs
