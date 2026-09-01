@@ -111,6 +111,23 @@ export interface NavGroup {
   items: ViewDef[];
 }
 
+/**
+ * The key that selects VIEWS[i], and the badge NavItem prints for it. ONE
+ * alphabet, exported, because the badge and `App.tsx#useViewHotkeys` used to
+ * derive their own: the badge printed '0'/'-' for the last two views while the
+ * handler did `Number(e.key) - 1`, which is -1 for '0' and NaN for '-'. Both
+ * badges promised a key that did nothing. Anything reading a view hotkey must
+ * come through here.
+ */
+export const VIEW_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='] as const;
+
+/** The key for a position in VIEWS, or '' past the end of the alphabet. */
+export const hotkeyFor = (index: number): string => VIEW_KEYS[index] ?? '';
+
+/** VIEWS index for a pressed key, or -1 when the key is not a view hotkey. */
+export const viewIndexForKey = (key: string): number =>
+  (VIEW_KEYS as readonly string[]).indexOf(key);
+
 interface NavItemProps {
   view: ViewDef;
   index: number;
@@ -123,7 +140,7 @@ function NavItem({ view, index, active, onSelect }: NavItemProps) {
     <button
       className={`nav-item ${active ? 'is-active' : ''}`}
       onClick={() => onSelect(view.id)}
-      title={`${view.label} (${index + 1})`}
+      title={hotkeyFor(index) ? `${view.label} (${hotkeyFor(index)})` : view.label}
     >
       <svg
         className="nav-icon"
@@ -138,12 +155,18 @@ function NavItem({ view, index, active, onSelect }: NavItemProps) {
         {ICONS[view.id]}
       </svg>
       <span className="nav-label">{view.label}</span>
-      <span className="nav-key">
-        {index + 1 <= 9 ? index + 1 : index === 9 ? '0' : index === 10 ? '-' : '='}
-      </span>
+      <span className="nav-key">{hotkeyFor(index)}</span>
     </button>
   );
 }
+
+/**
+ * Position of a view in VIEWS — which is exactly the hotkey `useViewHotkeys`
+ * binds it to. The secondary groups below render views out of VIEWS order, so
+ * they MUST look their index up rather than count their own children: the
+ * hardcoded 5/6/11 this replaces printed 6/7/= on keys that were really 5/6/-.
+ */
+const viewIndex = (id: ViewId): number => VIEWS.findIndex((v) => v.id === id);
 
 export function Sidebar() {
   const view = useUsageStore((s) => s.view);
@@ -166,13 +189,13 @@ export function Sidebar() {
         <div className="nav-group-title">Tools</div>
         <NavItem
           view={{ id: 'spatial', label: '3d canvas' }}
-          index={5}
+          index={viewIndex('spatial')}
           active={view === 'spatial'}
           onSelect={setView}
         />
         <NavItem
           view={{ id: 'advisor', label: 'ai advisor' }}
-          index={6}
+          index={viewIndex('advisor')}
           active={view === 'advisor'}
           onSelect={setView}
         />
@@ -180,7 +203,7 @@ export function Sidebar() {
       <div className="nav-group nav-group-system">
         <NavItem
           view={{ id: 'settings', label: 'settings' }}
-          index={11}
+          index={viewIndex('settings')}
           active={view === 'settings'}
           onSelect={setView}
         />

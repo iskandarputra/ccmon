@@ -103,27 +103,62 @@ describe('Codex sessions — one lock file per running session', () => {
     fs.mkdirSync(path.join(root, 'thread-writer-locks'), { recursive: true });
     return root;
   };
+  const GHOST = '01a0421d-433f-7883-96cc-4f767305210a';
+  const lock = (root: string, id: string) =>
+    fs.writeFileSync(path.join(root, 'thread-writer-locks', `${id}.lock`), '');
+
+  /** Codex is running, so a lock is taken at face value. */
+  const RUNNING = { codexRunning: () => true };
+  /** Not Linux, or /proc unreadable — we cannot tell, so do not guess. */
+  const UNKNOWN = { codexRunning: () => null };
 
   it('counts a session lock', () => {
     const root = codexHome();
-    const id = '01a0421d-433f-7883-96cc-4f767305210a';
-    fs.writeFileSync(path.join(root, 'thread-writer-locks', `${id}.lock`), '');
+    lock(root, GHOST);
 
-    const live = liveSessions(root);
+    const live = liveSessions(root, RUNNING);
     expect(live).toHaveLength(1);
-    expect(live[0].id).toBe(id);
+    expect(live[0].id).toBe(GHOST);
   });
 
   it("ignores Codex's own coordination lock", () => {
     // a dotfile, and not a session — counting it would report a phantom
     const root = codexHome();
     fs.writeFileSync(path.join(root, 'thread-writer-locks', '.coordination.lock'), '');
-    expect(liveSessions(root)).toEqual([]);
+    expect(liveSessions(root, RUNNING)).toEqual([]);
   });
 
   it('returns nothing when Codex has never run', () => {
     const root = path.join(home, '.codex-fresh');
     fs.mkdirSync(root, { recursive: true });
-    expect(liveSessions(root)).toEqual([]);
+    expect(liveSessions(root, RUNNING)).toEqual([]);
+  });
+
+  it('reports nothing when NO Codex process is running — a crash leaves its lock behind', () => {
+    // The bug this pins: Codex died on 2026-08-27 without removing its writer
+    // lock, and ccmon reported "1 running" for five days afterwards. The lock
+    // file is empty, so it carries no pid to probe — but if the machine is
+    // running no Codex at all, every lock in the directory is provably stale.
+    const root = codexHome();
+    lock(root, GHOST);
+    lock(root, '01a02841-40f3-74a0-a1d0-8ce4d9eeed7c');
+
+    expect(liveSessions(root, { codexRunning: () => false })).toEqual([]);
+  });
+
+  it('keeps counting locks when process state cannot be determined', () => {
+    // macOS and Windows have no /proc. Reporting zero there would be a WORSE
+    // error than the stale lock: a live session would vanish from the UI.
+    const root = codexHome();
+    lock(root, GHOST);
+    expect(liveSessions(root, UNKNOWN)).toHaveLength(1);
+  });
+
+  it('leaves Claude accounts alone — they are pid-checked already', () => {
+    // the Codex refinement must not reach the Claude path, whose registry
+    // carries a real pid and needs no process-table scan
+    const root = claudeRoot();
+    writeSession(root, SELF);
+    expect(liveSessions(root, { codexRunning: () => false })).toHaveLength(1);
   });
 });
