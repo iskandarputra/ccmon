@@ -110,7 +110,65 @@ function claudeSessions(root: string): LiveSession[] {
   return out;
 }
 
-function codexSessions(home: string): LiveSession[] {
+/**
+ * Is ANY Codex process running on this machine?
+ *
+ *   true  — at least one; a lock file may well be genuine
+ *   false — none at all; every lock file is therefore stale
+ *   null  — cannot tell (not Linux, or /proc unreadable)
+ *
+ * Codex's writer lock is an EMPTY file, so unlike Claude's registry it carries
+ * no pid to probe. But "no Codex is running" is enough on its own to condemn
+ * every lock in the directory, and that is the case this exists for: a session
+ * that crashed on 2026-08-27 left its lock behind and ccmon reported
+ * "1 running" for the next five days.
+ *
+ * Linux only, and that is fine — it is a REFINEMENT, exactly like
+ * `procStartTicks` above, not the liveness test. Elsewhere it returns null and
+ * the count stays presence-based.
+ *
+ * Deliberately NOT an flock probe. On Linux `flock(2)` and `fcntl(F_SETLK)`
+ * locks occupy independent spaces — a file held with one does not block the
+ * other — and Codex's `thread-store/src/local/writer_lock.rs` gives no
+ * guarantee which it uses. Guessing wrong would report ZERO sessions while one
+ * was genuinely running, which is a worse error than the stale lock, and Node
+ * cannot take an fcntl lock without a native module this project forbids.
+ */
+function codexProcessRunning(): boolean | null {
+  if (process.platform !== 'linux') return null;
+  let entries: string[];
+  try {
+    entries = fs.readdirSync('/proc');
+  } catch {
+    return null;
+  }
+  let sawProcess = false;
+  for (const entry of entries) {
+    if (!/^\d+$/.test(entry)) continue;
+    sawProcess = true;
+    // `comm` is the cheap check; it is truncated to 15 chars, which 'codex'
+    // clears comfortably. A process that raced with us simply yields nothing.
+    try {
+      if (fs.readFileSync(`/proc/${entry}/comm`, 'utf8').trim() === 'codex') return true;
+    } catch {
+      continue;
+    }
+    // argv[0] as a fallback, for a renamed or wrapped binary
+    try {
+      const argv0 = fs.readFileSync(`/proc/${entry}/cmdline`, 'utf8').split('\0')[0];
+      if (argv0 && path.basename(argv0) === 'codex') return true;
+    } catch {
+      /* nothing more to try for this pid */
+    }
+  }
+  // No numeric entries at all means /proc is not what we think it is.
+  return sawProcess ? false : null;
+}
+
+function codexSessions(home: string, codexRunning: boolean | null): LiveSession[] {
+  // Every lock is stale when nothing is running — see codexProcessRunning().
+  if (codexRunning === false) return [];
+
   const dir = path.join(home, 'thread-writer-locks');
   let names: string[];
   try {
@@ -134,12 +192,26 @@ function codexSessions(home: string): LiveSession[] {
   return out;
 }
 
+/** Injection seam — the tests drive the Codex process check directly. */
+export interface SessionProbe {
+  /** See codexProcessRunning(): true | false | null (unknowable). */
+  codexRunning?: () => boolean | null;
+}
+
 /**
  * Sessions running right now under this account root.
  *
- * Codex's lock file is presence-only: a crashed session can leave one behind,
- * so its count is an upper bound. Claude's is pid-checked and therefore exact.
+ * Claude's registry carries a pid, so its count is exact. Codex's lock file is
+ * empty and presence-only, so its count remains an UPPER BOUND — with one
+ * exception that matters in practice: when no Codex process is running at all,
+ * every lock is provably stale and the count is zero. That single check is what
+ * stops a crashed session from being reported as live indefinitely.
+ *
+ * The bound still holds the other way: two stale locks plus one live session
+ * report three. Narrowing that needs a way to tie a lock to a pid, which the
+ * empty lock file does not offer.
  */
-export function liveSessions(root: string): LiveSession[] {
-  return toolForRoot(root).id === 'codex' ? codexSessions(root) : claudeSessions(root);
+export function liveSessions(root: string, probe: SessionProbe = {}): LiveSession[] {
+  if (toolForRoot(root).id !== 'codex') return claudeSessions(root);
+  return codexSessions(root, (probe.codexRunning ?? codexProcessRunning)());
 }

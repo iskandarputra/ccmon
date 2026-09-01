@@ -389,9 +389,17 @@ exercised only against mocks on Linux. `build.yml` cuts releases on tags.
   `procStart` on Linux — that second check is what rules out a REUSED pid,
   which would otherwise report a long-dead session as running. macOS and
   Windows get the portable probe alone and cannot make that distinction;
-  `sessions.test.ts` asserts both behaviours rather than skipping. Codex's
-  count is an upper bound (a crashed session leaves its lock); Claude's is
-  exact. Polled locally every 10 s and diffed, so an unchanged set is free.
+  `sessions.test.ts` asserts both behaviours rather than skipping. Claude's
+  count is exact. Codex's lock file is EMPTY — no pid to probe — so its count
+  stays an upper bound, with one refinement that matters: if NO Codex process
+  is running at all (`/proc` scan, Linux only, `null` elsewhere), every lock is
+  provably stale and the count is zero. Without that, a session that crashes
+  without cleaning up is reported as running forever — observed at 5 days.
+  Do NOT "improve" this with an flock probe: on Linux `flock(2)` and
+  `fcntl(F_SETLK)` are independent lock spaces, so a wrong guess about which
+  Codex uses would report ZERO during a live session, and Node cannot take an
+  fcntl lock without a native module. Polled locally every 10 s and diffed, so
+  an unchanged set is free.
 - **Two label functions, and they are not interchangeable.**
   `accounts.ts#accountLabel` is the SHORT tray name ('work-ind');
   `format.ts#sourceLabel` is the renderer's fuller one ('claude-work-ind').
