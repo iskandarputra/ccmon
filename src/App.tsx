@@ -9,7 +9,7 @@ import { useBootstrap, updateSettings } from './bootstrap';
 import { useUsageStore, type ViewId } from './store/useUsageStore';
 import { TitleBar } from './components/layout/TitleBar';
 import { StatusBar } from './components/layout/StatusBar';
-import { Sidebar, VIEWS } from './components/layout/Sidebar';
+import { Sidebar, VIEWS, viewIndexForKey } from './components/layout/Sidebar';
 import { ScanOverlay } from './components/overlays/ScanOverlay';
 import { CommandPalette } from './components/CommandPalette';
 import { EmptyState } from './components/overlays/EmptyState';
@@ -75,7 +75,9 @@ function useViewHotkeys(): void {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const idx = Number(e.key) - 1;
+      // VIEW_KEYS is the sidebar's own badge alphabet — see Sidebar.tsx. Doing
+      // the arithmetic here instead is what made '0' and '-' dead keys.
+      const idx = viewIndexForKey(e.key);
       if (idx >= 0 && idx < VIEWS.length) setView(VIEWS[idx].id);
     };
     window.addEventListener('keydown', onKey);
