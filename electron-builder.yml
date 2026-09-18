@@ -35,7 +35,19 @@ compression: normal
 npmRebuild: false
 
 linux:
-  icon: build/icon.png
+  # A directory of size-named PNGs, not the single build/icon.png: pointing
+  # this at one flat .png short-circuits electron-builder's icon converter
+  # into copying it through as ONE size (see gen-icon.ts's docblock) — a
+  # .deb built that way installs only hicolor/1024x1024, which most task
+  # bars/launchers never look at, so they fall back to a generic placeholder.
+  icon: build/icons
+  # Electron reads `desktopName` (package.json) as its own window's app_id /
+  # WM_CLASS at runtime; syncDesktopName makes the installed .desktop's
+  # StartupWMClass match it. Without both, the RUNNING window can fail to
+  # associate with the installed .desktop entry even though the icon files
+  # themselves are fine — a second, independent way to end up with a generic
+  # icon in the taskbar/dock.
+  syncDesktopName: true
   category: Utility
   synopsis: Real-time Claude Code usage monitor
   maintainer: Iskandar Putra <iskandarputra1995@gmail.com>
