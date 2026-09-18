@@ -8,6 +8,7 @@
   "license": "MIT",
   "main": "dist-electron/main.cjs",
   "scripts": {
+    "predev": "npm run icon",
     "dev": "tsx scripts/dev.ts",
     "icon": "tsx scripts/gen-icon.ts",
     "smoke": "tsx scripts/smoke.ts",

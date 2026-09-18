@@ -26,6 +26,7 @@ import {
   effectiveWrapperAccounts,
   isDefaultAccountRoot,
   suggestWrapperName,
+  WRAPPER_NAME_RE,
 } from '../lib/crossAccount';
 import { usesDeepseek } from '../../shared/providers';
 import { accountGroups, type ToolProfile } from '../../shared/tools';
@@ -114,6 +115,7 @@ interface AccountCardProps {
   canScope: boolean;
   accent: string;
   now: number;
+  onSetup: () => void;
 }
 
 /** Executive Profile Card */
@@ -129,6 +131,7 @@ function AccountCard({
   canScope,
   accent,
   now,
+  onSetup,
 }: AccountCardProps) {
   const label = sourceLabel(dir);
   const loggedIn = acct?.hasCredentials ?? false;
@@ -144,6 +147,13 @@ function AccountCard({
   const visibleCount = useUsageStore((s) => s.sourceDirs.length);
   const prefs = useUsageStore((s) => s.settings?.accountWrapperPrefs) ?? {};
   const wrapperName = prefs[root]?.name || suggestWrapperName(root);
+  // The default root runs via the bare `claude`/`codex` binary — no wrapper
+  // needed. Any other root only works through a wrapper ccmon has actually
+  // written, which `applySetup` records by stamping `prefs[root].name`; a
+  // sibling folder that just appeared (e.g. copied in from another machine)
+  // has no prefs entry yet, so the command shown above is a suggestion, not
+  // something that exists in the shell.
+  const wrapperLinked = isDefault || !!prefs[root]?.name;
 
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -190,18 +200,63 @@ function AccountCard({
   async function confirmRename() {
     const clean = renameSuffix.trim();
     if (!clean) return;
-    setRenameBusy(true);
     setRenameErr(null);
+
+    // A wrapper is a shell FUNCTION NAME, and every account's function lives
+    // in the same shell namespace no matter which tool owns it or which
+    // managed file it was written into — landing on a name another account
+    // already uses means whichever gets applied last silently shadows the
+    // other. Catch that before writing anything, not after a partial apply.
+    const proposedName = isDefault ? clean : `${tool.id}-${clean}`;
+    const collision = effectiveWrapperAccounts(allSourceDirs, prefs).find(
+      (a) => a.root !== root && a.name === proposedName,
+    );
+    if (collision) {
+      setRenameErr(`"${proposedName}" is already used by ${tildify(collision.root)}`);
+      return;
+    }
+    // The non-default path composes its name from tool.id + a `SUFFIX_RE`
+    // suffix the server already validates; the default path sends `clean`
+    // straight through as the final name, so it needs the same shape check
+    // client-side instead of failing only once it reaches the server.
+    if (isDefault && !WRAPPER_NAME_RE.test(clean)) {
+      setRenameErr('use letters, digits, dash or underscore, starting with a letter');
+      return;
+    }
+
+    setRenameBusy(true);
     try {
       if (isDefault) {
+        const prevPrefs = prefs;
         const nextPrefs = { ...prefs, [root]: { ...prefs[root], name: clean } };
         updateSettings({ accountWrapperPrefs: nextPrefs });
-        await window.ccmon?.updateWrapperAccounts(
+        const res = await window.ccmon?.updateWrapperAccounts(
           effectiveWrapperAccounts(useUsageStore.getState().sourceDirs, nextPrefs),
         );
+        if (res && !res.ok) {
+          // roll back the optimistic label — the wrapper file was never
+          // written, so keeping the new name in prefs would show a command
+          // that doesn't actually exist in the shell
+          updateSettings({ accountWrapperPrefs: prevPrefs });
+          setRenameErr(res.errors.join(' · '));
+          return;
+        }
         setRenameConfirmOpen(false);
         return;
       }
+
+      // This path moves the account's folder on disk. A session already
+      // running under the OLD wrapper has CLAUDE_CONFIG_DIR/CODEX_HOME baked
+      // into its process env — renaming the directory out from under it turns
+      // its next write into an ENOENT with no way back, so refuse until it's
+      // stopped.
+      if (running.length > 0) {
+        setRenameErr(
+          `stop the ${running.length} running session${running.length === 1 ? '' : 's'} on this account first`,
+        );
+        return;
+      }
+
       const res = await window.ccmon?.renameAccount(root, clean);
       if (!res?.ok) {
         setRenameErr(res?.error || 'rename failed');
@@ -212,11 +267,15 @@ function AccountCard({
       const nextPrefs = { ...prefs };
       const carried = prefs[root];
       delete nextPrefs[root];
-      nextPrefs[newRoot] = { ...carried, name: `claude-${clean}` };
+      nextPrefs[newRoot] = { ...carried, name: proposedName };
       updateSettings({ accountWrapperPrefs: nextPrefs });
-      await window.ccmon?.updateWrapperAccounts(
+      const wrapRes = await window.ccmon?.updateWrapperAccounts(
         effectiveWrapperAccounts(useUsageStore.getState().sourceDirs, nextPrefs),
       );
+      // the folder move already succeeded at this point — an error here means
+      // the wrapper file is stale, not that the rename failed, so surface it
+      // on the (now-renamed) card rather than blocking the dialog close
+      if (wrapRes && !wrapRes.ok) setWrapperErr(wrapRes.errors.join(' · '));
       setRenameConfirmOpen(false);
     } finally {
       setRenameBusy(false);
@@ -376,13 +435,29 @@ function AccountCard({
 
       {/* CLI Command Launcher Bar */}
       <div className="acc-launcher-bar">
-        <div className="acc-cmd-pill">
+        <div className={`acc-cmd-pill${wrapperLinked ? '' : ' is-unlinked'}`}>
           <span className="acc-cmd-prompt">$</span>
           <code className="acc-cmd-text">{wrapperName}</code>
-          <CopyButton text={wrapperName} label="copy" />
+          {wrapperLinked ? (
+            <CopyButton text={wrapperName} label="copy" />
+          ) : (
+            <span className="acc-cmd-unlinked" title="This command doesn't exist in your shell yet">
+              not linked
+            </span>
+          )}
         </div>
 
         <div className="acc-card-actions">
+          {!wrapperLinked && (
+            <button
+              type="button"
+              className="acc-btn-subtle acc-btn-setup"
+              onClick={onSetup}
+              title="Open shell setup to create this account's wrapper"
+            >
+              Set up alias
+            </button>
+          )}
           <button
             type="button"
             className="acc-btn-subtle"
@@ -580,10 +655,16 @@ export function AccountsView() {
       accountWrapperPrefs: { ...prefs, [root]: { ...prefs[root], hidden: false } },
     });
   };
+  // Sibling account folders (e.g. copied in from another machine) that
+  // `detectRoots` already picked up but that have never been through
+  // `applySetup` on THIS machine — the folder and its credentials travel
+  // with a copy, but the shell wrapper does not, so there's nothing to run
+  // yet. The default root is exempt: it works via the bare binary.
+  const needsSetup = groups.filter((g) => !isDefaultAccountRoot(g.root) && !prefs[g.root]?.name);
 
   const top = crossAccountAdvice(accounts, limits)[0] ?? null;
   const [showHeadroom, setShowHeadroom] = useState(false);
-  const [showWizard, setShowWizard] = useState(groups.length === 0);
+  const [showWizard, setShowWizard] = useState(groups.length === 0 || needsSetup.length > 0);
 
   const showDeepseek =
     !!deepseekAuth?.connected || usesDeepseek((models ?? []).map((m) => m.model));
@@ -690,6 +771,19 @@ export function AccountsView() {
         )}
       </div>
 
+      {/* 2.5 New Account Detected Banner */}
+      {needsSetup.length > 0 && (
+        <div className="g12 acc-hidden-bar">
+          <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--amber)' }}>
+            {needsSetup.length} account{needsSetup.length === 1 ? '' : 's'} found without a shell
+            alias yet — {needsSetup.map((g) => sourceLabel(g.dirs[0])).join(', ')}
+          </span>
+          <button type="button" className="acc-btn-subtle" onClick={() => setShowWizard(true)}>
+            Set up shell alias
+          </button>
+        </div>
+      )}
+
       {/* 3. Collapsible Headroom & Pacing Drawer */}
       {(showHeadroom || top?.urgent) && (
         <div className="g12">
@@ -740,6 +834,7 @@ export function AccountsView() {
               canScope={canScope}
               accent={accentFor(i)}
               now={now}
+              onSetup={() => setShowWizard(true)}
             />
           ))}
 
