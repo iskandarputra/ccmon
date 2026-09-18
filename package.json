@@ -1,13 +1,15 @@
 {
   "name": "ccmon",
   "productName": "ccmon",
-  "version": "1.15.0",
+  "desktopName": "ccmon.desktop",
+  "version": "1.16.0",
   "description": "Real-time Claude Code usage monitor — local, private, lofi.",
   "homepage": "https://github.com/iskandarputra/ccmon",
   "author": "Iskandar Putra <iskandarputra1995@gmail.com>",
   "license": "MIT",
   "main": "dist-electron/main.cjs",
   "scripts": {
+    "predev": "npm run icon",
     "dev": "tsx scripts/dev.ts",
     "icon": "tsx scripts/gen-icon.ts",
     "smoke": "tsx scripts/smoke.ts",

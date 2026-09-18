@@ -1,13 +1,28 @@
 /**
  * @file gen-icon.ts
- * @brief Generates build/icon.png (gitignored; CI regenerates).
+ * @brief Generates build/icon.png + build/icons/*.png (gitignored; CI regenerates).
  * @author Iskandar Putra <www.iskandarputra.com>
  *
- * Renders build/icon.png (1024x1024) from scratch — a rounded warm-dark
- * tile with three lofi bars and a live dot. Pure Node (zlib PNG encoder),
- * so the repo carries no binary assets and CI regenerates the icon anywhere.
- * electron-builder derives the Windows .ico and macOS .icns from this one
- * PNG at package time; the Linux .deb/AppImage use the PNG directly.
+ * Renders the icon from scratch — a rounded warm-dark tile with three lofi
+ * bars and a live dot. Pure Node (zlib PNG encoder), so the repo carries no
+ * binary assets and CI regenerates the icon anywhere.
+ *
+ * Two outputs, two different consumers:
+ *  - build/icon.png (1024x1024) is what electron-builder's mac/win icon
+ *    conversion wants (it derives .icns/.ico from a single source file), and
+ *    what main.ts loads at runtime for the window/tray icon.
+ *  - build/icons/<N>x<N>.png, a full freedesktop size set (16-1024), is what
+ *    electron-builder's LINUX packaging wants. Pointing `linux.icon` at a
+ *    single .png short-circuits electron-builder's icon converter: for the
+ *    Linux "set" format the source already has the target extension, so it
+ *    is copied through as ONE size (whatever the source's own dimensions
+ *    are) instead of being resized into the set. Verified by unpacking a
+ *    built .deb: only hicolor/1024x1024/apps/ccmon.png existed — nothing at
+ *    16/24/32/48/64/128/256, which is what task bars and app launchers
+ *    actually request, so they fell back to the desktop theme's generic
+ *    placeholder icon instead. A DIRECTORY of size-named PNGs takes a
+ *    different path in electron-builder (collectIconsFromDir) that uses the
+ *    set as-is, no external conversion tool involved — see electron-builder.yml.
  */
 
 import zlib from 'zlib';
@@ -103,32 +118,55 @@ for (let y = 0; y < S; y++) {
   }
 }
 
-// ---- downsample 2x (premultiplied) ----------------------------------------
-
-const out = Buffer.alloc(OUT * OUT * 4);
-for (let oy = 0; oy < OUT; oy++) {
-  for (let ox = 0; ox < OUT; ox++) {
-    let r = 0;
-    let g = 0;
-    let b = 0;
-    let a = 0;
-    for (let sy = 0; sy < 2; sy++) {
-      for (let sx = 0; sx < 2; sx++) {
-        const o = ((oy * 2 + sy) * S + ox * 2 + sx) * 4;
-        const pa = px[o + 3];
-        r += px[o] * pa;
-        g += px[o + 1] * pa;
-        b += px[o + 2] * pa;
-        a += pa;
+// ---- downsample S→dst, area-weighted + premultiplied ----------------------
+//
+// Generalises the original fixed 2x box filter to an arbitrary output size,
+// so every icon size is drawn straight from the 2048px supersampled scene
+// rather than resizing an already-downsampled copy (which would compound
+// blur on the smallest sizes). `scale` need not be an integer divisor of S —
+// each destination pixel's source rectangle is fractionally weighted at its
+// edges, so odd sizes like 24 or 48 stay correctly area-averaged too.
+function downsample(dst: number): Buffer {
+  const out = Buffer.alloc(dst * dst * 4);
+  const scale = S / dst;
+  for (let oy = 0; oy < dst; oy++) {
+    const sy0 = oy * scale;
+    const sy1 = sy0 + scale;
+    for (let ox = 0; ox < dst; ox++) {
+      const sx0 = ox * scale;
+      const sx1 = sx0 + scale;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let a = 0;
+      let wsum = 0;
+      for (let sy = Math.floor(sy0); sy < Math.ceil(sy1); sy++) {
+        const wy = Math.min(sy + 1, sy1) - Math.max(sy, sy0);
+        if (wy <= 0) continue;
+        for (let sx = Math.floor(sx0); sx < Math.ceil(sx1); sx++) {
+          const wx = Math.min(sx + 1, sx1) - Math.max(sx, sx0);
+          if (wx <= 0) continue;
+          const w = wx * wy;
+          const o = (sy * S + sx) * 4;
+          const pa = px[o + 3];
+          r += px[o] * pa * w;
+          g += px[o + 1] * pa * w;
+          b += px[o + 2] * pa * w;
+          a += pa * w;
+          wsum += w;
+        }
       }
+      const o = (oy * dst + ox) * 4;
+      out[o] = a > 0 ? Math.round(r / a) : 0;
+      out[o + 1] = a > 0 ? Math.round(g / a) : 0;
+      out[o + 2] = a > 0 ? Math.round(b / a) : 0;
+      out[o + 3] = wsum > 0 ? Math.round((a / wsum) * 255) : 0;
     }
-    const o = (oy * OUT + ox) * 4;
-    out[o] = a > 0 ? Math.round(r / a) : 0;
-    out[o + 1] = a > 0 ? Math.round(g / a) : 0;
-    out[o + 2] = a > 0 ? Math.round(b / a) : 0;
-    out[o + 3] = Math.round((a / 4) * 255);
   }
+  return out;
 }
+
+const out = downsample(OUT);
 
 // ---- minimal PNG encoder ----------------------------------------------------
 
@@ -179,7 +217,23 @@ function encodePNG(w: number, h: number, rgba: Buffer): Buffer {
   ]);
 }
 
-const dest = path.join(__dirname, '..', 'build', 'icon.png');
-fs.mkdirSync(path.dirname(dest), { recursive: true });
+const buildDir = path.join(__dirname, '..', 'build');
+const iconsDir = path.join(buildDir, 'icons');
+fs.mkdirSync(iconsDir, { recursive: true });
+
+// The flagship file: main.ts's runtime window/tray icon, and the source
+// electron-builder's mac/win targets convert into .icns/.ico.
+const dest = path.join(buildDir, 'icon.png');
 fs.writeFileSync(dest, encodePNG(OUT, OUT, out));
 console.log(`icon → ${dest} (${OUT}x${OUT}, ${fs.statSync(dest).size} bytes)`);
+
+// The freedesktop hicolor size set: standard sizes any Linux launcher/task
+// bar is likely to ask for. 1024 is re-encoded rather than copied so every
+// file in the set comes from the same code path.
+const LINUX_SIZES = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
+for (const size of LINUX_SIZES) {
+  const buf = size === OUT ? out : downsample(size);
+  const file = path.join(iconsDir, `${size}x${size}.png`);
+  fs.writeFileSync(file, encodePNG(size, size, buf));
+}
+console.log(`icons → ${iconsDir} (${LINUX_SIZES.join(', ')})`);

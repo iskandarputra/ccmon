@@ -8,8 +8,9 @@ dist-cli/
 release/
 *.tsbuildinfo
 
-# generated assets (npm run icon recreates this; CI does too)
+# generated assets (npm run icon recreates these; CI does too)
 build/icon.png
+build/icons/
 
 # promo footage (npm run promo recreates everything here; scripts/promo/ stays tracked)
 /promo/

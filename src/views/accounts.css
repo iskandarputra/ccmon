@@ -627,6 +627,29 @@
   text-overflow: ellipsis;
 }
 
+.acc-cmd-pill.is-unlinked {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+}
+
+.acc-cmd-unlinked {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--amber);
+  white-space: nowrap;
+  flex: none;
+}
+
+.acc-btn-setup {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+}
+.acc-btn-setup:hover {
+  background: color-mix(in srgb, var(--amber) 12%, var(--bg0));
+}
+
 .acc-card-actions {
   display: flex;
   align-items: center;
